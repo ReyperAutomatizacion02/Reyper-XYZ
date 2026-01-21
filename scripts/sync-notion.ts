@@ -1,13 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { Database } from "../utils/supabase/types";
+import moment from "moment";
 
 dotenv.config({ path: ".env.local" });
 
-const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const PROJECTS_DB_ID = "adf5389ca834419fae421f1bd4d31bd9";
-const ITEMS_DB_ID = "9df79ef0992d4f2188fb85295ae7463e";
-const PLANNING_DB_ID = "5083b0901afc47179ff75d8740a64136";
+const NOTION_TOKEN = process.env.NOTION_TOKEN as string;
+const PROJECTS_DB_ID = process.env.NOTION_PROJECTS_DB_ID as string;
+const ITEMS_DB_ID = process.env.NOTION_ITEMS_DB_ID as string;
+const PLANNING_DB_ID = process.env.NOTION_PLANNING_DB_ID as string;
+
+if (!NOTION_TOKEN || !PROJECTS_DB_ID || !ITEMS_DB_ID || !PLANNING_DB_ID) {
+    throw new Error("Missing Notion configuration (Token or Database IDs) in .env.local");
+}
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     throw new Error("Missing Supabase credentials in .env.local");
@@ -65,6 +70,38 @@ function getPlanningThreshold() {
     date.setDate(date.getDate() - 30); // 30 days ago
     date.setHours(0, 0, 0, 0);
     return date.toISOString();
+}
+
+/**
+ * Handles Notion dates by ensuring they have the correct timezone offset (UTC-6)
+ * if they are missing one. This prevents local times from being treated as UTC.
+ */
+function formatNotionDate(dateStr: string | null | undefined) {
+    if (!dateStr) return null;
+
+    // Parse with moment
+    const m = moment(dateStr);
+    if (!m.isValid()) return dateStr;
+
+    // If it's just a date without time (YYYY-MM-DD), keep it as is
+    if (dateStr.length === 10) return dateStr;
+
+    // We want the Supabase table to SHOW the same as the Gantt (local time).
+    // To achieve this, we'll strip the offset and return a local ISO string.
+    // Supplying internal UTC-6 if offset is missing.
+    let localM = m;
+    if (!dateStr.includes("+") && !dateStr.includes("Z") && !/-\d{2}:\d{2}$/.test(dateStr)) {
+        localM = moment(`${dateStr}-06:00`);
+    }
+
+    const result = localM.format("YYYY-MM-DDTHH:mm:ss");
+
+    // Diagnostic logging
+    if (Math.random() < 0.1) {
+        console.log(`[DEBUG] Date transform: ${dateStr} -> ${result}`);
+    }
+
+    return result;
 }
 
 async function runSync() {
@@ -183,13 +220,30 @@ async function runSync() {
     }
 
     // --- PHASE 3: PLANEACIÓN ---
-    console.log("\n📅 Fase 3: Planeación de Producción (Filtrado: Última semana)...");
+    console.log(`\n📅 Fase 3: Planeación de Producción (Filtrado: ${INCREMENTAL_SYNC ? "Últimos 3 días" : "Último mes"})...`);
 
-    // Always filter planning by the last week per user request
+    // Filter planning by FECHA DE CREACION
+    // Full sync: 30 days back
+    // Incremental: 3 days back (getThreshold)
+    const planningDateLimit = INCREMENTAL_SYNC ? getThreshold() : getPlanningThreshold();
+
     let plFilter: any = {
         property: "FECHA DE CREACION",
-        created_time: { on_or_after: getPlanningThreshold() }
+        created_time: { on_or_after: planningDateLimit }
     };
+
+    // If incremental, also filter by last_edited_time for safety
+    if (INCREMENTAL_SYNC) {
+        plFilter = {
+            and: [
+                plFilter,
+                {
+                    timestamp: "last_edited_time",
+                    last_edited_time: { on_or_after: getThreshold() }
+                }
+            ]
+        };
+    }
 
     let hasMorePl = true;
     let plCursor: string | undefined = undefined;
@@ -208,10 +262,10 @@ async function runSync() {
                 register: props["N"]?.title?.[0]?.plain_text || null,
                 machine: props["MAQUINA"]?.select?.name || null,
                 operator: props["OPERADOR"]?.select?.name || null,
-                planned_date: plannedDate?.start || null,
-                planned_end: plannedDate?.end || null,
-                check_in: props["CHECK IN"]?.date?.start || null,
-                check_out: props["CHECK OUT"]?.date?.start || null,
+                planned_date: formatNotionDate(plannedDate?.start),
+                planned_end: formatNotionDate(plannedDate?.end),
+                check_in: formatNotionDate(props["CHECK IN"]?.date?.start),
+                check_out: formatNotionDate(props["CHECK OUT"]?.date?.start),
                 order_id: oId,
                 notion_id: page.id,
                 last_edited_at: page.created_time // Per rule use FECHA DE CREACION for last edited

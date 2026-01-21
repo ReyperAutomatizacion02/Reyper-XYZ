@@ -51,6 +51,7 @@ export type Database = {
                     part_name: string | null
                     project_id: string | null
                     quantity: number | null
+                    image: string | null
                 }
                 Insert: {
                     created_at?: string | null
@@ -64,6 +65,7 @@ export type Database = {
                     part_name?: string | null
                     project_id?: string | null
                     quantity?: number | null
+                    image?: string | null
                 }
                 Update: {
                     created_at?: string | null
@@ -77,6 +79,7 @@ export type Database = {
                     part_code?: string
                     project_id?: string | null
                     quantity?: number | null
+                    image?: string | null
                 }
                 Relationships: [
                     {
@@ -168,6 +171,59 @@ export type Database = {
                     },
                     {
                         foreignKeyName: "scheduled_tasks_order_id_fkey"
+                        columns: ["order_id"]
+                        isOneToOne: false
+                        referencedRelation: "production_orders"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            planning: {
+                Row: {
+                    id: string
+                    register: string | null
+                    machine: string | null
+                    operator: string | null
+                    planned_date: string | null
+                    planned_end: string | null
+                    check_in: string | null
+                    check_out: string | null
+                    order_id: string | null
+                    notion_id: string | null
+                    last_edited_at: string | null
+                    created_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    register?: string | null
+                    machine?: string | null
+                    operator?: string | null
+                    planned_date?: string | null
+                    planned_end?: string | null
+                    check_in?: string | null
+                    check_out?: string | null
+                    order_id?: string | null
+                    notion_id?: string | null
+                    last_edited_at?: string | null
+                    created_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    register?: string | null
+                    machine?: string | null
+                    operator?: string | null
+                    planned_date?: string | null
+                    planned_end?: string | null
+                    check_in?: string | null
+                    check_out?: string | null
+                    order_id?: string | null
+                    notion_id?: string | null
+                    last_edited_at?: string | null
+                    created_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "planning_order_id_fkey"
                         columns: ["order_id"]
                         isOneToOne: false
                         referencedRelation: "production_orders"
