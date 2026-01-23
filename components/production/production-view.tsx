@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
-import { Maximize2, Minimize2, Search, ChevronDown, Filter } from "lucide-react";
+import { Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
+import moment from "moment";
+import { updateTaskSchedule } from "@/app/dashboard/produccion/actions";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useUserPreferences } from "@/hooks/use-user-preferences";
+import { ProductionViewSkeleton } from "@/components/ui/skeleton";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -19,9 +25,178 @@ interface ProductionViewProps {
 }
 
 export function ProductionView({ machines, orders, tasks, operators }: ProductionViewProps) {
+    const router = useRouter();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+
+    // User preferences
+    const { getGanttPrefs, updateGanttPref, isLoading: prefsLoading } = useUserPreferences();
+    const ganttPrefs = getGanttPrefs();
+
+    // Initialize states with defaults, will be updated from preferences
     const [viewMode, setViewMode] = useState<"hour" | "day" | "week">("day");
+    const [showDependencies, setShowDependencies] = useState(true);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [prefsInitialized, setPrefsInitialized] = useState(false);
+    const settingsRef = useRef<HTMLDivElement>(null);
+
+
+    // Initialize from preferences once loaded
+    useEffect(() => {
+        if (!prefsLoading && !prefsInitialized) {
+            if (ganttPrefs.viewMode) setViewMode(ganttPrefs.viewMode);
+            if (ganttPrefs.showDependencies !== undefined) setShowDependencies(ganttPrefs.showDependencies);
+            if (ganttPrefs.zoomLevel) setZoomLevel(ganttPrefs.zoomLevel);
+            // Note: selectedMachines initialized in a separate effect below (needs allMachineNames)
+            setPrefsInitialized(true);
+        }
+    }, [prefsLoading, prefsInitialized, ganttPrefs]);
+
+    // Save viewMode preference
+    const handleViewModeChange = (newMode: "hour" | "day" | "week") => {
+        setViewMode(newMode);
+        setZoomLevel(1); // Reset zoom on mode change
+        updateGanttPref({ viewMode: newMode, zoomLevel: 1 });
+    };
+
+    // Save showDependencies preference
+    const handleShowDependenciesChange = (value: boolean) => {
+        setShowDependencies(value);
+        updateGanttPref({ showDependencies: value });
+    };
+
+    // Save zoomLevel preference
+    const handleZoomChange = (newZoom: number | ((prev: number) => number)) => {
+        setZoomLevel(prev => {
+            const resolvedZoom = typeof newZoom === 'function' ? newZoom(prev) : newZoom;
+            updateGanttPref({ zoomLevel: resolvedZoom });
+            return resolvedZoom;
+        });
+    };
+
+    // Close settings on click outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+                setIsSettingsOpen(false);
+            }
+        };
+
+        if (isSettingsOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isSettingsOpen]);
+
+    // State lifted from GanttSVG
+    const [savedTasks, setSavedTasks] = useState<PlanningTask[]>(tasks);
+    const [optimisticTasks, setOptimisticTasks] = useState<PlanningTask[]>(tasks);
+    const [history, setHistory] = useState<PlanningTask[][]>([]);
+    const [future, setFuture] = useState<PlanningTask[][]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Wrapper for setOptimisticTasks - SIMPLE now, history managed by snapshot
+    const handleTasksChange = (newTasks: React.SetStateAction<PlanningTask[]>) => {
+        setOptimisticTasks(newTasks);
+    };
+
+    const handleHistorySnapshot = (previousState: PlanningTask[]) => {
+        setHistory(h => [...h, previousState]);
+        setFuture([]); // Clear redo history on new action
+    };
+
+    const handleUndo = () => {
+        if (history.length === 0) return;
+        const previousState = history[history.length - 1];
+        const newHistory = history.slice(0, -1);
+
+        setFuture(f => [...f, optimisticTasks]); // Save current to future (Redo stack)
+        setHistory(newHistory);
+        setOptimisticTasks(previousState);
+    };
+
+    const handleRedo = () => {
+        if (future.length === 0) return;
+        const nextState = future[future.length - 1];
+        const newFuture = future.slice(0, -1);
+
+        setHistory(h => [...h, optimisticTasks]); // Save current to history (Undo stack)
+        setFuture(newFuture);
+        setOptimisticTasks(nextState);
+    };
+
+    // Sync props to state
+    React.useEffect(() => {
+        setSavedTasks(tasks);
+        setOptimisticTasks(tasks);
+    }, [tasks]);
+
+    // Detect Changes logic (Moved up for dependencies)
+    const changedTasks = useMemo(() => {
+        return optimisticTasks.filter(current => {
+            const original = savedTasks.find(s => s.id === current.id);
+            if (!original) return false;
+
+            const format = "YYYY-MM-DDTHH:mm:ss";
+            const currentStart = moment(current.planned_date).format(format);
+            const originalStart = moment(original.planned_date).format(format);
+
+            const currentEnd = moment(current.planned_end).format(format);
+            const originalEnd = moment(original.planned_end).format(format);
+
+            return currentStart !== originalStart || currentEnd !== originalEnd;
+        });
+    }, [optimisticTasks, savedTasks]);
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    handleUndo();
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    handleRedo();
+                } else if (e.key === 's') {
+                    e.preventDefault();
+                    if (changedTasks.length > 0) {
+                        handleSave();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [history, future, optimisticTasks, isSaving, changedTasks]);
+
+    // Handlers
+    const handleSave = async () => {
+        if (changedTasks.length === 0) return;
+        setIsSaving(true);
+        try {
+            await Promise.all(changedTasks.map(task =>
+                updateTaskSchedule(task.id, moment(task.planned_date).format("YYYY-MM-DDTHH:mm:ss"), moment(task.planned_end).format("YYYY-MM-DDTHH:mm:ss"))
+            ));
+            router.refresh();
+        } catch (error) {
+            console.error("Failed to save", error);
+            alert("Error al guardar los cambios.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDiscard = () => {
+        if (confirm("¿Estás seguro de descartar los cambios no guardados?")) {
+            setOptimisticTasks(savedTasks);
+            setHistory([]); // Clear history on discard
+        }
+    };
 
     // Derive unique machine names from both machines table and tasks
     const allMachineNames = useMemo(() => {
@@ -40,6 +215,17 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     );
     const [isMachineFilterOpen, setIsMachineFilterOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Initialize selectedMachines from preferences once dependencies are ready
+    useEffect(() => {
+        if (prefsInitialized && ganttPrefs.selectedMachines && ganttPrefs.selectedMachines.length > 0) {
+            // Filter to only include machines that actually exist
+            const validMachines = ganttPrefs.selectedMachines.filter(m => allMachineNames.includes(m));
+            if (validMachines.length > 0) {
+                setSelectedMachines(new Set(validMachines));
+            }
+        }
+    }, [prefsInitialized, ganttPrefs.selectedMachines, allMachineNames]);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -61,16 +247,20 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             } else {
                 newSet.add(machineName);
             }
+            // Save to preferences
+            updateGanttPref({ selectedMachines: Array.from(newSet) });
             return newSet;
         });
     };
 
     const selectAllMachines = () => {
         setSelectedMachines(new Set(allMachineNames));
+        updateGanttPref({ selectedMachines: allMachineNames });
     };
 
     const clearAllMachines = () => {
         setSelectedMachines(new Set());
+        updateGanttPref({ selectedMachines: [] });
     };
 
     // Synchronize state if fullscreen is exited via Esc key
@@ -93,6 +283,11 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         return () => document.removeEventListener("click", handleClickOutside);
     }, [isMachineFilterOpen]);
 
+    // Show skeleton while preferences are loading
+    if (!prefsInitialized) {
+        return <ProductionViewSkeleton />;
+    }
+
     return (
         <div
             ref={containerRef}
@@ -103,19 +298,19 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 {/* View Mode Buttons */}
                 <div className="flex bg-muted rounded-lg p-0.5">
                     <button
-                        onClick={() => setViewMode("hour")}
+                        onClick={() => handleViewModeChange("hour")}
                         className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "hour" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         Hora
                     </button>
                     <button
-                        onClick={() => setViewMode("day")}
+                        onClick={() => handleViewModeChange("day")}
                         className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "day" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         Día
                     </button>
                     <button
-                        onClick={() => setViewMode("week")}
+                        onClick={() => handleViewModeChange("week")}
                         className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "week" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
                     >
                         Semana
@@ -129,11 +324,11 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                             e.stopPropagation();
                             setIsMachineFilterOpen(!isMachineFilterOpen);
                         }}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-sm"
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-sm"
+                        title={`Filtrar Máquinas (${selectedMachines.size}/${allMachineNames.length})`}
                     >
                         <Filter className="w-4 h-4" />
-                        <span>Máquinas ({selectedMachines.size}/{allMachineNames.length})</span>
-                        <ChevronDown className={`w-4 h-4 transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     {isMachineFilterOpen && (
@@ -162,7 +357,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                             type="checkbox"
                                             checked={selectedMachines.has(machineName)}
                                             onChange={() => toggleMachine(machineName)}
-                                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
+                                            className="w-4 h-4 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
                                         />
                                         <span className="text-sm">{machineName}</span>
                                     </label>
@@ -184,35 +379,124 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     />
                 </div>
 
+
+
+                {/* Settings Menu */}
+                <div className="relative" ref={settingsRef}>
+                    <button
+                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                        className={`p-1.5 rounded-lg border border-border transition-colors ${isSettingsOpen ? 'bg-primary/10 text-primary border-primary/30' : 'bg-background hover:bg-muted text-muted-foreground'}`}
+                        title="Ajustes de Visualización"
+                    >
+                        <Settings className="w-4 h-4" />
+                    </button>
+
+                    {isSettingsOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Visualización</div>
+
+                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
+                                <span className="text-sm">Lineas de Dependencia</span>
+                                <input
+                                    type="checkbox"
+                                    checked={showDependencies}
+                                    onChange={(e) => handleShowDependenciesChange(e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
+                                />
+                            </label>
+
+                            {/* More settings can go here */}
+                        </div>
+                    )}
+                </div>
+
+                {/* Save Controls - Only visible when there are changes */}
+                {changedTasks.length > 0 && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <span className="text-xs text-muted-foreground mr-1 hidden lg:inline-block">
+                            {changedTasks.length} cambios
+                        </span>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleUndo}
+                            disabled={history.length === 0}
+                            className="h-7 px-2 text-xs"
+                            title="Deshacer (Ctrl+Z)"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRedo}
+                            disabled={future.length === 0}
+                            className="h-7 px-2 text-xs"
+                            title="Rehacer (Ctrl+Y)"
+                        >
+                            <RotateCw className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleDiscard}
+                            disabled={isSaving}
+                            className="h-7 px-2 text-xs"
+                            title="Descartar Todos"
+                        >
+                            <span className="hidden sm:inline">Descartar</span>
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="h-7 px-2 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                            title="Guardar Cambios"
+                        >
+                            <Save className="w-4 h-4" />
+                        </Button>
+                    </div>
+                )}
+
                 {/* Spacer */}
                 <div className="flex-1" />
 
                 {/* Fullscreen Button */}
                 <button
                     onClick={toggleFullscreen}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-all font-semibold text-xs"
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-all font-semibold text-xs"
                     title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
                 >
                     {isFullscreen ? (
-                        <><Minimize2 className="w-4 h-4" /> Salir</>
+                        <Minimize2 className="w-4 h-4" />
                     ) : (
-                        <><Maximize2 className="w-4 h-4" /> Pantalla Completa</>
+                        <Maximize2 className="w-4 h-4" />
                     )}
                 </button>
             </div>
 
             {/* Bottom Content - Timeline with margins */}
-            <div className="flex-1 overflow-y-auto relative p-4">
-                <div className="min-h-full w-full rounded-lg border border-border bg-card flex flex-col">
+            {/* Bottom Content - Timeline with margins */}
+            <div className="flex-1 overflow-hidden relative p-4 flex flex-col">
+                <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">
                     <GanttSVG
                         initialMachines={machines}
                         initialOrders={orders}
-                        initialTasks={tasks}
+                        // Tasks are now managed by parent
+                        optimisticTasks={optimisticTasks}
+                        setOptimisticTasks={handleTasksChange}
+                        onHistorySnapshot={handleHistorySnapshot}
                         searchQuery={searchQuery}
                         viewMode={viewMode}
                         isFullscreen={isFullscreen}
                         selectedMachines={selectedMachines}
                         operators={operators}
+                        showDependencies={showDependencies}
+                        zoomLevel={zoomLevel} // Pass zoom level
+                        setZoomLevel={handleZoomChange} // Pass setter for zoom controls
                     />
                 </div>
             </div>

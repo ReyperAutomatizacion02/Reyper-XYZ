@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation"; // Removed
 import moment from "moment";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, Save, RotateCcw, AlertCircle, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut } from "lucide-react"; // Removed Save, RotateCcw, X, AlertCircle
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
-import { updateTaskSchedule } from "@/app/dashboard/produccion/actions";
-import { Button } from "@/components/ui/button";
+// import { updateTaskSchedule } from "@/app/dashboard/produccion/actions"; // Removed
+// import { Button } from "@/components/ui/button"; // Removed
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -19,13 +19,29 @@ type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
 interface GanttSVGProps {
     initialMachines: Machine[];
     initialOrders: Order[];
-    initialTasks: PlanningTask[];
+    // initialTasks: PlanningTask[]; // Removed
+    optimisticTasks: PlanningTask[]; // Added
+    setOptimisticTasks: React.Dispatch<React.SetStateAction<PlanningTask[]>>; // Added
     searchQuery: string;
     viewMode: "hour" | "day" | "week";
     isFullscreen: boolean;
     selectedMachines: Set<string>;
     operators: string[];
+    showDependencies: boolean;
+    zoomLevel: number;
+    setZoomLevel: (level: number | ((prev: number) => number)) => void;
+    onHistorySnapshot: (state: PlanningTask[]) => void;
 }
+
+// Helper for 15-minute snapping
+// Helper for 15-minute snapping
+const roundToNearest15Minutes = (date: moment.Moment) => {
+    const minutes = date.minute();
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+
+    // This handles minute=60 automatically by overflowing to next hour
+    return date.clone().minute(roundedMinutes).second(0).millisecond(0);
+};
 
 // Constants for the SVG Engine
 const ROW_HEIGHT = 60;
@@ -42,15 +58,20 @@ const VIEW_MODE_CONFIG = {
 export function GanttSVG({
     initialMachines,
     initialOrders,
-    initialTasks,
+    optimisticTasks,
+    setOptimisticTasks,
     searchQuery,
     viewMode,
     selectedMachines,
-    operators
+    operators,
+    showDependencies,
+    zoomLevel,
+    setZoomLevel,
+    onHistorySnapshot
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
-    const UNIT_WIDTH = config.width;
+    const UNIT_WIDTH = config.width * zoomLevel; // Apply Zoom
 
     // 1. Time Window State with view-specific date filter
     const [selectedDate, setSelectedDate] = useState(() => moment().startOf('day'));
@@ -80,9 +101,28 @@ export function GanttSVG({
         }
     }, [viewMode, selectedDate, dateRangeStart, dateRangeEnd]);
 
+    // Automatically set default ranges when switching views
+    useEffect(() => {
+        if (viewMode === 'day') {
+            // "Vista de día" -> Calcular por la semana completa
+            setDateRangeStart(moment().startOf('isoWeek'));
+            setDateRangeEnd(moment().endOf('isoWeek'));
+        } else if (viewMode === 'week') {
+            // "Vista de semana" -> Calcular por el mes completo
+            setDateRangeStart(moment().startOf('month'));
+            setDateRangeEnd(moment().endOf('month'));
+        }
+        // For 'hour', we rely on selectedDate which defaults to today.
+    }, [viewMode]);
+
     const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
     const [modalData, setModalData] = useState<any>(null);
-    const [draggingTask, setDraggingTask] = useState<{ id: string, startX: number, initialX: number } | null>(null);
+    const [draggingTask, setDraggingTask] = useState<{
+        id: string,
+        startX: number,
+        initialX: number,
+        initialDuration: number // Added to fix duration drift
+    } | null>(null);
     const [resizingTask, setResizingTask] = useState<{
         id: string,
         startX: number,
@@ -92,14 +132,17 @@ export function GanttSVG({
         dayStart?: number,
         dayEnd?: number
     } | null>(null);
-    const [savedTasks, setSavedTasks] = useState<PlanningTask[]>(initialTasks);
-    const [optimisticTasks, setOptimisticTasks] = useState<PlanningTask[]>(initialTasks);
-    const [isSaving, setIsSaving] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, task: PlanningTask } | null>(null);
+    // Removed local state: savedTasks, optimisticTasks, isSaving
+
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
     const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number, mode: 'above' | 'below' }>({ x: 0, y: 0, mode: 'below' });
-    const [currentTime, setCurrentTime] = useState<Date | null>(null); // Fix hydration mismatch
+    const [currentTime, setCurrentTime] = useState<Date | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
+
+    // Scroll suppression refs
+    const isScrollingRef = useRef(false);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
     // Initialize current time on client and update every minute
     useEffect(() => {
@@ -108,11 +151,26 @@ export function GanttSVG({
         return () => clearInterval(timer);
     }, []);
 
-    // Sync changes from props (Server) to Saved state
+    // Helper: Handle Scroll/Wheel events to suppress tooltips
+    const handleScrollInteraction = () => {
+        if (!isScrollingRef.current) {
+            isScrollingRef.current = true;
+            setHoveredTask(null);
+        }
+
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+            isScrollingRef.current = false;
+        }, 150);
+    };
+
+    const snapshotRef = useRef<PlanningTask[]>([]); // Store state before interaction
+
+    // Global Scroll Listener (in case window scrolls)
     useEffect(() => {
-        setSavedTasks(initialTasks);
-        setOptimisticTasks(initialTasks);
-    }, [initialTasks]);
+        window.addEventListener('scroll', handleScrollInteraction, { capture: true });
+        return () => window.removeEventListener('scroll', handleScrollInteraction, { capture: true });
+    }, []);
 
     // Auto-scroll to today on mount
     useEffect(() => {
@@ -123,48 +181,10 @@ export function GanttSVG({
             const scrollTo = Math.max(0, todayX - containerWidth / 3);
             scrollContainerRef.current.scrollLeft = scrollTo;
         }
-    }, []);
+    }, [viewMode, scrollContainerRef.current]); // Add dependencies if needed, or keep empty for mount only logic. Kept logical.
 
-    // Detect Changes
-    const changedTasks = useMemo(() => {
-        return optimisticTasks.filter(current => {
-            const original = savedTasks.find(s => s.id === current.id);
-            if (!original) return false;
-
-            const format = "YYYY-MM-DDTHH:mm:ss";
-            const currentStart = moment(current.planned_date).format(format);
-            const originalStart = moment(original.planned_date).format(format);
-
-            const currentEnd = moment(current.planned_end).format(format);
-            const originalEnd = moment(original.planned_end).format(format);
-
-            return currentStart !== originalStart || currentEnd !== originalEnd;
-        });
-    }, [optimisticTasks, savedTasks]);
-
-    // Handlers
-    const handleSave = async () => {
-        if (changedTasks.length === 0) return;
-        setIsSaving(true);
-        try {
-            // Execute all updates in parallel
-            await Promise.all(changedTasks.map(task =>
-                updateTaskSchedule(task.id, moment(task.planned_date).format("YYYY-MM-DDTHH:mm:ss"), moment(task.planned_end).format("YYYY-MM-DDTHH:mm:ss"))
-            ));
-            router.refresh();
-        } catch (error) {
-            console.error("Failed to save", error);
-            alert("Error al guardar los cambios.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleDiscard = () => {
-        if (confirm("¿Estás seguro de descartar los cambios no guardados?")) {
-            setOptimisticTasks(savedTasks);
-        }
-    };
+    // Removed Detect Changes logic (moved to parent)
+    // Removed handleSave, handleDiscard logic (moved to parent)
 
 
 
@@ -224,16 +244,12 @@ export function GanttSVG({
     };
 
     const xToTime = (x: number) => {
-        if (viewMode === 'hour') {
-            const diffHours = x / UNIT_WIDTH;
-            return moment(timeWindow.start).add(diffHours, "hours");
-        } else if (viewMode === 'day') {
-            const diffDays = x / UNIT_WIDTH;
-            return moment(timeWindow.start).add(diffDays, "days");
-        } else {
-            const diffWeeks = x / UNIT_WIDTH;
-            return moment(timeWindow.start).add(diffWeeks, "weeks");
-        }
+        const msPerUnit = viewMode === 'hour' ? 1000 * 60 * 60
+            : viewMode === 'day' ? 1000 * 60 * 60 * 24
+                : 1000 * 60 * 60 * 24 * 7;
+
+        const diffMs = (x / UNIT_WIDTH) * msPerUnit;
+        return moment(timeWindow.start).add(diffMs, 'milliseconds');
     };
 
     const totalWidth = useMemo(() => {
@@ -244,7 +260,7 @@ export function GanttSVG({
         } else {
             return (timeWindow.end.valueOf() - timeWindow.start.valueOf()) / (1000 * 60 * 60 * 24 * 7) * UNIT_WIDTH;
         }
-    }, [timeWindow, viewMode, UNIT_WIDTH]);
+    }, [timeWindow, viewMode, UNIT_WIDTH]); // Ensure UNIT_WIDTH is here
 
     // Lane Allocation System - Detect overlaps PER DAY and assign lanes
     const taskLanes = useMemo(() => {
@@ -391,12 +407,72 @@ export function GanttSVG({
         };
     }, [optimisticTasks]);
 
+    // Calculate Dependency Lines
+    const dependencyLines = useMemo(() => {
+        const lines: React.ReactNode[] = [];
+        const tasksByOrder = new Map<string, PlanningTask[]>();
+
+        // Group by Order
+        filteredTasks.forEach(task => {
+            if (task.order_id) {
+                const oid = String(task.order_id);
+                if (!tasksByOrder.has(oid)) {
+                    tasksByOrder.set(oid, []);
+                }
+                tasksByOrder.get(oid)!.push(task);
+            }
+        });
+
+        // Generate Lines
+        tasksByOrder.forEach((groupTasks, orderId) => {
+            if (groupTasks.length < 2) return;
+
+            // Sort by start date
+            groupTasks.sort((a, b) => moment(a.planned_date).diff(moment(b.planned_date)));
+
+            for (let i = 0; i < groupTasks.length - 1; i++) {
+                const startTask = groupTasks[i];
+                const endTask = groupTasks[i + 1];
+
+                const startMachine = startTask.machine || "Sin Máquina";
+                const endMachine = endTask.machine || "Sin Máquina";
+
+                // Get Coordinates
+                const startY = (machineYOffsets.get(startMachine) || 0) + ROW_PADDING + ((taskLanes.get(startTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
+                const endY = (machineYOffsets.get(endMachine) || 0) + ROW_PADDING + ((taskLanes.get(endTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
+
+                const startX = timeToX(moment(startTask.planned_end));
+                const endX = timeToX(moment(endTask.planned_date));
+
+                // Bezier Curve
+                const controlOffset = Math.min(Math.abs(endX - startX) / 2, 50);
+                const path = `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
+
+                lines.push(
+                    <path
+                        key={`dep-${startTask.id}-${endTask.id}`}
+                        d={path}
+                        stroke={getProjectColor(startTask)}
+                        strokeWidth="1.5"
+                        strokeOpacity="0.4"
+                        fill="none"
+                        className="pointer-events-none"
+                    />
+                );
+            }
+        });
+
+        return lines;
+    }, [filteredTasks, machineYOffsets, taskLanes, viewMode, dateRangeStart, getProjectColor, timeToX, showDependencies]); // Re-calc on zoom (timeToX changes) and toggle
+
     // 4. Interaction Handlers
     const handleCanvasDoubleClick = (e: React.MouseEvent) => {
         if (draggingTask) return;
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left + scrollPos.x - SIDEBAR_WIDTH;
-        const y = e.clientY - rect.top + scrollPos.y; // Removed HEADER_HEIGHT subtraction which caused offset
+        // The click is relative to the scroll container (already excludes sidebar)
+        // Just add scroll position to get the SVG coordinate
+        const x = e.clientX - rect.left + scrollPos.x;
+        const y = e.clientY - rect.top + scrollPos.y;
 
         // Dynamic Machine Detection based on variable row heights
         let foundMachine = null;
@@ -410,27 +486,40 @@ export function GanttSVG({
             currentY += h;
         }
 
-        const time = xToTime(x);
+        // Convert X to time and snap to nearest 15 minutes
+        const rawTime = xToTime(x);
+        const snappedTime = roundToNearest15Minutes(rawTime);
 
         if (foundMachine) {
             setModalData({
                 machine: foundMachine,
-                time: time.valueOf()
+                time: snappedTime.valueOf()
             });
         }
     };
 
     const onMouseDown = (e: React.MouseEvent, task: PlanningTask) => {
         e.stopPropagation();
+        setHoveredTask(null); // Hide tooltip immediately
+
+        // Capture Snapshot
+        snapshotRef.current = optimisticTasks;
+
         setDraggingTask({
             id: task.id,
             startX: e.clientX,
-            initialX: timeToX(task.planned_date!)
+            initialX: timeToX(task.planned_date!),
+            initialDuration: moment(task.planned_end).diff(moment(task.planned_date)) // Capture duration once
         });
     };
 
     const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
         e.stopPropagation();
+        setHoveredTask(null); // Hide tooltip immediately
+
+        // Capture Snapshot
+        snapshotRef.current = optimisticTasks;
+
         const startDay = moment(task.planned_date).startOf('day').valueOf();
         const endDay = moment(task.planned_date).endOf('day').valueOf();
 
@@ -449,15 +538,18 @@ export function GanttSVG({
         if (draggingTask) {
             const deltaX = e.clientX - draggingTask.startX;
             const newX = draggingTask.initialX + deltaX;
-            const newStartTime = xToTime(newX);
+            let newStartTime = xToTime(newX);
+
+            // Snap to 15 mins
+            newStartTime = roundToNearest15Minutes(newStartTime);
 
             setOptimisticTasks(prev => prev.map(t => {
                 if (t.id === draggingTask.id) {
-                    const duration = moment(t.planned_end).diff(t.planned_date);
+                    // Use captured, constant duration to prevent drift
                     return {
                         ...t,
                         planned_date: newStartTime.format("YYYY-MM-DDTHH:mm:ss"),
-                        planned_end: newStartTime.clone().add(duration).format("YYYY-MM-DDTHH:mm:ss")
+                        planned_end: newStartTime.clone().add(draggingTask.initialDuration).format("YYYY-MM-DDTHH:mm:ss")
                     };
                 }
                 return t;
@@ -474,9 +566,18 @@ export function GanttSVG({
                         const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
                         let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
 
+                        // Snap End Time
+                        newEndTime = roundToNearest15Minutes(newEndTime);
+
                         // CLAMP to day end
                         if (limitEnd && newEndTime.isAfter(limitEnd)) {
                             newEndTime = limitEnd.clone();
+                        }
+
+                        // Ensure min duration (15 mins)
+                        const currentStart = moment(t.planned_date);
+                        if (newEndTime.diff(currentStart, 'minutes') < 15) {
+                            newEndTime = currentStart.clone().add(15, 'minutes');
                         }
 
                         return { ...t, planned_end: newEndTime.format("YYYY-MM-DDTHH:mm:ss") };
@@ -486,6 +587,9 @@ export function GanttSVG({
                         let newX = (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
                         let newStartDate = xToTime(newX);
 
+                        // Snap Start Time
+                        newStartDate = roundToNearest15Minutes(newStartDate);
+
                         // 2. CLAMP to day start
                         if (limitStart && newStartDate.isBefore(limitStart)) {
                             newStartDate = limitStart.clone();
@@ -493,8 +597,8 @@ export function GanttSVG({
 
                         // Re-validate against end time to ensure min width
                         const currentEnd = moment(t.planned_end);
-                        if (currentEnd.diff(newStartDate, 'minutes') < 10) {
-                            newStartDate = currentEnd.clone().subtract(10, 'minutes');
+                        if (currentEnd.diff(newStartDate, 'minutes') < 15) {
+                            newStartDate = currentEnd.clone().subtract(15, 'minutes');
                         }
 
                         return { ...t, planned_date: newStartDate.format("YYYY-MM-DDTHH:mm:ss") };
@@ -506,6 +610,14 @@ export function GanttSVG({
     };
 
     const onMouseUp = async () => {
+        // If changed, commit history
+        if (draggingTask || resizingTask) {
+            const hasChanged = JSON.stringify(snapshotRef.current) !== JSON.stringify(optimisticTasks);
+            if (hasChanged) {
+                onHistorySnapshot(snapshotRef.current);
+            }
+        }
+
         // Just clear interaction state. Changes remain in optimisticTasks until Save.
         setDraggingTask(null);
         setResizingTask(null);
@@ -545,7 +657,7 @@ export function GanttSVG({
             }
         }
         return columns;
-    }, [timeWindow.start, timeWindow.end, viewMode]);
+    }, [timeWindow.start, timeWindow.end, viewMode, zoomLevel, UNIT_WIDTH]);
 
     // Date navigation functions
     const navigateDate = (direction: 'prev' | 'next' | 'today') => {
@@ -560,20 +672,41 @@ export function GanttSVG({
                 setSelectedDate(prev => moment(prev).add(shift, 'day'));
             }
         } else {
-            // Day/Week view: navigate by range
-            const amount = viewMode === 'day' ? 7 : 14;
+            // Day/Week view: navigate by range (Standardized to Week/Month)
             if (direction === 'today') {
-                setDateRangeStart(moment().startOf('day').subtract(7, 'days'));
-                setDateRangeEnd(moment().startOf('day').add(14, 'days'));
+                if (viewMode === 'day') {
+                    // Reset to current Week
+                    setDateRangeStart(moment().startOf('isoWeek'));
+                    setDateRangeEnd(moment().endOf('isoWeek'));
+                } else {
+                    // Reset to current Month
+                    setDateRangeStart(moment().startOf('month'));
+                    setDateRangeEnd(moment().endOf('month'));
+                }
                 // Scroll to current time after state update
                 setTimeout(() => scrollToNow(), 100);
             } else {
-                const shift = direction === 'prev' ? -amount : amount;
-                setDateRangeStart(prev => moment(prev).add(shift, 'days'));
-                setDateRangeEnd(prev => moment(prev).add(shift, 'days'));
+                const shiftDir = direction === 'prev' ? -1 : 1;
+
+                if (viewMode === 'day') {
+                    // Navigate strictly by WEEK
+                    setDateRangeStart(prev => moment(prev).add(shiftDir, 'weeks').startOf('isoWeek'));
+                    setDateRangeEnd(prev => moment(prev).add(shiftDir, 'weeks').endOf('isoWeek'));
+                } else {
+                    // Navigate strictly by MONTH
+                    setDateRangeStart(prev => moment(prev).add(shiftDir, 'months').startOf('month'));
+                    setDateRangeEnd(prev => moment(prev).add(shiftDir, 'months').endOf('month'));
+                }
             }
         }
     };
+
+    // Close Context Menu on click outside
+    useEffect(() => {
+        const handleClick = () => setContextMenu(null);
+        window.addEventListener('click', handleClick);
+        return () => window.removeEventListener('click', handleClick);
+    }, []);
 
     // Scroll to current time position
     const scrollToNow = () => {
@@ -620,6 +753,39 @@ export function GanttSVG({
                     </button>
                 </div>
 
+                {/* Vertical Divider */}
+                <div className="w-px h-6 bg-border mx-2" />
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-lg border border-border/50">
+                    <button
+                        onClick={() => setZoomLevel(prev => Math.max(viewMode === 'week' ? 0.8 : 0.5, prev - 0.25))}
+                        className="p-1 rounded-md hover:bg-white/50 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Reducir Zoom"
+                    >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <div
+                        className="w-16 px-2 flex justify-center cursor-pointer select-none"
+                        title="Doble click para restablecer (100%)"
+                        onDoubleClick={() => setZoomLevel(1)}
+                    >
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                            {Math.round(zoomLevel * 100)}%
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => setZoomLevel(prev => Math.min(viewMode === 'week' ? 10 : 3, prev + 0.25))}
+                        className="p-1 rounded-md hover:bg-white/50 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Aumentar Zoom"
+                    >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+
+                {/* Vertical Divider */}
+                <div className="w-px h-6 bg-border mx-2" />
+
                 {/* View-specific date display */}
                 <div className="flex items-center gap-2">
                     {viewMode === 'hour' ? (
@@ -664,15 +830,105 @@ export function GanttSVG({
                             className="flex flex-col"
                             style={{ transform: `translateY(${-scrollPos.y}px)` }}
                         >
-                            {filteredMachines.map((m, i) => (
-                                <div
-                                    key={i}
-                                    className={`border-b border-border/10 px-4 flex items-center text-[11px] font-black uppercase tracking-tight text-foreground/70 hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0 ${i % 2 === 1 ? "bg-foreground/[0.03]" : ""}`}
-                                    style={{ height: getMachineHeight(m) }}
-                                >
-                                    {m}
-                                </div>
-                            ))}
+                            {filteredMachines.map((m, i) => {
+                                // Calculate Utilization
+                                const utilization = useMemo(() => {
+                                    const SHIFT_START = 6;
+                                    const SHIFT_END = 22;
+                                    const SHIFT_HOURS = SHIFT_END - SHIFT_START; // 16 hours
+
+                                    const machineTasks = optimisticTasks.filter(t => (t.machine === m) || (m === "Sin Máquina" && !t.machine));
+                                    if (machineTasks.length === 0) return 0;
+
+                                    const viewStart = timeWindow.start.clone().startOf('day');
+                                    // Fix: subtract 2 hours to safely exclude the 1-hour visual buffer spillover
+                                    // (e.g. 01:00 next day -> 23:00 prev day -> endOf prev day)
+                                    const viewEnd = timeWindow.end.clone().subtract(2, 'hours').endOf('day');
+
+                                    let totalShiftHours = 0;
+                                    let occupiedHours = 0;
+
+                                    // Iterate through each day in the view
+                                    const currentDay = viewStart.clone();
+                                    while (currentDay.isBefore(viewEnd)) {
+                                        totalShiftHours += SHIFT_HOURS;
+
+                                        const dayShiftStart = currentDay.clone().hour(SHIFT_START);
+                                        const dayShiftEnd = currentDay.clone().hour(SHIFT_END);
+
+                                        // Filter for "Lane 1" tasks only (Ignore overlaps completely)
+                                        // IMPORTANT: Only consider tasks that fall on THIS specific day
+                                        const dailyTasks = machineTasks
+                                            .filter(task => {
+                                                const taskStart = moment(task.planned_date);
+                                                const taskEnd = moment(task.planned_end);
+                                                // Task must intersect with this day's shift window
+                                                return taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart);
+                                            })
+                                            .sort((a, b) =>
+                                                moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
+                                            );
+
+                                        let currentLaneEnd = 0; // Tracks the end of the last accepted task in Lane 1
+
+                                        dailyTasks.forEach(task => {
+                                            const taskStart = moment(task.planned_date);
+                                            const taskEnd = moment(task.planned_end);
+
+                                            // 1. Strict Lane 1 Check: Task must start after the previous one ended
+                                            // (If it overlaps even by a second, it's Lane 2 and we ignore it per user request)
+                                            if (taskStart.valueOf() >= currentLaneEnd) {
+
+                                                // 2. Check intersection with 6am-10pm Shift
+                                                if (taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart)) {
+                                                    const overlapStart = moment.max(taskStart, dayShiftStart);
+                                                    const overlapEnd = moment.min(taskEnd, dayShiftEnd);
+
+                                                    if (overlapEnd.isAfter(overlapStart)) {
+                                                        const duration = overlapEnd.diff(overlapStart, 'hours', true);
+                                                        occupiedHours += duration;
+
+                                                        // Update Lane 1 end boundary
+                                                        currentLaneEnd = taskEnd.valueOf();
+                                                    }
+                                                }
+                                                // Even if out of shift, if it's Lane 1, update boundary? 
+                                                // Yes, strictly mask subsequent overlaps.
+                                                currentLaneEnd = Math.max(currentLaneEnd, taskEnd.valueOf());
+                                            }
+                                        });
+
+
+                                        currentDay.add(1, 'days');
+                                    }
+
+                                    if (totalShiftHours === 0) return 0;
+                                    return Math.min(100, Math.round((occupiedHours / totalShiftHours) * 100)); // Cap at 100 visually? Or show overload? 
+                                    // User requirements implies overload might be possible if working nights, but we constraint to shift. 
+                                    // If we work "extra" hours outside shift, technically we could be >100% of shift capacity if we count them. 
+                                    // BUT my logic above strictly clips to shift window. So max is 100% of shift.
+                                }, [optimisticTasks, timeWindow, m]);
+
+                                let badgeColor = "bg-muted text-muted-foreground";
+                                if (utilization > 85) badgeColor = "bg-green-500/20 text-green-600";
+                                else if (utilization > 50) badgeColor = "bg-blue-500/20 text-blue-600";
+                                else if (utilization > 0) badgeColor = "bg-gray-500/20 text-gray-600";
+
+                                return (
+                                    <div
+                                        key={i}
+                                        className={`border-b border-border/10 px-4 flex items-center justify-between text-[11px] font-black uppercase tracking-tight text-foreground/70 hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0 ${i % 2 === 1 ? "bg-foreground/[0.03]" : ""}`}
+                                        style={{ height: getMachineHeight(m) }}
+                                    >
+                                        <span className="truncate mr-2" title={m}>{m}</span>
+                                        {utilization > 0 && (
+                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${badgeColor}`}>
+                                                {utilization}%
+                                            </span>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 </div>
@@ -682,7 +938,7 @@ export function GanttSVG({
                     {/* Time Header - Fixed at top, scrolls with X */}
                     <div className="h-[50px] border-b border-border bg-background/90 backdrop-blur-md flex-shrink-0 overflow-hidden relative">
                         <div
-                            className="absolute top-0 left-0 h-full flex"
+                            className="absolute top-0 left-0 h-full"
                             style={{
                                 width: totalWidth,
                                 transform: `translateX(${-scrollPos.x}px)`
@@ -691,8 +947,13 @@ export function GanttSVG({
                             {timeColumns.map((col, i) => (
                                 <div
                                     key={i}
-                                    className={`flex flex-col justify-center items-center border-r border-border/30 text-[9px] font-black h-full transition-colors flex-shrink-0 ${col.isSpecial ? "bg-primary/10 text-primary border-primary/20" : "text-foreground/40"}`}
-                                    style={{ width: UNIT_WIDTH }}
+                                    className={`flex flex-col justify-center items-center border-r border-border/30 text-[9px] font-black h-full transition-colors ${col.isSpecial ? "bg-primary/10 text-primary border-primary/20" : "text-foreground/40"}`}
+                                    style={{
+                                        width: UNIT_WIDTH,
+                                        position: 'absolute',
+                                        left: col.x,
+                                        top: 0
+                                    }}
                                 >
                                     {viewMode === 'hour' && <div className="text-[7px] text-foreground/30 uppercase">{col.dateLabel}</div>}
                                     <div className={`text-[10px] ${col.isSpecial ? "text-primary font-black" : ""}`}>{col.label}</div>
@@ -705,7 +966,11 @@ export function GanttSVG({
                     <div
                         ref={scrollContainerRef}
                         className="flex-1 overflow-auto relative bg-background/5 dark:bg-[#050505]"
-                        onScroll={(e) => setScrollPos({ x: e.currentTarget.scrollLeft, y: e.currentTarget.scrollTop })}
+                        onScroll={(e) => {
+                            setScrollPos({ x: e.currentTarget.scrollLeft, y: e.currentTarget.scrollTop });
+                            handleScrollInteraction(); // Use reusable handler
+                        }}
+                        onWheel={handleScrollInteraction} // Capture wheel events early
                         onDoubleClick={handleCanvasDoubleClick}
                         onMouseMove={onMouseMove}
                         onMouseUp={onMouseUp}
@@ -746,6 +1011,11 @@ export function GanttSVG({
                             })}
 
                             {/* Tasks */}
+
+                            {/* Dependency Lines (Behind tasks) */}
+                            {/* Dependency Lines (Behind tasks) */}
+                            {showDependencies && dependencyLines}
+
                             {filteredTasks.map((task) => {
                                 const machine = task.machine || "Sin Máquina";
                                 const machineY = machineYOffsets.get(machine) || 0;
@@ -773,7 +1043,9 @@ export function GanttSVG({
                                             cursor: isDragging ? "grabbing" : "grab"
                                         }}
                                         onMouseEnter={(e) => {
-                                            setHoveredTask(task);
+                                            if (!draggingTask && !resizingTask && !isScrollingRef.current) {
+                                                setHoveredTask(task);
+                                            }
                                             // Don't set position here, rely on mouse move
                                         }}
                                         onMouseLeave={() => setHoveredTask(null)}
@@ -804,6 +1076,15 @@ export function GanttSVG({
                                                 setTooltipPos({ x, y, mode });
                                             }
                                         }}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setContextMenu({ x: e.clientX, y: e.clientY, task });
+                                        }}
+                                        onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            setModalData(task);
+                                        }}
                                     >
                                         <rect
                                             x={x}
@@ -820,13 +1101,14 @@ export function GanttSVG({
                                                 stroke: activeTask ? "white" : "rgba(255,255,255,0.2)",
                                                 strokeWidth: activeTask ? 2 : 1
                                             }}
-                                            onMouseDown={(e) => onMouseDown(e, task)}
+                                        // onMouseDown removed from here to Interaction Shield
                                         />
                                         {/* Interaction Shield (Underneath Resize Handle) */}
                                         <rect
                                             x={x} y={y} width={width} height={height}
-                                            fill="transparent"
-                                            className="cursor-pointer"
+                                            fill="rgba(0,0,0,0)" // Explicit transparent fill to capture events
+                                            className="cursor-grab active:cursor-grabbing"
+                                            onMouseDown={(e) => onMouseDown(e, task)}
                                             onDoubleClick={(e) => {
                                                 e.stopPropagation();
                                                 if (draggingTask || resizingTask) return;
@@ -908,34 +1190,16 @@ export function GanttSVG({
                 operators={operators}
                 onSuccess={() => {
                     setModalData(null);
-                    router.refresh();
+                    // router.refresh(); // Removed, parent handles refresh on save, modal just closes or parent needs to re-fetch if modal does direct updates (it does).
+                    // Actually, if modal saves directly, we might need to trigger a refresh.
+                    // But 'router' is not defined here anymore.
+                    // For now, let's just close it. If modal updates server, we might need a prop to trigger refresh.
+                    window.location.reload(); // Temporary fallback or just leave it closed.
+                    // Better: just remove router.refresh() as the component doesn't have router.
                 }}
             />
 
-            {/* Floating Save Bar */}
-            <AnimatePresence>
-                {changedTasks.length > 0 && (
-                    <motion.div
-                        initial={{ y: 100, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-4 bg-popover/95 backdrop-blur-sm border border-border shadow-2xl p-4 rounded-xl"
-                    >
-                        <div className="flex flex-col">
-                            <span className="font-bold text-sm text-popover-foreground">Cambios sin guardar</span>
-                            <span className="text-xs text-muted-foreground">{changedTasks.length} modificaciones pendientes</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={handleDiscard} disabled={isSaving}>
-                                Descartar <X className="w-4 h-4 ml-2" />
-                            </Button>
-                            <Button size="sm" onClick={handleSave} disabled={isSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                                {isSaving ? "Guardando..." : "Aplicar Cambios"} <Save className="w-4 h-4 ml-2" />
-                            </Button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* Floating Save Bar REMOVED - Moved to Header */}
 
             {/* Tooltip */}
             <AnimatePresence>
@@ -996,6 +1260,38 @@ export function GanttSVG({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Context Menu Portal */}
+            {contextMenu && (
+                <div
+                    className="fixed z-[9999] bg-popover border border-border shadow-md rounded-md py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="px-2 py-1.5 text-xs font-semibold border-b border-border/50 text-foreground mb-1">
+                        Acciones
+                    </div>
+                    <button
+                        onClick={() => {
+                            const task = contextMenu.task;
+                            setModalData({
+                                id: task.id,
+                                machine: task.machine || "Sin Máquina",
+                                start: moment(task.planned_date).format("YYYY-MM-DDTHH:mm"),
+                                end: moment(task.planned_end).format("YYYY-MM-DDTHH:mm"),
+                                operator: task.operator || "",
+                                orderId: task.order_id || "",
+                                activeOrder: task.production_orders
+                            });
+                            setContextMenu(null);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
+                    >
+                        <span>Ver Detalles</span>
+                    </button>
+                </div>
+            )}
+
         </div>
     );
 }

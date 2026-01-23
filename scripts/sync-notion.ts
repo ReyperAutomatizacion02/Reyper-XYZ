@@ -96,11 +96,6 @@ function formatNotionDate(dateStr: string | null | undefined) {
 
     const result = localM.format("YYYY-MM-DDTHH:mm:ss");
 
-    // Diagnostic logging
-    if (Math.random() < 0.1) {
-        console.log(`[DEBUG] Date transform: ${dateStr} -> ${result}`);
-    }
-
     return result;
 }
 

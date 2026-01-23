@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Calendar, Clock, User, Box, Save, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { createPlanningTask, updateTaskDetails } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
@@ -31,9 +31,28 @@ interface TaskModalProps {
 function CustomTimePicker({ value, onChange, className }: { value: string, onChange: (val: string) => void, className?: string }) {
     const [hour, minute] = value ? value.split(':') : ["00", "00"];
     const [openStack, setOpenStack] = useState<'none' | 'hour' | 'minute'>('none');
+    const hourListRef = useRef<HTMLDivElement>(null);
+    const minuteListRef = useRef<HTMLDivElement>(null);
 
     const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
-    const minutes = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
+    const minutes = ['00', '15', '30', '45']; // 15-minute intervals
+
+    // Auto-scroll logic
+    useEffect(() => {
+        if (openStack === 'hour' && hourListRef.current) {
+            const selectedButton = hourListRef.current.querySelector(`#hour-${hour}`) as HTMLElement;
+            if (selectedButton) {
+                // Calculate position to center: elementTop - containerHeight/2 + elementHeight/2
+                // Or simpler: scrollIntoView
+                selectedButton.scrollIntoView({ block: 'center', behavior: 'instant' });
+            }
+        } else if (openStack === 'minute' && minuteListRef.current) {
+            const selectedButton = minuteListRef.current.querySelector(`#minute-${minute}`) as HTMLElement;
+            if (selectedButton) {
+                selectedButton.scrollIntoView({ block: 'center', behavior: 'instant' });
+            }
+        }
+    }, [openStack, hour, minute]);
 
     return (
         <div className={`flex items-center gap-1 ${className} relative`}>
@@ -56,10 +75,14 @@ function CustomTimePicker({ value, onChange, className }: { value: string, onCha
                 </button>
 
                 {openStack === 'hour' && (
-                    <div className="absolute top-full left-0 w-20 -ml-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl z-[101] flex flex-col p-1 gap-0.5 no-scrollbar">
+                    <div
+                        ref={hourListRef}
+                        className="absolute top-full left-0 w-20 -ml-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl z-[101] flex flex-col p-1 gap-0.5 no-scrollbar"
+                    >
                         {hours.map(h => (
                             <button
                                 key={h}
+                                id={`hour-${h}`}
                                 type="button"
                                 onClick={() => { onChange(`${h}:${minute}`); setOpenStack('none'); }}
                                 className={`text-sm py-1.5 rounded-md font-bold transition-colors ${h === hour ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'}`}
@@ -88,10 +111,14 @@ function CustomTimePicker({ value, onChange, className }: { value: string, onCha
                 </button>
 
                 {openStack === 'minute' && (
-                    <div className="absolute top-full right-0 w-20 -mr-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl z-[101] flex flex-col p-1 gap-0.5 no-scrollbar">
+                    <div
+                        ref={minuteListRef}
+                        className="absolute top-full right-0 w-20 -mr-0 mt-1 max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-xl z-[101] flex flex-col p-1 gap-0.5 no-scrollbar"
+                    >
                         {minutes.map(m => (
                             <button
                                 key={m}
+                                id={`minute-${m}`}
                                 type="button"
                                 onClick={() => { onChange(`${hour}:${m}`); setOpenStack('none'); }}
                                 className={`text-sm py-1.5 rounded-md font-bold transition-colors ${m === minute ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'}`}

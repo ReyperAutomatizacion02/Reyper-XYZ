@@ -4,11 +4,12 @@ import { SubmitButton } from "@/components/submit-button";
 import { ArrowLeft } from "lucide-react";
 import { GoogleSignIn } from "@/components/google-sign-in";
 
-export default function LoginPage({
+export default async function LoginPage({
     searchParams,
 }: {
-    searchParams: { message: string };
+    searchParams: Promise<{ message?: string }>;
 }) {
+    const params = await searchParams;
     return (
         <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background relative overflow-hidden">
             {/* Background Gradients */}
@@ -84,9 +85,9 @@ export default function LoginPage({
 
                         <GoogleSignIn />
 
-                        {searchParams?.message && (
+                        {params?.message && (
                             <div className="mt-4 p-4 bg-destructive/10 text-destructive text-center text-sm border border-destructive/20 rounded-xl animate-in fade-in slide-in-from-top-2">
-                                {searchParams.message}
+                                {params.message}
                             </div>
                         )}
 
