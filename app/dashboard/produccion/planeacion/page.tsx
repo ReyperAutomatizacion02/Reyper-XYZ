@@ -8,10 +8,10 @@ export default async function PlaneacionPage() {
 
     // Fetch all necessary data in parallel
     const [machinesRes, ordersRes, tasksRes, operatorsRes] = await Promise.all([
-        supabase.from("machines").select("*").order("name"),
-        supabase.from("production_orders").select("*").order("created_at"),
-        supabase.from("planning").select("*, production_orders(*)"),
-        supabase.from("planning").select("operator").not("operator", "is", null),
+        supabase.from("machines").select("*").order("name").limit(1000),
+        supabase.from("production_orders").select("*").order("created_at", { ascending: false }).limit(10000), // Latest 10k orders
+        supabase.from("planning").select("*, production_orders(*)").order("planned_date", { ascending: false }).limit(10000), // Latest 10k tasks
+        supabase.from("planning").select("operator").not("operator", "is", null).limit(10000),
     ]);
 
     const machines = machinesRes.data || [];

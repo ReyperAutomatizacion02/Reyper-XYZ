@@ -9,7 +9,11 @@ import {
     Tooltip,
     ResponsiveContainer,
     LineChart,
-    Line
+    Line,
+    PieChart,
+    Pie,
+    Cell,
+    Legend
 } from "recharts";
 
 interface UtilizationChartProps {
@@ -119,6 +123,75 @@ export function ProjectsTrendChart({ data }: TrendChartProps) {
                         activeDot={{ r: 5 }}
                     />
                 </LineChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+interface StatusChartProps {
+    data: {
+        name: string;
+        value: number;
+    }[];
+}
+
+const STATUS_COLORS = {
+    'MATERIAL / ING.': '#3b82f6', // Blue
+    'MAQUINADO / PROCESO': '#EC1C21', // Red (Brand)
+    'TRATAMIENTO': '#a855f7', // Purple
+    'TERMINADO / ENTREGA': '#10b981', // Green
+    'CANCELADO': '#ef4444', // Red-500
+    'GARANTÍA': '#f59e0b',  // Amber
+    'OTROS': '#64748b' // Slate
+};
+
+const DEFAULT_COLORS = ['#EC1C21', '#676161', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+
+export function ItemsStatusChart({ data }: StatusChartProps) {
+    if (!data || data.length === 0) {
+        return <div className="h-[300px] w-full flex items-center justify-center text-muted-foreground">No data</div>;
+    }
+
+    return (
+        <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                    <Pie
+                        data={data}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={85}
+                        outerRadius={110}
+                        paddingAngle={2}
+                        dataKey="value"
+                    >
+                        {data.map((entry, index) => {
+                            // Try to match specific colors, else fallback
+                            const colorKey = Object.keys(STATUS_COLORS).find(k => entry.name.toUpperCase().includes(k));
+                            return (
+                                <Cell
+                                    key={`cell-${index}`}
+                                    fill={colorKey ? STATUS_COLORS[colorKey as keyof typeof STATUS_COLORS] : DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
+                                />
+                            );
+                        })}
+                    </Pie>
+                    <Tooltip
+                        contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            borderColor: 'hsl(var(--border))',
+                            borderRadius: '8px',
+                            fontSize: '12px'
+                        }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Legend
+                        layout="vertical"
+                        verticalAlign="middle"
+                        align="right"
+                        wrapperStyle={{ fontSize: '12px' }}
+                    />
+                </PieChart>
             </ResponsiveContainer>
         </div>
     );

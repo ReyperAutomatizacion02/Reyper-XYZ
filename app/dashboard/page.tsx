@@ -9,9 +9,10 @@ import {
     Clock,
     CheckCircle2,
     BarChart3,
-    LineChart
+    LineChart,
+    PieChart
 } from "lucide-react";
-import { UtilizationChart, ProjectsTrendChart } from "./charts";
+import { UtilizationChart, ProjectsTrendChart, ItemsStatusChart } from "./charts";
 
 // Helper to calculate days difference
 function getDaysUntil(dateStr: string): number {
@@ -160,10 +161,65 @@ export default async function DashboardPage() {
         .order("delivery_date", { ascending: true });
 
     const projectIds = projects?.map(p => p.id) || [];
-    const { count: totalParts } = await supabase
+    // Changed head: true to fetching project_id for aggregation
+    const { data: activeParts, count: totalParts } = await supabase
         .from("production_orders")
-        .select("*", { count: "exact", head: true })
+        .select("project_id, genral_status", { count: "exact" })
         .in("project_id", projectIds.length > 0 ? projectIds : ['none']);
+
+    // --- AGGREGATION FOR TOOLTIPS ---
+    const projectsByCompany: Record<string, number> = {};
+    const projectCompanyMap = new Map<string, string>();
+    let overdueProjects = 0;
+
+    projects?.forEach(p => {
+        const company = p.company || "Sin Asignar";
+        projectsByCompany[company] = (projectsByCompany[company] || 0) + 1;
+        projectCompanyMap.set(p.id, company);
+
+        if (p.delivery_date) {
+            const days = getDaysUntil(p.delivery_date);
+            if (days < 0) overdueProjects++;
+        }
+    });
+
+    const partsByCompany: Record<string, number> = {};
+    const statusCounts: Record<string, number> = {};
+
+    activeParts?.forEach((part: any) => {
+        // Company Stats
+        const company = projectCompanyMap.get(part.project_id) || "Desconocido";
+        partsByCompany[company] = (partsByCompany[company] || 0) + 1;
+
+        // Status Stats & Grouping
+        const rawStatus = (part.genral_status || "").toUpperCase();
+        let group = "Otros";
+
+        if (rawStatus.startsWith("A")) {
+            group = "Material / Ing.";
+        } else if (rawStatus.startsWith("B") || rawStatus.startsWith("C") || rawStatus.includes("CORTE") || rawStatus.includes("MAQUINADO")) {
+            // Check for Tratamiento specific if needed, but for now Group into Proceso
+            if (rawStatus.includes("TRATAMIENTO")) {
+                group = "Tratamiento";
+            } else {
+                group = "Maquinado / Proceso";
+            }
+        } else if (rawStatus.startsWith("D")) {
+            if (rawStatus.includes("D8") || rawStatus.includes("CANCELADA")) {
+                group = "Cancelado";
+            } else {
+                group = "Terminado / Entrega";
+            }
+        } else if (rawStatus.startsWith("E")) {
+            group = "Garantía";
+        }
+
+        statusCounts[group] = (statusCounts[group] || 0) + 1;
+    });
+
+    const statusDistribution = Object.entries(statusCounts)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
 
     const upcomingProjects = projects?.filter(p => {
         if (!p.delivery_date) return false;
@@ -171,10 +227,23 @@ export default async function DashboardPage() {
         return days >= 0 && days <= 7;
     }) || [];
 
-    const { count: newThisMonth } = await supabase
+    const { data: newProjectsData, count: newThisMonth } = await supabase
         .from("projects")
-        .select("*", { count: "exact", head: true })
+        .select("company", { count: "exact" }) // Fetch company for tooltip
         .gte("created_at", startOfMonth);
+
+    // --- MORE AGGREGATION ---
+    const upcomingByCompany: Record<string, number> = {};
+    upcomingProjects.forEach(p => {
+        const company = p.company || "Sin Asignar";
+        upcomingByCompany[company] = (upcomingByCompany[company] || 0) + 1;
+    });
+
+    const newByCompany: Record<string, number> = {};
+    newProjectsData?.forEach(p => {
+        const company = p.company || "Sin Asignar";
+        newByCompany[company] = (newByCompany[company] || 0) + 1;
+    });
 
     // 2. Chart Data: Utilization (Planning)
     const { data: planningTasks } = await supabase
@@ -241,31 +310,113 @@ export default async function DashboardPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div className="p-6 rounded-xl border bg-card shadow-sm">
-                    <div className="flex justify-between">
-                        <h3 className="text-sm font-medium text-muted-foreground">Proyectos Activos</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                {/* Proyectos Vencidos (New) */}
+                <div className="p-6 rounded-xl border bg-card shadow-sm border-l-4 border-l-red-500">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 items-center">
+                            <h3 className="text-sm font-medium text-red-500">Vencidos</h3>
+                        </div>
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                    </div>
+                    <div className="text-3xl font-bold mt-2 text-red-600">{overdueProjects}</div>
+                </div>
+
+                {/* Proyectos Activos */}
+                <div className="p-6 rounded-xl border bg-card shadow-sm relative group">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 items-center">
+                            <h3 className="text-sm font-medium text-muted-foreground">Proyectos Activos</h3>
+                            {/* Tooltip Trigger */}
+                            <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-full p-3 bg-popover text-popover-foreground border rounded-md shadow-lg text-xs animate-in fade-in zoom-in-95 duration-200">
+                                <div className="font-semibold mb-2 border-b pb-1">Desglose por Empresa</div>
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {Object.entries(projectsByCompany)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([company, count]) => (
+                                            <div key={company} className="flex justify-between items-center">
+                                                <span className="truncate pr-2 text-muted-foreground">{company}</span>
+                                                <span className="font-mono font-medium">{count}</span>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
                         <FolderKanban className="w-4 h-4 text-primary" />
                     </div>
                     <div className="text-3xl font-bold mt-2">{totalProjects || 0}</div>
                 </div>
-                <div className="p-6 rounded-xl border bg-card shadow-sm">
-                    <div className="flex justify-between">
-                        <h3 className="text-sm font-medium text-muted-foreground">Partidas Totales</h3>
+
+                {/* Partidas Activas */}
+                <div className="p-6 rounded-xl border bg-card shadow-sm relative group">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 items-center">
+                            <h3 className="text-sm font-medium text-muted-foreground">Partidas Activas</h3>
+                            {/* Tooltip Trigger */}
+                            <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-full p-3 bg-popover text-popover-foreground border rounded-md shadow-lg text-xs animate-in fade-in zoom-in-95 duration-200">
+                                <div className="font-semibold mb-2 border-b pb-1">Desglose por Empresa</div>
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {Object.entries(partsByCompany)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([company, count]) => (
+                                            <div key={company} className="flex justify-between items-center">
+                                                <span className="truncate pr-2 text-muted-foreground">{company}</span>
+                                                <span className="font-mono font-medium">{count}</span>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
                         <Package className="w-4 h-4 text-blue-500" />
                     </div>
                     <div className="text-3xl font-bold mt-2">{totalParts || 0}</div>
                 </div>
-                <div className="p-6 rounded-xl border bg-card shadow-sm">
-                    <div className="flex justify-between">
-                        <h3 className="text-sm font-medium text-muted-foreground">Entregas Próximas</h3>
+
+                {/* Entregas Próximas */}
+                <div className="p-6 rounded-xl border bg-card shadow-sm relative group">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 items-center">
+                            <h3 className="text-sm font-medium text-muted-foreground">Entregas (7 días)</h3>
+                            {/* Tooltip Trigger */}
+                            <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-full p-3 bg-popover text-popover-foreground border rounded-md shadow-lg text-xs animate-in fade-in zoom-in-95 duration-200">
+                                <div className="font-semibold mb-2 border-b pb-1">Desglose por Empresa</div>
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {Object.entries(upcomingByCompany)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([company, count]) => (
+                                            <div key={company} className="flex justify-between items-center">
+                                                <span className="truncate pr-2 text-muted-foreground">{company}</span>
+                                                <span className="font-mono font-medium">{count}</span>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
                         <CalendarClock className="w-4 h-4 text-orange-500" />
                     </div>
                     <div className="text-3xl font-bold mt-2">{upcomingProjects.length}</div>
                 </div>
-                <div className="p-6 rounded-xl border bg-card shadow-sm">
-                    <div className="flex justify-between">
-                        <h3 className="text-sm font-medium text-muted-foreground">Nuevos (Mes)</h3>
+
+                {/* Nuevos (Mes) */}
+                <div className="p-6 rounded-xl border bg-card shadow-sm relative group">
+                    <div className="flex justify-between items-start">
+                        <div className="flex gap-2 items-center">
+                            <h3 className="text-sm font-medium text-muted-foreground">Nuevos (Mes)</h3>
+                            {/* Tooltip Trigger */}
+                            <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-full p-3 bg-popover text-popover-foreground border rounded-md shadow-lg text-xs animate-in fade-in zoom-in-95 duration-200">
+                                <div className="font-semibold mb-2 border-b pb-1">Desglose por Empresa</div>
+                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {Object.entries(newByCompany)
+                                        .sort(([, a], [, b]) => b - a)
+                                        .map(([company, count]) => (
+                                            <div key={company} className="flex justify-between items-center">
+                                                <span className="truncate pr-2 text-muted-foreground">{company}</span>
+                                                <span className="font-mono font-medium">{count}</span>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
                         <TrendingUp className="w-4 h-4 text-green-500" />
                     </div>
                     <div className="text-3xl font-bold mt-2">{newThisMonth || 0}</div>
@@ -279,20 +430,32 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-2 mb-6">
                         <BarChart3 className="w-5 h-5 text-muted-foreground" />
                         <div>
-                            <h3 className="text-lg font-semibold">Utilización de Maquinaria</h3>
+                            <h3 className="text-lg font-semibold">Utilización</h3>
                             <p className="text-xs text-muted-foreground">Últimos 7 días • Turno 16h</p>
                         </div>
                     </div>
                     <UtilizationChart data={utilizationData} />
                 </div>
 
-                {/* Trends Chart */}
+                {/* Status Distribution Chart (New) */}
                 <div className="rounded-xl border bg-card shadow-sm p-6">
+                    <div className="flex items-center gap-2 mb-6">
+                        <PieChart className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                            <h3 className="text-lg font-semibold">Estatus Partidas</h3>
+                            <p className="text-xs text-muted-foreground">Distribución actual</p>
+                        </div>
+                    </div>
+                    <ItemsStatusChart data={statusDistribution} />
+                </div>
+
+                {/* Trends Chart */}
+                <div className="rounded-xl border bg-card shadow-sm p-6 md:col-span-2">
                     <div className="flex items-center gap-2 mb-6">
                         <LineChart className="w-5 h-5 text-muted-foreground" />
                         <div>
-                            <h3 className="text-lg font-semibold">Flujo de Proyectos</h3>
-                            <p className="text-xs text-muted-foreground">Entradas vs Salidas (30 días)</p>
+                            <h3 className="text-lg font-semibold">Flujo</h3>
+                            <p className="text-xs text-muted-foreground">30 días</p>
                         </div>
                     </div>
                     <ProjectsTrendChart data={trendData} />
