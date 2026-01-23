@@ -156,7 +156,8 @@ export default async function DashboardPage() {
     const { data: projects, count: totalProjects } = await supabase
         .from("projects")
         .select("*", { count: "exact" })
-        .eq("status", "active");
+        .eq("status", "active")
+        .order("delivery_date", { ascending: true });
 
     const projectIds = projects?.map(p => p.id) || [];
     const { count: totalParts } = await supabase
@@ -186,8 +187,9 @@ export default async function DashboardPage() {
     // 3. Chart Data: Project Trends
     const { data: trendProjects } = await supabase
         .from("projects")
-        .select("created_at, delivery_date")
-        .gte("created_at", thirtyDaysAgo.toISOString());
+        .select("start_date, delivery_date, status")
+        .limit(10000); // Fetch all for clientside filtering to avoid missing deliveries
+    // .gte("created_at", thirtyDaysAgo.toISOString());
 
     // Group Projects by Date
     const trendMap: Record<string, { new: number, delivered: number }> = {};
@@ -201,27 +203,35 @@ export default async function DashboardPage() {
     }
 
     trendProjects?.forEach(p => {
-        const cDate = p.created_at?.split('T')[0];
-        if (cDate && trendMap[cDate]) trendMap[cDate].new++;
+        const sDate = p.start_date; // Use start_date for new projects
+        if (sDate && trendMap[sDate]) trendMap[sDate].new++;
 
-        const dDate = p.delivery_date; // specific delivery date
-        if (dDate && trendMap[dDate]) trendMap[dDate].delivered++;
+        const dDate = p.delivery_date;
+        // Only count as delivered if status is completed
+        if (dDate && trendMap[dDate] && p.status === 'completed') {
+            trendMap[dDate].delivered++;
+        }
     });
 
     const trendData = Object.entries(trendMap)
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, counts]) => ({
-            date: new Date(date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
-            newProjects: counts.new,
-            deliveredProjects: counts.delivered
-        }));
+        .map(([date, counts]) => {
+            // Fix timezone offset: Parse manually (YYYY-MM-DD)
+            const [y, m, d] = date.split('-').map(Number);
+            const localDate = new Date(y, m - 1, d);
+            return {
+                date: localDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
+                newProjects: counts.new,
+                deliveredProjects: counts.delivered
+            };
+        });
 
 
     // 4. Delivery List
     const deliveryList = projects
         ?.filter(p => p.delivery_date)
         .sort((a, b) => new Date(a.delivery_date!).getTime() - new Date(b.delivery_date!).getTime())
-        .slice(0, 10);
+        .slice(0, 50);
 
     return (
         <div className="space-y-6">

@@ -8,8 +8,8 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    AreaChart,
-    Area
+    LineChart,
+    Line
 } from "recharts";
 
 interface UtilizationChartProps {
@@ -75,17 +75,7 @@ export function ProjectsTrendChart({ data }: TrendChartProps) {
     return (
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                        <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorDelivered" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                        </linearGradient>
-                    </defs>
+                <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                     <XAxis
                         dataKey="date"
@@ -93,7 +83,7 @@ export function ProjectsTrendChart({ data }: TrendChartProps) {
                         tickMargin={10}
                         interval={4}
                     />
-                    <YAxis tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip
                         contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
@@ -102,23 +92,33 @@ export function ProjectsTrendChart({ data }: TrendChartProps) {
                             fontSize: '12px'
                         }}
                     />
-                    <Area
-                        type="monotone"
+                    <Line
+                        type="linear"
                         dataKey="newProjects"
                         name="Nuevos"
-                        stroke="#10b981"
-                        fillOpacity={1}
-                        fill="url(#colorNew)"
+                        stroke="#676161"
+                        strokeWidth={2}
+                        dot={(props: any) => {
+                            const { cx, cy, value } = props;
+                            if (value === 0) return <></>;
+                            return <circle cx={cx} cy={cy} r={3} fill="#676161" />;
+                        }}
+                        activeDot={{ r: 5 }}
                     />
-                    <Area
-                        type="monotone"
+                    <Line
+                        type="linear"
                         dataKey="deliveredProjects"
                         name="Entregados"
-                        stroke="#3b82f6"
-                        fillOpacity={1}
-                        fill="url(#colorDelivered)"
+                        stroke="#EC1C21"
+                        strokeWidth={2}
+                        dot={(props: any) => {
+                            const { cx, cy, value } = props;
+                            if (value === 0) return <></>;
+                            return <circle cx={cx} cy={cy} r={3} fill="#EC1C21" />;
+                        }}
+                        activeDot={{ r: 5 }}
                     />
-                </AreaChart>
+                </LineChart>
             </ResponsiveContainer>
         </div>
     );
