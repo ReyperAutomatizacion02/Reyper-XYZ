@@ -154,25 +154,40 @@ export default async function DashboardPage() {
     // --- FETCH DATA ---
 
     // 1. KPI Data
-    const { data: projects, count: totalProjects } = await supabase
+    const { data: rawProjects } = await supabase
         .from("projects")
-        .select("*", { count: "exact" })
+        .select("*")
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
 
-    const projectIds = projects?.map(p => p.id) || [];
-    // Changed head: true to fetching project_id for aggregation
-    const { data: activeParts, count: totalParts } = await supabase
+    const rawProjectIds = rawProjects?.map(p => p.id) || [];
+
+    // Fetch project ids from production_orders to know which projects have parts
+    const { data: rawActiveParts } = await supabase
         .from("production_orders")
-        .select("project_id, genral_status", { count: "exact" })
-        .in("project_id", projectIds.length > 0 ? projectIds : ['none']);
+        .select("project_id, genral_status")
+        .in("project_id", rawProjectIds.length > 0 ? rawProjectIds : ['none']);
+
+    // Filter out delivered or cancelled parts
+    const activeParts = rawActiveParts?.filter((part: any) => {
+        const s = (part.genral_status || "").toUpperCase();
+        return !s.includes("D7-ENTREGADA") && !s.includes("D8-CANCELADA");
+    }) || [];
+
+    // Get set of project IDs that actually have PENDING parts
+    const projectIdsWithParts = new Set(activeParts.map(p => p.project_id));
+
+    // Filter projects to only those that have PENDING parts
+    const projects = rawProjects?.filter(p => projectIdsWithParts.has(p.id)) || [];
+    const totalProjects = projects.length;
+    const totalParts = activeParts.length;
 
     // --- AGGREGATION FOR TOOLTIPS ---
     const projectsByCompany: Record<string, number> = {};
     const projectCompanyMap = new Map<string, string>();
     let overdueProjects = 0;
 
-    projects?.forEach(p => {
+    projects.forEach(p => {
         const company = p.company || "Sin Asignar";
         projectsByCompany[company] = (projectsByCompany[company] || 0) + 1;
         projectCompanyMap.set(p.id, company);
