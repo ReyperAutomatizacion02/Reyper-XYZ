@@ -177,7 +177,8 @@ async function runSync() {
     const projectMap = new Map<string, string>(); // notion_id -> supabase_id
     const projectStatusMap = new Map<string, string>(); // supabase_id -> status
     const orderMap = new Map<string, string>(); // notion_id -> supabase_id
-    let stats = { projects: 0, items: 0, planning: 0, skipped: 0 };
+    const machinesSet = new Set<string>(); // machine names
+    let stats = { projects: 0, items: 0, planning: 0, machines: 0, skipped: 0 };
 
     // --- PHASE 0: LOAD CONTEXT ---
     console.log("🔍 Cargando contexto de Supabase...");
@@ -200,7 +201,14 @@ async function runSync() {
         if (data.length < 1000) break;
         dbPage++;
     }
-    console.log(`📍 Maps cargados: ${projectMap.size} Proyectos, ${orderMap.size} Partidas.`);
+    while (true) {
+        const { data } = await supabase.from("machines").select("name").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
+        if (!data || data.length === 0) break;
+        data.forEach(m => machinesSet.add(m.name));
+        if (data.length < 1000) break;
+        dbPage++;
+    }
+    console.log(`📍 Maps cargados: ${projectMap.size} Proyectos, ${orderMap.size} Partidas, ${machinesSet.size} Máquinas.`);
 
     // --- PHASE 1: PROJECTS ---
     if (shouldRunProjects) {
@@ -374,6 +382,24 @@ async function runSync() {
                 else {
                     stats.planning += uniqueBatch.length;
                     console.log(`🚀 Planeación: +${uniqueBatch.length}`);
+
+                    // Collect new machines
+                    const newMachines = uniqueBatch
+                        .map((p: any) => p.machine)
+                        .filter((m): m is string => !!m && !machinesSet.has(m));
+
+                    if (newMachines.length > 0) {
+                        const uniqueNew = Array.from(new Set(newMachines));
+                        console.log(`✨ Registrando ${uniqueNew.length} máquinas nuevas: ${uniqueNew.join(", ")}`);
+                        const { error: mError } = await supabase
+                            .from("machines")
+                            .insert(uniqueNew.map(name => ({ name })));
+
+                        if (!mError) {
+                            uniqueNew.forEach(name => machinesSet.add(name));
+                            stats.machines += uniqueNew.length;
+                        }
+                    }
                 }
             }
             hasMorePl = resp.has_more; cursorPl = resp.next_cursor;
@@ -381,7 +407,7 @@ async function runSync() {
     }
 
     console.log(`\n✨ SINCRONIZACIÓN FINALIZADA`);
-    console.log(`📊 PJS: ${stats.projects} | ITM: ${stats.items} | PLN: ${stats.planning} | SKP: ${stats.skipped}`);
+    console.log(`📊 PJS: ${stats.projects} | ITM: ${stats.items} | PLN: ${stats.planning} | MAQ: ${stats.machines} | SKP: ${stats.skipped}`);
 }
 
 runSync().catch(console.error);
