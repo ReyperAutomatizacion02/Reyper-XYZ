@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardHeader } from "@/components/dashboard-header";
 import { Separator } from "@/components/ui/separator";
 import {
     Table,
@@ -367,21 +368,13 @@ function QuoteGeneratorContent() {
     return (
         <div id="cotizador-top" className="space-y-6 max-w-7xl mx-auto pb-20">
             {/* Header / Nav */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={handleBack}>
-                        <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-                    </Button>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Generar Cotización</h1>
-                        <p className="text-muted-foreground">Ventas / Nueva Cotización</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    {/* Buttons moved to bottom */}
-                </div>
-            </div>
+            <DashboardHeader
+                title="Generar Cotización"
+                description="Ventas / Nueva Cotización"
+                icon={<FileText className="w-8 h-8 text-red-500" />}
+                onBack={handleBack}
+                iconClassName="text-red-500"
+            />
 
             {/* General Info Card */}
             <Card className="bg-card border-border">

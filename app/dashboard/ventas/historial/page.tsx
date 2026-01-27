@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardHeader } from "@/components/dashboard-header";
 import {
     Select,
     SelectContent,
@@ -157,29 +158,20 @@ export default function QuoteHistoryPage() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Link href="/dashboard/ventas">
-                        <Button variant="ghost" size="icon">
-                            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+            <DashboardHeader
+                title="Historial de Cotizaciones"
+                description="Búsqueda, edición y descarga de cotizaciones"
+                icon={<History className="w-8 h-8 text-red-500" />}
+                backUrl="/dashboard/ventas"
+                iconClassName="text-red-500"
+                children={
+                    <Link href="/dashboard/ventas/cotizador">
+                        <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
+                            Nueva Cotización
                         </Button>
                     </Link>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                            <History className="w-8 h-8 text-red-500" />
-                            Historial de Cotizaciones
-                        </h1>
-                        <p className="text-muted-foreground font-medium">Búsqueda, edición y descarga de cotizaciones</p>
-                    </div>
-                </div>
-
-                <Link href="/dashboard/ventas/cotizador">
-                    <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
-                        Nueva Cotización
-                    </Button>
-                </Link>
-            </div>
+                }
+            />
 
             {/* Filters */}
             <Card className="bg-card border-border border-l-4 border-l-red-500 shadow-sm">

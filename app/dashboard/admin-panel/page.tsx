@@ -35,10 +35,17 @@ export default async function AdminPanelPage() {
         .eq("is_approved", true)
         .order("updated_at", { ascending: false });
 
+    // Fetch employees
+    const { data: employees } = await supabase
+        .from("employees")
+        .select("*")
+        .order("full_name", { ascending: true });
+
     return (
         <AdminPanelClient
             pendingUsers={pendingUsers || []}
             approvedUsers={approvedUsers || []}
+            employees={employees || []}
             currentUserId={user.id}
         />
     );

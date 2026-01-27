@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FilePlus, ShoppingCart, ArrowRight, Clock, History } from "lucide-react";
+import { DashboardHeader } from "@/components/dashboard-header";
 
 const salesTools = [
     {
@@ -23,16 +24,13 @@ const salesTools = [
 export default function SalesPage() {
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-8">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-red-500/10">
-                    <ShoppingCart className="w-8 h-8 text-red-500" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold">Ventas</h1>
-                    <p className="text-muted-foreground">Gestión de cotizaciones y clientes</p>
-                </div>
-            </div>
+            <DashboardHeader
+                title="Ventas"
+                description="Gestión de cotizaciones y clientes"
+                icon={<ShoppingCart className="w-8 h-8 text-red-500" />} // Custom color for Sales
+                backUrl="/dashboard"
+                iconClassName="bg-red-500/10 text-red-500"
+            />
 
             {/* Tools Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

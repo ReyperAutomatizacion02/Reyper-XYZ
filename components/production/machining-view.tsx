@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { createClient } from "@/utils/supabase/client";
+import { DashboardHeader } from "@/components/dashboard-header";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
@@ -90,21 +91,21 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
 
     return (
         <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-background overflow-hidden font-sans">
-            {/* Main Header */}
-            <header className="flex-none px-6 py-4 border-b border-border bg-card flex items-center justify-between z-10 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                        <Wrench className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-black tracking-tight uppercase">MAQUINADOS</h1>
+            <div className="px-6 pt-4 bg-card border-b border-border shadow-sm z-10">
+                <DashboardHeader
+                    title="MAQUINADOS"
+                    description={`OPERADOR: ${operatorName}`}
+                    icon={<Wrench className="w-8 h-8 text-primary" />}
+                    backUrl="/dashboard/produccion"
+                    className="mb-4 text-sm"
+                    children={
                         <div className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{operatorName}</p>
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">EN LÍNEA</span>
                         </div>
-                    </div>
-                </div>
-            </header>
+                    }
+                />
+            </div>
 
             {/* Focus Panel */}
             {activeTask && activeTaskColor ? (

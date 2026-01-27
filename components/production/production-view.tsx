@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
-import { Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut } from "lucide-react";
+import { Calendar, Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import moment from "moment";
 import { updateTaskSchedule } from "@/app/dashboard/produccion/actions";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { ProductionViewSkeleton } from "@/components/ui/skeleton";
+import { DashboardHeader } from "@/components/dashboard-header";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -293,6 +294,16 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             ref={containerRef}
             className="h-[calc(100vh-64px)] w-full flex flex-col bg-background"
         >
+            {!isFullscreen && (
+                <div className="px-6 pt-6 -mb-2">
+                    <DashboardHeader
+                        title="Planeación de Producción"
+                        description="Planificador de maquinados con vista Gantt interactiva"
+                        icon={<Calendar className="w-8 h-8 text-primary" />}
+                        backUrl="/dashboard/produccion"
+                    />
+                </div>
+            )}
             {/* Compact Header */}
             <div className="flex-none px-4 py-2 border-b border-border bg-background/50 backdrop-blur-sm z-[200] flex items-center gap-3">
                 {/* View Mode Buttons */}
@@ -478,7 +489,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </button>
             </div>
 
-            {/* Bottom Content - Timeline with margins */}
             {/* Bottom Content - Timeline with margins */}
             <div className="flex-1 overflow-hidden relative p-4 flex flex-col">
                 <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">

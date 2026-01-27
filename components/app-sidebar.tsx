@@ -156,7 +156,10 @@ export function AppSidebar() {
             <nav className="flex-1 overflow-y-auto py-6 px-3">
                 <ul className="space-y-1.5">
                     {filteredItems.map((item) => {
-                        const isActive = pathname === item.href;
+                        const isActive =
+                            item.href === "/dashboard"
+                                ? pathname === "/dashboard"
+                                : pathname === item.href || pathname.startsWith(item.href + "/");
                         return (
                             <li key={item.href}>
                                 <Link
@@ -190,13 +193,13 @@ export function AppSidebar() {
                                 href="/dashboard/admin-panel"
                                 className={cn(
                                     "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                                    pathname === "/dashboard/admin-panel"
+                                    pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")
                                         ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
                                         : "text-red-500 hover:text-red-600 hover:bg-red-500/10",
                                     isCollapsed && "justify-center"
                                 )}
                             >
-                                <Shield className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", pathname === "/dashboard/admin-panel" && "animate-pulse")} />
+                                <Shield className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", (pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")) && "animate-pulse")} />
                                 <span
                                     className={cn(
                                         "whitespace-nowrap transition-all duration-300 font-medium",

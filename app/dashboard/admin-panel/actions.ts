@@ -156,3 +156,89 @@ export async function getApprovedUsers() {
     if (error) throw new Error(error.message);
     return data;
 }
+
+export type Employee = {
+    id: string;
+    full_name: string;
+    employee_number: string | null;
+    department: string | null;
+    position: string | null;
+    is_operator: boolean | null;
+    is_active: boolean | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export async function getEmployees() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: employees, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('full_name', { ascending: true });
+
+    if (error) {
+        console.error("Error fetching employees:", error);
+        return [];
+    }
+
+    return employees as Employee[];
+}
+
+export async function upsertEmployee(data: Partial<Employee>) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    // Filter out only valid columns to avoid errors if extra props are passed
+    const payload: any = {
+        full_name: data.full_name,
+        employee_number: data.employee_number || null,
+        department: data.department || null,
+        position: data.position || null,
+        is_operator: data.is_operator ?? false,
+        is_active: data.is_active ?? true,
+        updated_at: new Date().toISOString(),
+    };
+
+    if (data.id) {
+        payload.id = data.id;
+    } else {
+        // New record
+        payload.created_at = new Date().toISOString();
+    }
+
+    const { data: result, error } = await supabase
+        .from("employees")
+        .upsert(payload)
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/dashboard/admin-panel");
+    return { success: true, data: result };
+}
+
+export async function deleteEmployee(id: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    const { error } = await supabase
+        .from("employees")
+        .delete()
+        .eq("id", id);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/dashboard/admin-panel");
+    return { success: true };
+}
