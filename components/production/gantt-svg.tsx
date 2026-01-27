@@ -7,8 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut } from "lucide-react"; // Removed Save, RotateCcw, X, AlertCircle
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
-// import { updateTaskSchedule } from "@/app/dashboard/produccion/actions"; // Removed
-// import { Button } from "@/components/ui/button"; // Removed
+import { getProductionTaskColor } from "@/utils/production-colors";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -31,6 +30,9 @@ interface GanttSVGProps {
     zoomLevel: number;
     setZoomLevel: (level: number | ((prev: number) => number)) => void;
     onHistorySnapshot: (state: PlanningTask[]) => void;
+    readOnly?: boolean;
+    onTaskDoubleClick?: (task: PlanningTask) => void;
+    hideDateNavigation?: boolean;
 }
 
 // Helper for 15-minute snapping
@@ -67,7 +69,10 @@ export function GanttSVG({
     showDependencies,
     zoomLevel,
     setZoomLevel,
-    onHistorySnapshot
+    onHistorySnapshot,
+    readOnly = false,
+    onTaskDoubleClick,
+    hideDateNavigation = false
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -364,48 +369,7 @@ export function GanttSVG({
         return height;
     }, [filteredMachines, machineLaneCounts]);
 
-    // Expanded Color Palette for Projects (15 vibrant colors)
-    const PROJECT_COLORS = [
-        '#E91E63', // Pink
-        '#2196F3', // Blue
-        '#4CAF50', // Green
-        '#FF9800', // Orange
-        '#9C27B0', // Purple
-        '#00BCD4', // Cyan
-        '#F44336', // Red
-        '#3F51B5', // Indigo
-        '#009688', // Teal
-        '#CDDC39', // Lime
-        '#795548', // Brown
-        '#607D8B', // Blue Grey
-        '#FF5722', // Deep Orange
-        '#673AB7', // Deep Purple
-        '#8BC34A', // Light Green
-    ];
 
-    // Color Logic: meaningful and distributed
-    const getProjectColor = useMemo(() => {
-        const colorMap = new Map<string, string>();
-        let colorIndex = 0;
-
-        // Collect all unique project/order IDs
-        const uniqueIds = new Set<string>();
-        optimisticTasks.forEach(t => {
-            const id = t.order_id || t.production_orders?.id || t.id;
-            if (id) uniqueIds.add(id);
-        });
-
-        // Assign colors sequentially
-        Array.from(uniqueIds).sort().forEach(id => {
-            colorMap.set(id, PROJECT_COLORS[colorIndex % PROJECT_COLORS.length]);
-            colorIndex++;
-        });
-
-        return (task: PlanningTask) => {
-            const id = task.order_id || task.production_orders?.id || task.id;
-            return colorMap.get(id) || PROJECT_COLORS[0];
-        };
-    }, [optimisticTasks]);
 
     // Calculate Dependency Lines
     const dependencyLines = useMemo(() => {
@@ -452,7 +416,7 @@ export function GanttSVG({
                     <path
                         key={`dep-${startTask.id}-${endTask.id}`}
                         d={path}
-                        stroke={getProjectColor(startTask)}
+                        stroke={getProductionTaskColor(startTask)}
                         strokeWidth="1.5"
                         strokeOpacity="0.4"
                         fill="none"
@@ -463,11 +427,11 @@ export function GanttSVG({
         });
 
         return lines;
-    }, [filteredTasks, machineYOffsets, taskLanes, viewMode, dateRangeStart, getProjectColor, timeToX, showDependencies]); // Re-calc on zoom (timeToX changes) and toggle
+    }, [filteredTasks, machineYOffsets, taskLanes, viewMode, dateRangeStart, timeToX, showDependencies]); // Re-calc on zoom (timeToX changes) and toggle
 
     // 4. Interaction Handlers
     const handleCanvasDoubleClick = (e: React.MouseEvent) => {
-        if (draggingTask) return;
+        if (readOnly || draggingTask) return;
         const rect = e.currentTarget.getBoundingClientRect();
         // The click is relative to the scroll container (already excludes sidebar)
         // Just add scroll position to get the SVG coordinate
@@ -499,6 +463,7 @@ export function GanttSVG({
     };
 
     const onMouseDown = (e: React.MouseEvent, task: PlanningTask) => {
+        if (readOnly) return;
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
@@ -514,6 +479,7 @@ export function GanttSVG({
     };
 
     const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
+        if (readOnly) return;
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
@@ -729,29 +695,37 @@ export function GanttSVG({
         <div className="flex-1 flex flex-col overflow-hidden select-none bg-background relative">
             {/* Date Navigation Bar */}
             <div className="flex-none h-10 border-b border-border bg-muted/30 flex items-center justify-between px-4 z-[50]">
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => navigateDate('prev')}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="Anterior"
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => navigateDate('today')}
-                        className="px-3 py-1 text-xs font-semibold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1"
-                    >
-                        <Calendar className="w-3 h-3" />
-                        Hoy
-                    </button>
-                    <button
-                        onClick={() => navigateDate('next')}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="Siguiente"
-                    >
-                        <ChevronRight className="w-4 h-4" />
-                    </button>
-                </div>
+                {!hideDateNavigation ? (
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => navigateDate('prev')}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Anterior"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => navigateDate('today')}
+                            className="px-3 py-1 text-xs font-semibold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1"
+                        >
+                            <Calendar className="w-3 h-3" />
+                            Hoy
+                        </button>
+                        <button
+                            onClick={() => navigateDate('next')}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Siguiente"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 px-2">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary bg-primary/10 px-3 py-1 rounded-md">
+                            {selectedDate.format('DD MMMM YYYY')}
+                        </span>
+                    </div>
+                )}
 
                 {/* Vertical Divider */}
                 <div className="w-px h-6 bg-border mx-2" />
@@ -787,32 +761,34 @@ export function GanttSVG({
                 <div className="w-px h-6 bg-border mx-2" />
 
                 {/* View-specific date display */}
-                <div className="flex items-center gap-2">
-                    {viewMode === 'hour' ? (
-                        <input
-                            type="date"
-                            value={selectedDate.format('YYYY-MM-DD')}
-                            onChange={(e) => setSelectedDate(moment(e.target.value))}
-                            className="px-2 py-1 text-xs rounded-md border border-border bg-background"
-                        />
-                    ) : (
-                        <>
+                {!hideDateNavigation && (
+                    <div className="flex items-center gap-2">
+                        {viewMode === 'hour' ? (
                             <input
                                 type="date"
-                                value={dateRangeStart.format('YYYY-MM-DD')}
-                                onChange={(e) => setDateRangeStart(moment(e.target.value))}
+                                value={selectedDate.format('YYYY-MM-DD')}
+                                onChange={(e) => setSelectedDate(moment(e.target.value))}
                                 className="px-2 py-1 text-xs rounded-md border border-border bg-background"
                             />
-                            <span className="text-xs text-foreground/40">-</span>
-                            <input
-                                type="date"
-                                value={dateRangeEnd.format('YYYY-MM-DD')}
-                                onChange={(e) => setDateRangeEnd(moment(e.target.value))}
-                                className="px-2 py-1 text-xs rounded-md border border-border bg-background"
-                            />
-                        </>
-                    )}
-                </div>
+                        ) : (
+                            <>
+                                <input
+                                    type="date"
+                                    value={dateRangeStart.format('YYYY-MM-DD')}
+                                    onChange={(e) => setDateRangeStart(moment(e.target.value))}
+                                    className="px-2 py-1 text-xs rounded-md border border-border bg-background"
+                                />
+                                <span className="text-xs text-foreground/40">-</span>
+                                <input
+                                    type="date"
+                                    value={dateRangeEnd.format('YYYY-MM-DD')}
+                                    onChange={(e) => setDateRangeEnd(moment(e.target.value))}
+                                    className="px-2 py-1 text-xs rounded-md border border-border bg-background"
+                                />
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="flex-1 flex relative overflow-hidden">
@@ -1032,7 +1008,7 @@ export function GanttSVG({
                                 const isResizing = resizingTask?.id === task.id;
                                 const activeTask = isDragging || isResizing;
 
-                                const color = getProjectColor(task);
+                                const color = getProductionTaskColor(task);
 
                                 return (
                                     <motion.g
@@ -1083,7 +1059,11 @@ export function GanttSVG({
                                         }}
                                         onDoubleClick={(e) => {
                                             e.stopPropagation();
-                                            setModalData(task);
+                                            if (onTaskDoubleClick) {
+                                                onTaskDoubleClick(task);
+                                            } else {
+                                                setModalData(task);
+                                            }
                                         }}
                                     >
                                         <rect
@@ -1112,15 +1092,19 @@ export function GanttSVG({
                                             onDoubleClick={(e) => {
                                                 e.stopPropagation();
                                                 if (draggingTask || resizingTask) return;
-                                                setModalData({
-                                                    id: task.id,
-                                                    machine: task.machine || "Sin Máquina",
-                                                    start: moment(task.planned_date).format("YYYY-MM-DDTHH:mm"),
-                                                    end: moment(task.planned_end).format("YYYY-MM-DDTHH:mm"),
-                                                    operator: task.operator || "",
-                                                    orderId: task.order_id || "",
-                                                    activeOrder: task.production_orders
-                                                });
+                                                if (onTaskDoubleClick) {
+                                                    onTaskDoubleClick(task);
+                                                } else {
+                                                    setModalData({
+                                                        id: task.id,
+                                                        machine: task.machine || "Sin Máquina",
+                                                        start: moment(task.planned_date).format("YYYY-MM-DDTHH:mm"),
+                                                        end: moment(task.planned_end).format("YYYY-MM-DDTHH:mm"),
+                                                        operator: task.operator || "",
+                                                        orderId: task.order_id || "",
+                                                        activeOrder: task.production_orders
+                                                    });
+                                                }
                                             }}
                                         />
 
@@ -1229,7 +1213,7 @@ export function GanttSVG({
                             <div className="flex items-center gap-2 mb-2">
                                 <div
                                     className="w-3 h-3 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: getProjectColor(hoveredTask) }}
+                                    style={{ backgroundColor: getProductionTaskColor(hoveredTask) }}
                                 />
                                 <div className="text-xs font-black uppercase text-foreground truncate">
                                     {hoveredTask.production_orders?.part_code || "S/N"}

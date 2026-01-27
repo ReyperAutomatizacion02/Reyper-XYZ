@@ -73,6 +73,7 @@ export async function middleware(request: NextRequest) {
             automatizacion: ["/dashboard", "/dashboard/produccion", "/dashboard/diseno"],
             diseno: ["/dashboard", "/dashboard/diseno"],
             produccion: ["/dashboard", "/dashboard/produccion"],
+            operador: ["/dashboard", "/dashboard/produccion"],
             calidad: ["/dashboard", "/dashboard/calidad"],
             almacen: ["/dashboard", "/dashboard/almacen"],
         };

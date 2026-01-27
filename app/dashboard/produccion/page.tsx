@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { Calendar, ArrowRight, Wrench, Clock, BarChart3 } from "lucide-react";
+import { Calendar, ArrowRight, Wrench, Clock } from "lucide-react";
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
 
-const productionTools = [
+const TOOLS = [
     {
         name: "Planeación",
         description: "Planificador de maquinados con vista Gantt interactiva",
@@ -9,19 +11,37 @@ const productionTools = [
         icon: Calendar,
         color: "bg-primary/10 text-primary",
         status: "Disponible",
+        roles: ["admin", "produccion"],
     },
-    // Futuras herramientas pueden agregarse aquí:
-    // {
-    //     name: "Órdenes de Trabajo",
-    //     description: "Gestión de órdenes de producción",
-    //     href: "/dashboard/produccion/ordenes",
-    //     icon: ClipboardList,
-    //     color: "bg-blue-500/10 text-blue-500",
-    //     status: "Próximamente",
-    // },
+    {
+        name: "Maquinados",
+        description: "Control de tiempos de maquinado y seguimiento personal",
+        href: "/dashboard/produccion/maquinados",
+        icon: Wrench,
+        color: "bg-blue-500/10 text-blue-500",
+        status: "Disponible",
+        roles: ["admin", "operador"],
+    },
 ];
 
-export default function ProductionPage() {
+export default async function ProductionPage() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("roles")
+        .eq("id", user?.id)
+        .single();
+
+    const userRoles = profile?.roles || [];
+    const isAdmin = userRoles.includes("admin");
+
+    const filteredTools = TOOLS.filter(tool =>
+        isAdmin || tool.roles.some(role => userRoles.includes(role))
+    );
+
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-8">
             {/* Header */}
@@ -37,7 +57,7 @@ export default function ProductionPage() {
 
             {/* Tools Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {productionTools.map((tool) => (
+                {filteredTools.map((tool) => (
                     <Link
                         key={tool.href}
                         href={tool.href}

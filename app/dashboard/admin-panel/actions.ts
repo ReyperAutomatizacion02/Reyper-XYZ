@@ -14,6 +14,7 @@ const VALID_ROLES = [
     "automatizacion",
     "diseno",
     "produccion",
+    "operador",
     "calidad",
     "almacen",
 ] as const;
@@ -34,7 +35,7 @@ async function verifyAdmin(supabase: any, userId: string) {
 }
 
 // Approve user with multiple roles
-export async function approveUser(userId: string, roles: string[]) {
+export async function approveUser(userId: string, roles: string[], operatorName?: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -54,6 +55,7 @@ export async function approveUser(userId: string, roles: string[]) {
         .update({
             is_approved: true,
             roles: validRoles,
+            operator_name: operatorName || null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", userId);
@@ -85,7 +87,7 @@ export async function rejectUser(userId: string) {
 }
 
 // Update user roles (accepts array)
-export async function updateUserRoles(userId: string, newRoles: string[]) {
+export async function updateUserRoles(userId: string, newRoles: string[], operatorName?: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -116,6 +118,7 @@ export async function updateUserRoles(userId: string, newRoles: string[]) {
         .from("user_profiles")
         .update({
             roles: validRoles,
+            operator_name: operatorName || null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", userId);

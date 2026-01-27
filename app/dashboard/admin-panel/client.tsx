@@ -24,6 +24,7 @@ const ROLES = [
     { value: "automatizacion", label: "Automatización", color: "bg-pink-500" },
     { value: "diseno", label: "Diseño", color: "bg-indigo-500" },
     { value: "produccion", label: "Producción", color: "bg-yellow-500" },
+    { value: "operador", label: "Operador", color: "bg-black" },
     { value: "calidad", label: "Calidad", color: "bg-teal-500" },
     { value: "almacen", label: "Almacén", color: "bg-amber-500" },
 ] as const;
@@ -34,6 +35,7 @@ type UserProfile = {
     username: string | null;
     roles: string[];
     is_approved: boolean;
+    operator_name: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -68,8 +70,8 @@ function RolesSelector({
                 <label
                     key={role.value}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${selectedRoles.includes(role.value)
-                            ? 'border-primary bg-primary/10 text-foreground'
-                            : 'border-border hover:border-primary/50 text-muted-foreground'
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border hover:border-primary/50 text-muted-foreground'
                         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <input
@@ -95,6 +97,7 @@ function RolesSelector({
 export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }: AdminPanelClientProps) {
     const [isPending, startTransition] = useTransition();
     const [selectedRoles, setSelectedRoles] = useState<Record<string, string[]>>({});
+    const [operatorNames, setOperatorNames] = useState<Record<string, string>>({});
     const [editingUser, setEditingUser] = useState<string | null>(null);
 
     const handleApprove = (userId: string) => {
@@ -105,7 +108,8 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }:
         }
         startTransition(async () => {
             try {
-                await approveUser(userId, roles);
+                const operatorName = operatorNames[userId];
+                await approveUser(userId, roles, operatorName);
             } catch (error: any) {
                 console.error(error);
                 alert(error.message || "Error al aprobar usuario");
@@ -133,7 +137,8 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }:
         }
         startTransition(async () => {
             try {
-                await updateUserRoles(userId, roles);
+                const operatorName = operatorNames[userId];
+                await updateUserRoles(userId, roles, operatorName);
                 setEditingUser(null);
             } catch (error: any) {
                 console.error(error);
@@ -222,6 +227,20 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }:
                                     />
                                 </div>
 
+                                {(selectedRoles[user.id] || ["produccion"]).includes("operador") && (
+                                    <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <label className="text-sm font-medium mb-2 block">Nombre del Operador (debe coincidir con Planeación):</label>
+                                        <input
+                                            type="text"
+                                            value={operatorNames[user.id] || ""}
+                                            onChange={(e) => setOperatorNames(prev => ({ ...prev, [user.id]: e.target.value.toUpperCase() }))}
+                                            placeholder="EJ: JUAN PEREZ"
+                                            className="w-full px-3 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                            disabled={isPending}
+                                        />
+                                    </div>
+                                )}
+
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => handleApprove(user.id)}
@@ -288,6 +307,19 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }:
                                         onChange={(roles) => setSelectedRoles(prev => ({ ...prev, [user.id]: roles }))}
                                         disabled={isPending}
                                     />
+                                    {(selectedRoles[user.id] || user.roles || []).includes("operador") && (
+                                        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <label className="text-sm font-medium mb-1.5 block">Nombre del Operador:</label>
+                                            <input
+                                                type="text"
+                                                value={operatorNames[user.id] === undefined ? (user.operator_name || "") : operatorNames[user.id]}
+                                                onChange={(e) => setOperatorNames(prev => ({ ...prev, [user.id]: e.target.value.toUpperCase() }))}
+                                                placeholder="EJ: JUAN PEREZ"
+                                                className="w-full px-3 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                                                disabled={isPending}
+                                            />
+                                        </div>
+                                    )}
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleUpdateRoles(user.id)}
@@ -323,6 +355,7 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, currentUserId }:
                                         <button
                                             onClick={() => {
                                                 setSelectedRoles(prev => ({ ...prev, [user.id]: user.roles || [] }));
+                                                setOperatorNames(prev => ({ ...prev, [user.id]: user.operator_name || "" }));
                                                 setEditingUser(user.id);
                                             }}
                                             className="text-sm font-medium text-primary hover:underline"

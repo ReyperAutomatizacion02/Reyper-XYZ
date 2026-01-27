@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import moment from "moment";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
@@ -116,4 +117,40 @@ export async function updateTaskDetails(taskId: string, orderId: string, machine
     }
 
     revalidatePath("/dashboard/produccion");
+}
+
+export async function recordCheckIn(taskId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await (supabase.from("planning" as any) as any)
+        .update({
+            check_in: moment().format('YYYY-MM-DD HH:mm:ss'),
+        })
+        .eq("id", taskId);
+
+    if (error) {
+        console.error("Error recording check-in:", error);
+        throw new Error("Failed to record check-in");
+    }
+
+    revalidatePath("/dashboard/produccion/maquinados");
+}
+
+export async function recordCheckOut(taskId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await (supabase.from("planning" as any) as any)
+        .update({
+            check_out: moment().format('YYYY-MM-DD HH:mm:ss'),
+        })
+        .eq("id", taskId);
+
+    if (error) {
+        console.error("Error recording check-out:", error);
+        throw new Error("Failed to record check-out");
+    }
+
+    revalidatePath("/dashboard/produccion/maquinados");
 }
