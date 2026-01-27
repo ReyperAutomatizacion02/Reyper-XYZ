@@ -136,16 +136,16 @@ interface StatusChartProps {
 }
 
 const STATUS_COLORS = {
-    'MATERIAL / ING.': '#3b82f6', // Blue
-    'MAQUINADO / PROCESO': '#EC1C21', // Red (Brand)
-    'TRATAMIENTO': '#a855f7', // Purple
-    'TERMINADO / ENTREGA': '#10b981', // Green
-    'CANCELADO': '#ef4444', // Red-500
-    'GARANTÍA': '#f59e0b',  // Amber
-    'OTROS': '#64748b' // Slate
+    'MATERIAL / ING.': '#ef4444', // Red 500
+    'MAQUINADO / PROCESO': '#EC1C21', // Brand Red (Focus)
+    'TRATAMIENTO': '#991b1b', // Red 800
+    'TERMINADO / ENTREGA': '#450a0a', // Darkest Red
+    'CANCELADO': '#1a1a1a', // Very dark/Black for cancelled
+    'GARANTÍA': '#f87171',  // Red 400
+    'OTROS': '#676161' // Brand Gray
 };
 
-const DEFAULT_COLORS = ['#EC1C21', '#676161', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+const DEFAULT_COLORS = ['#EC1C21', '#991b1b', '#ef4444', '#f87171', '#450a0a', '#676161'];
 
 export function ItemsStatusChart({ data }: StatusChartProps) {
     if (!data || data.length === 0) {
