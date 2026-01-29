@@ -44,6 +44,9 @@ import {
 
 import { getNextProjectCode, createProjectAndItems } from "@/app/dashboard/ventas/project-actions";
 import { scanDriveFolder } from "@/app/dashboard/ventas/drive-actions";
+import { createClientEntry, createContactEntry } from "@/app/dashboard/ventas/actions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+
 
 interface ProjectFormProps {
     clients: { id: string; name: string; prefix?: string | null }[];
@@ -261,10 +264,15 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     const router = useRouter();
     const [loading, setLoading] = useState(false);
 
+    // Data State (mutable for new additions)
+    const [clientList, setClientList] = useState(clients);
+    const [contactList, setContactList] = useState(contacts);
+
     // Form State
     const [selectedClient, setSelectedClient] = useState("");
     const [clientCode, setClientCode] = useState("");
     const [selectedUser, setSelectedUser] = useState("");
+
 
     // Staging State (Drive Selection)
     const [stagingFiles, setStagingFiles] = useState<StagingFile[]>([]);
@@ -272,7 +280,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
     const handleClientChange = (clientId: string) => {
         setSelectedClient(clientId);
-        const client = clients.find(c => c.id === clientId);
+        const client = clientList.find(c => c.id === clientId);
+
         if (client && client.prefix) {
             setClientCode(client.prefix);
         } else {
@@ -406,8 +415,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 code: projectCode,
                 name: projectName,
                 client_id: selectedClient,
-                company_name: clients.find(c => c.id === selectedClient)?.name || "",
-                requestor: contacts.find(c => c.id === selectedUser)?.name || "",
+                company_name: clientList.find(c => c.id === selectedClient)?.name || "",
+                requestor: contactList.find(c => c.id === selectedUser)?.name || "",
                 start_date: format(requestDate, "yyyy-MM-dd"),
                 delivery_date: format(deliveryDate, "yyyy-MM-dd"),
                 status: "active"
@@ -522,6 +531,44 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         });
     };
 
+    // Client Creation
+    const handleCreateClient = async (name: string) => {
+        try {
+            setLoading(true);
+            const newId = await createClientEntry(name); // Assuming createClientEntry returns the ID
+            if (newId) {
+                const newClient = { id: newId, name: name, prefix: null }; // Default prefix null
+                setClientList(prev => [...prev, newClient].sort((a, b) => a.name.localeCompare(b.name)));
+                setSelectedClient(newId);
+                // Also trigger logic for code update if needed (will be empty prefix)
+                setClientCode("");
+                toast.success(`Cliente "${name}" creado exitosamente.`);
+            }
+        } catch (error: any) {
+            toast.error("Error al crear cliente: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // User Creation
+    const handleCreateContact = async (name: string) => {
+        try {
+            setLoading(true);
+            const newId = await createContactEntry(name);
+            if (newId) {
+                const newContact = { id: newId, name: name };
+                setContactList(prev => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
+                setSelectedUser(newId);
+                toast.success(`Usuario "${name}" creado exitosamente.`);
+            }
+        } catch (error: any) {
+            toast.error("Error al crear usuario: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Reusable styles for "Ghost" inputs in table
     const ghostInputClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 h-9 font-medium";
     const ghostTextareaClass = "bg-transparent border border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all duration-200 resize-none font-medium py-1.5 px-3 rounded-md";
@@ -538,31 +585,27 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             {/* Client */}
                             <div className="space-y-2.5">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Cliente</Label>
-                                <Select value={selectedClient} onValueChange={handleClientChange}>
-                                    <SelectTrigger className="bg-zinc-50/50 border-zinc-200 shadow-sm h-10 transition-all hover:bg-white">
-                                        <SelectValue placeholder="Seleccionar..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {clients.map(c => (
-                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchableSelect
+                                    options={clientList.map(c => ({ label: c.name, value: c.id }))}
+                                    value={selectedClient}
+                                    onChange={handleClientChange}
+                                    onCreate={handleCreateClient}
+                                    placeholder="Seleccionar o crear..."
+                                    className="w-full"
+                                />
                             </div>
 
                             {/* User / Requestor */}
                             <div className="space-y-2.5">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Usuario / Solicitante</Label>
-                                <Select value={selectedUser} onValueChange={setSelectedUser}>
-                                    <SelectTrigger className="bg-zinc-50/50 border-zinc-200 shadow-sm h-10 transition-all hover:bg-white">
-                                        <SelectValue placeholder="Seleccionar..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {contacts.map(c => (
-                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchableSelect
+                                    options={contactList.map(c => ({ label: c.name, value: c.id }))}
+                                    value={selectedUser}
+                                    onChange={setSelectedUser}
+                                    onCreate={handleCreateContact}
+                                    placeholder="Seleccionar o crear..."
+                                    className="w-full"
+                                />
                             </div>
 
                             {/* Dates */}
@@ -594,7 +637,6 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                 <div className="space-y-2.5 md:col-span-2">
                                     <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider flex items-center gap-2">
                                         Link Carpeta Drive (Opcional)
-                                        <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">BETA</span>
                                     </Label>
                                     <Input
                                         placeholder="https://drive.google.com/drive/folders/..."

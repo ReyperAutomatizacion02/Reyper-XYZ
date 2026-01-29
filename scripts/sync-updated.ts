@@ -14,13 +14,13 @@ if (!NOTION_TOKEN || !PROJECTS_DB_ID || !ITEMS_DB_ID || !PLANNING_DB_ID) {
     throw new Error("Missing Notion configuration in .env.local");
 }
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error("Missing Supabase credentials in .env.local");
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Missing Supabase credentials (SUPABASE_SERVICE_ROLE_KEY) in .env.local");
 }
 
 const supabase = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // CLI Arguments
@@ -255,10 +255,33 @@ async function runSync() {
                 uniqueBatch.forEach((p: any) => console.log(`   - [${p.code}] ${p.name}${!projectMap.has(p.notion_id) ? " (NUEVO)" : ""}`));
 
                 const { data, error } = await supabase.from("projects").upsert(uniqueBatch as any[], { onConflict: 'notion_id' }).select("id, notion_id");
-                if (error) console.error("❌ Error Supabase Proyectos:", error.message);
-                data?.forEach(p => projectMap.set(p.notion_id!, p.id));
-                stats.projects += uniqueBatch.length;
-                batchTotal += uniqueBatch.length;
+
+                if (error) {
+                    console.error(`❌ Error en batch de Proyectos: ${error.message} (Code: ${error.code})`);
+                    console.log("⚠️ Intentando inserción uno por uno para detectar y aislar el conflicto...");
+
+                    for (const item of uniqueBatch) {
+                        const p = item as any;
+                        const { data: singleData, error: singleError } = await supabase.from("projects").upsert(p, { onConflict: 'notion_id' }).select("id, notion_id");
+
+                        if (singleError) {
+                            console.error(`   ❌ FALLÓ PROYECTO [${p.code}] "${p.name}":`);
+                            console.error(`      Error: ${singleError.message}`);
+                            console.error(`      Notion ID: ${p.notion_id}`);
+                        } else {
+                            if (singleData && singleData[0]) {
+                                projectMap.set(singleData[0].notion_id!, singleData[0].id);
+                                stats.projects++;
+                                batchTotal++;
+                                // console.log(`      ✅ Recuperado: [${p.code}]`);
+                            }
+                        }
+                    }
+                } else {
+                    data?.forEach(p => projectMap.set(p.notion_id!, p.id));
+                    stats.projects += uniqueBatch.length;
+                    batchTotal += uniqueBatch.length;
+                }
             }
             hasMoreP = resp.has_more; cursorP = resp.next_cursor;
         }
@@ -331,11 +354,28 @@ async function runSync() {
                 // Deduplicate by notion_id
                 const uniqueBatch = Array.from(new Map(clean.map((item: any) => [item.notion_id, item])).values());
 
-                const { data } = await supabase.from("production_orders").upsert(uniqueBatch, { onConflict: 'notion_id' }).select("id, notion_id");
-                data?.forEach(o => orderMap.set(o.notion_id!, o.id));
-                stats.items += uniqueBatch.length;
-                batchTotal += uniqueBatch.length;
-                console.log(`🚀 Partidas sincronizadas en este batch: +${uniqueBatch.length}`);
+                const { data, error } = await supabase.from("production_orders").upsert(uniqueBatch as any[], { onConflict: 'notion_id' }).select("id, notion_id");
+
+                if (error) {
+                    console.error(`❌ Error en batch de Partidas: ${error.message}`);
+                    console.log("⚠️ Intentando inserción uno por uno...");
+                    for (const item of uniqueBatch) {
+                        const i = item as any;
+                        const { data: sData, error: sError } = await supabase.from("production_orders").upsert(i, { onConflict: 'notion_id' }).select("id, notion_id");
+                        if (sError) {
+                            console.error(`   ❌ FALLÓ PARTIDA [${i.part_code}]: ${sError.message}`);
+                        } else if (sData && sData[0]) {
+                            orderMap.set(sData[0].notion_id!, sData[0].id);
+                            stats.items++;
+                            batchTotal++;
+                        }
+                    }
+                } else {
+                    data?.forEach(o => orderMap.set(o.notion_id!, o.id));
+                    stats.items += uniqueBatch.length;
+                    batchTotal += uniqueBatch.length;
+                    console.log(`🚀 Partidas sincronizadas en este batch: +${uniqueBatch.length}`);
+                }
             }
             hasMoreI = resp.has_more; cursorI = resp.next_cursor;
         }
@@ -378,8 +418,20 @@ async function runSync() {
                 const uniqueBatch = Array.from(new Map(batch.map((item: any) => [item.notion_id, item])).values());
 
                 const { error } = await supabase.from("planning").upsert(uniqueBatch as any[], { onConflict: 'notion_id' });
-                if (error) console.error("❌ Error Planeación:", error.message);
-                else {
+
+                if (error) {
+                    console.error(`❌ Error en batch de Planeación: ${error.message}`);
+                    console.log("⚠️ Intentando inserción uno por uno...");
+                    for (const item of uniqueBatch) {
+                        const pl = item as any;
+                        const { error: sError } = await supabase.from("planning").upsert(pl, { onConflict: 'notion_id' });
+                        if (sError) {
+                            console.error(`   ❌ FALLÓ REGISTRO PLANEACIÓN [${pl.register || 'S/N'}]: ${sError.message}`);
+                        } else {
+                            stats.planning++;
+                        }
+                    }
+                } else {
                     stats.planning += uniqueBatch.length;
                     console.log(`🚀 Planeación: +${uniqueBatch.length}`);
 

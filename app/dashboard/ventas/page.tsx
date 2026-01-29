@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FilePlus, ShoppingCart, ArrowRight, Clock, History } from "lucide-react";
+import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 
 const salesTools = [
@@ -20,12 +20,18 @@ const salesTools = [
         status: "Nuevo",
     },
     {
-        name: "Historial",
-        description: "Ver, editar y descargar todas las cotizaciones pasadas.",
         href: "/dashboard/ventas/historial",
         icon: History,
         color: "bg-blue-500/10 text-blue-500",
         status: "Disponible",
+    },
+    {
+        name: "Clientes y Usuarios",
+        description: "Gestionar catálogo de clientes y usuarios solicitantes.",
+        href: "/dashboard/ventas/clientes-usuarios",
+        icon: Users2,
+        color: "bg-indigo-500/10 text-indigo-500",
+        status: "Nuevo",
     },
 ];
 

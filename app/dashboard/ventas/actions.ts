@@ -5,21 +5,71 @@ import { cookies } from "next/headers";
 
 // --- CREATE ACTIONS ---
 
-export async function createClientEntry(name: string, prefix?: string) {
+export async function createClientEntry(name: string, prefix?: string, business_name?: string, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const { data, error } = await supabase.from("sales_clients").insert({ name, prefix }).select("id").single();
+    const { data, error } = await supabase.from("sales_clients").insert({ name, prefix, business_name, is_active }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
-export async function createContactEntry(name: string) {
+export async function createContactEntry(name: string, client_id?: string, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const { data, error } = await supabase.from("sales_contacts").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_contacts").insert({ name, client_id, is_active }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
+
+export async function createContactBatch(names: string[], client_id?: string, is_active: boolean = true) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    if (!names || names.length === 0) return { success: false, error: "No names provided" };
+
+    const records = names.map(name => ({
+        name,
+        client_id,
+        is_active
+    }));
+
+    const { error } = await supabase.from("sales_contacts").insert(records);
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+export async function updateClientEntry(id: string, name: string, prefix?: string | null, business_name?: string | null, is_active: boolean = true) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { error } = await supabase.from("sales_clients").update({ name, prefix, business_name, is_active }).eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+export async function deleteClientEntry(id: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { error } = await supabase.from("sales_clients").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+export async function updateContactEntry(id: string, name: string, client_id?: string | null, is_active: boolean = true) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { error } = await supabase.from("sales_contacts").update({ name, client_id, is_active }).eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+export async function deleteContactEntry(id: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { error } = await supabase.from("sales_contacts").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
 
 export async function createPositionEntry(name: string) {
     const cookieStore = await cookies();
@@ -84,8 +134,8 @@ export async function getCatalogData() {
     const supabase = createClient(cookieStore);
 
     const [clients, contacts, positions, areas, units, materials] = await Promise.all([
-        supabase.from("sales_clients").select("id, name, prefix").order("name"),
-        supabase.from("sales_contacts").select("id, name").order("name"),
+        supabase.from("sales_clients").select("id, name, prefix, business_name, is_active").order("name"),
+        supabase.from("sales_contacts").select("id, name, client_id, is_active").order("name"),
         supabase.from("sales_positions").select("id, name").order("name"),
         supabase.from("sales_areas").select("id, name").order("name"),
         supabase.from("sales_units").select("id, name").order("name"),
