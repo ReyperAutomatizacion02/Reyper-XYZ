@@ -214,10 +214,11 @@ const styles = StyleSheet.create({
 
 // Helper to format currency
 const formatCurrency = (amount: number, currency: string = 'MXN') => {
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: 2
+    // Always use $ symbol regardless of currency (USD/MXN) as per user request
+    return "$" + new Intl.NumberFormat('es-MX', {
+        style: 'decimal',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(amount);
 };
 
@@ -245,16 +246,30 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
     // Determine the tax percentage display
     const taxPercent = data.tax_rate > 1 ? data.tax_rate : (data.tax_rate * 100);
 
+    // Theme Logic
+    const isInversa = data.quote_as === "INVERSA";
+    const primaryColor = isInversa ? '#376E2D' : '#b91c1c';
+    const logoSrc = isInversa ? "/logo_inversa.png" : "/logo_reyper.png";
+
+    // Style overrides
+    const dynamicStyles = {
+        titleBox: [styles.quoteTitleBox, { backgroundColor: primaryColor }],
+        sectionTitle: [styles.sectionTitle, { color: primaryColor, borderBottomColor: primaryColor }],
+        tableHeader: [styles.tableHeader, { backgroundColor: primaryColor }],
+        grandTotalBox: [styles.grandTotalBox, { backgroundColor: primaryColor }],
+        termTitle: [styles.termTitle, { color: primaryColor, borderBottomColor: primaryColor }],
+    };
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
                 {/* Header */}
                 <View style={styles.headerContainer}>
                     <View style={styles.logoContainer}>
-                        <Image src="/logo_reyper.png" style={{ width: 120, marginBottom: 10 }} />
+                        <Image src={logoSrc} style={{ width: 120, marginBottom: 10 }} />
                     </View>
                     <View style={styles.quoteInfoContainer}>
-                        <View style={styles.quoteTitleBox}>
+                        <View style={dynamicStyles.titleBox}>
                             <Text style={styles.quoteTitleText}>COTIZACIÓN: COT-{data.quote_number}</Text>
                         </View>
                         <View style={styles.quoteDetailRow}>
@@ -274,7 +289,13 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
 
                 {/* Company Address */}
                 <View style={styles.companyInfo}>
-                    <Text style={styles.companyName}>DMR INDUSTRIAL S.A DE C.V.</Text>
+                    <Text style={styles.companyName}>
+                        {data.quote_as === "JOSE DE JESUS"
+                            ? "JOSÉ DE JESUS REYES RAMOS"
+                            : data.quote_as === "INVERSA"
+                                ? "INVERSA 4.0 S.A. DE R.L. DE C.V."
+                                : "DMR INDUSTRIAL S.A DE C.V."}
+                    </Text>
                     <Text>CAMINO REAL NORTE #40, SAN BALTAZAR TEMAXCALAC</Text>
                     <Text>SAN MARTIN TEXMELUCAN, PUEBLA, MEXICO. C.P. 74126</Text>
                     <Text>+52 (248) 2 91 91 34</Text>
@@ -284,14 +305,14 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
                 <View style={styles.columnsContainer}>
                     {/* Left Col */}
                     <View style={styles.columnLeft}>
-                        <Text style={styles.sectionTitle}>COTIZADO A</Text>
+                        <Text style={dynamicStyles.sectionTitle}>COTIZADO A</Text>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>CLIENTE:</Text>
                             <Text style={styles.detailValue}>{data.client_name}</Text>
                         </View>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>AT'N:</Text>
-                            <Text style={styles.detailValue}>{data.contact_name}</Text>
+                            <Text style={styles.detailValue}>{data.contact_name || "---"}</Text>
                         </View>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>PUESTO:</Text>
@@ -305,7 +326,7 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
 
                     {/* Right Col */}
                     <View style={styles.columnRight}>
-                        <Text style={styles.sectionTitle}>VIGENCIA Y CONDICIONES</Text>
+                        <Text style={dynamicStyles.sectionTitle}>VIGENCIA Y CONDICIONES</Text>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>MONEDA:</Text>
                             <Text style={styles.detailValue}>{data.currency}</Text>
@@ -333,7 +354,7 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
                 {/* Items Table */}
                 <View style={styles.table}>
                     {/* Header */}
-                    <View style={styles.tableHeader}>
+                    <View style={dynamicStyles.tableHeader}>
                         <Text style={styles.colLot}>LOT.</Text>
                         <Text style={styles.colDesc}>DESCRIPCIÓN</Text>
                         <Text style={styles.colQty}>CANT.</Text>
@@ -365,7 +386,7 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
                         <Text style={styles.totalLabel}>I.V.A ({taxPercent.toFixed(0)}%)</Text>
                         <Text style={styles.totalValue}>{formatCurrency(tax, data.currency)}</Text>
                     </View>
-                    <View style={styles.grandTotalBox}>
+                    <View style={dynamicStyles.grandTotalBox}>
                         <Text style={{ fontWeight: 'bold', marginRight: 10 }}>TOTAL</Text>
                         <Text style={{ fontWeight: 'bold' }}>{formatCurrency(totalWithTax, data.currency)}</Text>
                     </View>
@@ -373,9 +394,9 @@ export function QuotePDF({ data, items }: { data: any, items: any[] }) {
 
                 {/* Terms */}
                 <View style={styles.footerterms}>
-                    <Text style={styles.termTitle}>TÉRMINOS Y CONDICIONES</Text>
+                    <Text style={dynamicStyles.termTitle}>TÉRMINOS Y CONDICIONES</Text>
                     <Text style={styles.termText}><Text style={{ fontWeight: 'bold' }}>PRECIO UNITARIO:</Text> MÁS I.V.A</Text>
-                    <Text style={styles.termText}><Text style={{ fontWeight: 'bold' }}>GARANTÍA:</Text> REYPER garantiza por un año los productos contra defectos de fabricación bajo condiciones normales de operación.</Text>
+                    <Text style={styles.termText}><Text style={{ fontWeight: 'bold' }}>GARANTÍA:</Text> {isInversa ? "INVERSA" : "REYPER"} garantiza por un año los productos contra defectos de fabricación bajo condiciones normales de operación.</Text>
                     <Text style={styles.termText}><Text style={{ fontWeight: 'bold' }}>CANCELACIÓN:</Text> Requiere consentimiento escrito. Cargo del 30% por gastos efectuados y 50% en equipo especial.</Text>
                     <Text style={styles.termText}><Text style={{ fontWeight: 'bold' }}>DEVOLUCIÓN:</Text> No se aceptan devoluciones después de 5 días hábiles de entregado el material.</Text>
                 </View>

@@ -521,9 +521,9 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
         }) || null;
     };
 
-    // Prepare operator options
-    const operatorOptions = employees
-        .filter(e => e.is_operator && e.is_active)
+    // Prepare employee options (all active employees)
+    const employeeOptions = employees
+        .filter(e => e.is_active)
         .map(e => ({ label: e.full_name, value: e.full_name }));
 
     return (
@@ -609,21 +609,19 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                             />
                                         </div>
 
-                                        {(selectedRoles[user.id] || ["produccion"]).includes("operador") && (
-                                            <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <label className="text-sm font-medium mb-2 block">Asignar Operador:</label>
-                                                <SearchableSelect
-                                                    options={operatorOptions}
-                                                    value={operatorNames[user.id] || ""}
-                                                    onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
-                                                    placeholder="Buscar operador..."
-                                                    className="w-full"
-                                                />
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Selecciona un operador de la lista de colaboradores.
-                                                </p>
-                                            </div>
-                                        )}
+                                        <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <label className="text-sm font-medium mb-1.5 block">Vincular con Colaborador:</label>
+                                            <SearchableSelect
+                                                options={employeeOptions}
+                                                value={operatorNames[user.id] || ""}
+                                                onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
+                                                placeholder="Buscar colaborador..."
+                                                className="w-full"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Vincula este usuario con un registro de colaborador.
+                                            </p>
+                                        </div>
 
                                         <div className="flex items-center gap-2">
                                             <button
@@ -697,18 +695,16 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                                 onChange={(roles) => setSelectedRoles(prev => ({ ...prev, [user.id]: roles }))}
                                                 disabled={isPending}
                                             />
-                                            {(selectedRoles[user.id] || user.roles || []).includes("operador") && (
-                                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                                    <label className="text-sm font-medium mb-1.5 block">Asignar Operador:</label>
-                                                    <SearchableSelect
-                                                        options={operatorOptions}
-                                                        value={operatorNames[user.id] === undefined ? (user.operator_name || "") : operatorNames[user.id]}
-                                                        onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
-                                                        placeholder="Buscar operador..."
-                                                        className="w-full"
-                                                    />
-                                                </div>
-                                            )}
+                                            <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <label className="text-sm font-medium mb-1.5 block">Vincular con Colaborador:</label>
+                                                <SearchableSelect
+                                                    options={employeeOptions}
+                                                    value={operatorNames[user.id] === undefined ? (user.operator_name || "") : operatorNames[user.id]}
+                                                    onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
+                                                    placeholder="Buscar colaborador..."
+                                                    className="w-full"
+                                                />
+                                            </div>
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleUpdateRoles(user.id)}
@@ -740,18 +736,16 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                                     </span>
                                                 )}
                                             </div>
-                                            {user.id !== currentUserId && (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedRoles(prev => ({ ...prev, [user.id]: user.roles || [] }));
-                                                        setOperatorNames(prev => ({ ...prev, [user.id]: user.operator_name || "" }));
-                                                        setEditingUser(user.id);
-                                                    }}
-                                                    className="text-sm font-medium text-primary hover:underline"
-                                                >
-                                                    Editar Roles
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedRoles(prev => ({ ...prev, [user.id]: user.roles || [] }));
+                                                    setOperatorNames(prev => ({ ...prev, [user.id]: user.operator_name || "" }));
+                                                    setEditingUser(user.id);
+                                                }}
+                                                className="text-sm font-medium text-primary hover:underline"
+                                            >
+                                                Editar Roles
+                                            </button>
                                         </div>
                                     )}
                                 </div>

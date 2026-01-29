@@ -12,6 +12,14 @@ const salesTools = [
         status: "Disponible",
     },
     {
+        name: "Nuevo Proyecto",
+        description: "Generar códigos de proyecto y partidas automáticamente.",
+        href: "/dashboard/ventas/nuevo-proyecto",
+        icon: FilePlus,
+        color: "bg-orange-500/10 text-orange-500",
+        status: "Nuevo",
+    },
+    {
         name: "Historial",
         description: "Ver, editar y descargar todas las cotizaciones pasadas.",
         href: "/dashboard/ventas/historial",

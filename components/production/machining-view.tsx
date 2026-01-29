@@ -11,6 +11,16 @@ import moment from "moment";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { createClient } from "@/utils/supabase/client";
 import { DashboardHeader } from "@/components/dashboard-header";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
@@ -27,6 +37,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
     const router = useRouter();
     const [zoomLevel, setZoomLevel] = useState(1);
     const [isSaving, setIsSaving] = useState(false);
+    const [checkoutTaskId, setCheckoutTaskId] = useState<string | null>(null);
 
     // Filter tasks - Only show non-completed tasks for TODAY
     const filteredTasks = useMemo(() => {
@@ -71,12 +82,16 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
         }
     };
 
-    const handleCheckOut = async (taskId: string) => {
+    const handleCheckOut = (taskId: string) => {
         if (isSaving) return;
-        if (!confirm("¿Deseas finalizar este maquinado?")) return;
+        setCheckoutTaskId(taskId);
+    };
+
+    const confirmCheckOut = async () => {
+        if (!checkoutTaskId || isSaving) return;
         setIsSaving(true);
         try {
-            await recordCheckOut(taskId);
+            await recordCheckOut(checkoutTaskId);
             // Defer refresh to avoid hooks error
             setTimeout(() => {
                 router.refresh();
@@ -86,6 +101,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
             alert("Error al registrar fin");
         } finally {
             setIsSaving(false);
+            setCheckoutTaskId(null);
         }
     };
 
@@ -220,6 +236,28 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                     </div>
                 )}
             </div>
-        </div>
+
+
+            <AlertDialog open={!!checkoutTaskId} onOpenChange={(open) => !open && setCheckoutTaskId(null)}>
+                <AlertDialogContent className="bg-card border-border">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-xl font-black uppercase text-red-500">¿Finalizar Maquinado?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground font-medium text-base">
+                            Esta acción registrará la hora de término y marcará la tarea como completada. Asegúrate de que has terminado el trabajo.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-0">
+                        <AlertDialogCancel className="font-bold uppercase text-xs">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmCheckOut}
+                            disabled={isSaving}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-xs"
+                        >
+                            Sí, Finalizar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div >
     );
 }

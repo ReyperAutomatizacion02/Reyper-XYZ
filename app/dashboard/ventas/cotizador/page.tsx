@@ -286,7 +286,8 @@ function QuoteGeneratorContent() {
         setItems(newItems);
     };
 
-    const resetForm = () => {
+    // Logic: Full Reset (Nuevo) - Clears everything including ID/Folio to start fresh
+    const handleNewQuote = () => {
         setFormData({
             quote_as: "DMR",
             requisition_no: "",
@@ -307,8 +308,38 @@ function QuoteGeneratorContent() {
         ]);
         setSavedQuote(null);
         setIsDirty(false);
+        // If we were editing, we should probably push to the base URL to clear the ID query param
+        if (editingId) {
+            router.push("/dashboard/ventas/cotizador");
+        }
         document.getElementById('cotizador-top')?.scrollIntoView({ behavior: 'smooth' });
-        toast.info("Formulario reiniciado.");
+        toast.info("Nueva cotización iniciada.");
+    };
+
+    // Logic: Reset Fields (Reiniciar) - Clears inputs but keeps current session/folio if exists
+    const handleResetFields = () => {
+        setFormData({
+            quote_as: "DMR",
+            requisition_no: "",
+            part_no: "",
+            issue_date: new Date().toISOString().split('T')[0],
+            delivery_date: "",
+            currency: "MXN",
+            client_id: "",
+            contact_id: "",
+            payment_terms_days: 30,
+            position_id: "",
+            area_id: "",
+            validity_days: 30,
+            tax_rate: 16
+        });
+        setItems([
+            { id: "1", description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+        ]);
+        // Do NOT clear savedQuote or editingId
+        setIsDirty(false);
+        document.getElementById('cotizador-top')?.scrollIntoView({ behavior: 'smooth' });
+        toast.info("Formulario reiniciado (Folio conservado).");
     };
 
     const handleSave = async () => {
@@ -716,27 +747,55 @@ function QuoteGeneratorContent() {
                 </Card>
 
                 <div className="flex items-center gap-4">
+                    {/* Reset Button (Reiniciar) - Always visible */}
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="outline" className="border-zinc-500/30 font-semibold uppercase">
-                                Reiniciar / Nuevo
+                                Reiniciar
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="bg-card border-border">
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Reiniciar Formulario?</AlertDialogTitle>
+                                <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Reiniciar Campos?</AlertDialogTitle>
                                 <AlertDialogDescription className="text-muted-foreground">
-                                    Se borrará toda la información capturada y el formulario quedará en blanco. Esta acción no se puede deshacer.
+                                    Se borrará la información capturada en el formulario actual.
+                                    {savedQuote ? " El folio de la cotización se mantendrá." : ""}
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel className="border-border hover:bg-muted font-bold uppercase text-xs">Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={resetForm} className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-xs">
+                                <AlertDialogAction onClick={handleResetFields} className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-xs">
                                     Sí, Reiniciar
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+
+                    {/* New Quote Button (Nueva) - Only visible if saved or editing */}
+                    {(savedQuote || editingId) && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" className="border-blue-500/30 text-blue-500 hover:bg-blue-500/10 font-semibold uppercase">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Nueva
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="bg-card border-border">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle className="text-blue-500 font-bold uppercase">¿Nueva Cotización?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-muted-foreground">
+                                        Se cerrará la cotización actual y se iniciará una completamente nueva con un folio distinto. Asegúrate de haber guardado cambios.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel className="border-border hover:bg-muted font-bold uppercase text-xs">Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleNewQuote} className="bg-blue-600 hover:bg-blue-700 text-white font-bold uppercase text-xs">
+                                        Sí, Crear Nueva
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
 
                     <div className="flex gap-2">
                         {((editingId && !isClone) || savedQuote) && (

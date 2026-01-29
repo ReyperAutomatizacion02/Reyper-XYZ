@@ -5,10 +5,10 @@ import { cookies } from "next/headers";
 
 // --- CREATE ACTIONS ---
 
-export async function createClientEntry(name: string) {
+export async function createClientEntry(name: string, prefix?: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const { data, error } = await supabase.from("sales_clients").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_clients").insert({ name, prefix }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
@@ -83,12 +83,13 @@ export async function getCatalogData() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const [clients, contacts, positions, areas, units] = await Promise.all([
-        supabase.from("sales_clients").select("id, name").order("name"),
+    const [clients, contacts, positions, areas, units, materials] = await Promise.all([
+        supabase.from("sales_clients").select("id, name, prefix").order("name"),
         supabase.from("sales_contacts").select("id, name").order("name"),
         supabase.from("sales_positions").select("id, name").order("name"),
         supabase.from("sales_areas").select("id, name").order("name"),
-        supabase.from("sales_units").select("id, name").order("name")
+        supabase.from("sales_units").select("id, name").order("name"),
+        supabase.from("sales_materials").select("id, name").order("name")
     ]);
 
     return {
@@ -96,7 +97,8 @@ export async function getCatalogData() {
         contacts: contacts.data || [],
         positions: positions.data || [],
         areas: areas.data || [],
-        units: units.data || []
+        units: units.data || [],
+        materials: materials.data || []
     };
 }
 
