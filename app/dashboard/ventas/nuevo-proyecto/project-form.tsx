@@ -234,6 +234,29 @@ function DateSelector({
     );
 }
 
+// Helper for auto-sizing textareas in tables
+const AutoResizeTextarea = ({ value, onChange, placeholder, className, minHeight = "38px" }: any) => {
+    return (
+        <div className={cn("grid grid-cols-[1fr] relative w-max min-w-full", className?.includes("max-w") ? "" : "max-w-full")}>
+            {/* Shadow element for sizing: Matches font/padding of textarea exactly */}
+            <div
+                className={cn(className, "invisible whitespace-pre-wrap break-words overflow-hidden h-auto w-full")}
+                aria-hidden="true"
+                style={{ minHeight }}
+            >
+                {value || placeholder || " "}
+            </div>
+            {/* Actual Input */}
+            <textarea
+                value={value}
+                onChange={onChange}
+                placeholder={placeholder}
+                className={cn(className, "absolute inset-0 h-full w-full resize-none overflow-hidden leading-inherit outline-none focus:outline-none")}
+            />
+        </div>
+    );
+};
+
 export function ProjectForm({ clients, contacts, units, materials, initialDate }: ProjectFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
@@ -402,7 +425,6 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
             if (success) {
                 toast.success("Proyecto creado exitosamente");
                 router.push("/dashboard");
-                router.refresh();
             }
         } catch (error: any) {
             toast.error(error.message);
@@ -502,7 +524,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
     // Reusable styles for "Ghost" inputs in table
     const ghostInputClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 h-9 font-medium";
-    const ghostTextareaClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 min-h-[60px] resize-none font-medium";
+    const ghostTextareaClass = "bg-transparent border border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all duration-200 resize-none font-medium py-1.5 px-3 rounded-md";
     const ghostTriggerClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 h-9 font-medium";
 
     return (
@@ -695,10 +717,10 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                     <TableHeader className="bg-zinc-50/80 dark:bg-zinc-900/50">
                                         <TableRow className="hover:bg-transparent border-b-zinc-200/50">
                                             <TableHead className="w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">Código</TableHead>
-                                            <TableHead className="min-w-[350px] font-bold text-xs uppercase tracking-wider text-zinc-500">Descripción / Nombre</TableHead>
+                                            <TableHead className="w-auto min-w-[200px] max-w-[450px] font-bold text-xs uppercase tracking-wider text-zinc-500">Descripción / Nombre</TableHead>
                                             <TableHead className="min-w-[100px] font-bold text-xs uppercase tracking-wider text-zinc-500">Cant.</TableHead>
                                             <TableHead className="w-[140px] font-bold text-xs uppercase tracking-wider text-zinc-500">Unidad</TableHead>
-                                            <TableHead className="min-w-[400px] font-bold text-xs uppercase tracking-wider text-zinc-500">No. Diseño</TableHead>
+                                            <TableHead className="w-auto min-w-[150px] max-w-[400px] font-bold text-xs uppercase tracking-wider text-zinc-500">No. Diseño</TableHead>
                                             <TableHead className="min-w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">Material</TableHead>
                                             <TableHead className="min-w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">URL Plano</TableHead>
                                             <TableHead className="w-[50px]"></TableHead>
@@ -713,16 +735,16 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                     index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/50"
                                                 )}
                                             >
-                                                <TableCell className="font-mono font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap align-top pt-4 pl-4">{item.code}</TableCell>
+                                                <TableCell className="font-mono font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap pl-4">{item.code}</TableCell>
                                                 <TableCell>
-                                                    <Textarea
+                                                    <AutoResizeTextarea
                                                         value={item.description}
-                                                        onChange={(e) => updateItem(item.id, "description", e.target.value)}
-                                                        className={ghostTextareaClass}
+                                                        onChange={(e: any) => updateItem(item.id, "description", e.target.value)}
+                                                        className={cn(ghostTextareaClass, "min-w-[150px] max-w-[450px]")}
                                                         placeholder="Descripción..."
                                                     />
                                                 </TableCell>
-                                                <TableCell className="align-top pt-2">
+                                                <TableCell>
                                                     <Input
                                                         type="number"
                                                         value={item.quantity}
@@ -730,7 +752,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                         className={ghostInputClass}
                                                     />
                                                 </TableCell>
-                                                <TableCell className="align-top pt-2">
+                                                <TableCell>
                                                     <Select
                                                         value={item.unit}
                                                         onValueChange={(val) => updateItem(item.id, "unit", val)}
@@ -746,7 +768,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                     </Select>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-start gap-1">
+                                                    <div className="flex items-center gap-1">
                                                         {item.thumbnail && (
                                                             <Dialog>
                                                                 <DialogTrigger asChild>
@@ -767,15 +789,16 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                                 </DialogContent>
                                                             </Dialog>
                                                         )}
-                                                        <Textarea
+                                                        <AutoResizeTextarea
                                                             value={item.designNo}
-                                                            onChange={(e) => updateItem(item.id, "designNo", e.target.value)}
-                                                            className={ghostTextareaClass}
+                                                            onChange={(e: any) => updateItem(item.id, "designNo", e.target.value)}
+                                                            className={cn(ghostTextareaClass, "min-w-[150px] max-w-[350px]")}
                                                             placeholder="-"
+                                                            minHeight="36px"
                                                         />
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="align-top pt-2">
+                                                <TableCell>
                                                     <Select
                                                         value={item.material}
                                                         onValueChange={(val) => updateItem(item.id, "material", val)}
@@ -790,7 +813,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
-                                                <TableCell className="align-top pt-2">
+                                                <TableCell>
                                                     <Input
                                                         value={item.url}
                                                         onChange={(e) => updateItem(item.id, "url", e.target.value)}
@@ -798,12 +821,12 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                         placeholder="https://..."
                                                     />
                                                 </TableCell>
-                                                <TableCell className="align-top pt-2">
+                                                <TableCell>
                                                     <div className="flex items-center gap-1 justify-end">
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
                                                             onClick={() => handleDeleteItem(item.id)}
                                                         >
                                                             <Trash2 className="w-4 h-4" />
