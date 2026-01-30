@@ -174,6 +174,64 @@ export async function getQuotesHistory() {
     return data;
 }
 
+export async function getActiveProjects() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data, error } = await supabase
+        .from("projects")
+        .select(`
+            id, 
+            code, 
+            name, 
+            company, 
+            requestor, 
+            start_date, 
+            delivery_date, 
+            status
+        `)
+        .eq("status", "active")
+        .order("delivery_date", { ascending: true });
+
+    if (error) throw new Error(error.message);
+
+    return data;
+}
+
+export async function getFilterOptions() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // Fetch in parallel for performance
+    const [clientsData, requestorsData] = await Promise.all([
+        supabase.from("projects").select("company").eq("status", "active"),
+        supabase.from("projects").select("requestor").eq("status", "active")
+    ]);
+
+    // Extract unique values
+    const uniqueClients = Array.from(new Set(clientsData.data?.map(d => d.company).filter(Boolean))).sort();
+    const uniqueRequestors = Array.from(new Set(requestorsData.data?.map(d => d.requestor).filter(Boolean))).sort();
+
+    return {
+        clients: uniqueClients,
+        requestors: uniqueRequestors
+    };
+}
+
+export async function getProjectDetails(projectId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: items, error } = await supabase
+        .from("production_orders")
+        .select("id, part_code, part_name, quantity, genral_status, image, material")
+        .eq("project_id", projectId)
+        .order("part_code", { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return items.map((item: any) => ({ ...item, status: item.genral_status }));
+}
+
 export async function getQuoteById(id: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

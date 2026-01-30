@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2 } from "lucide-react";
+import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2, FolderKanban } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 
 const salesTools = [
@@ -20,6 +20,8 @@ const salesTools = [
         status: "Nuevo",
     },
     {
+        name: "Historial de Cotizaciones",
+        description: "Consultar y gestionar cotizaciones pasadas.",
         href: "/dashboard/ventas/historial",
         icon: History,
         color: "bg-blue-500/10 text-blue-500",
@@ -31,6 +33,14 @@ const salesTools = [
         href: "/dashboard/ventas/clientes-usuarios",
         icon: Users2,
         color: "bg-indigo-500/10 text-indigo-500",
+        status: "Nuevo",
+    },
+    {
+        name: "Proyectos Activos",
+        description: "Monitoreo en tiempo real de proyectos en curso.",
+        href: "/dashboard/ventas/proyectos",
+        icon: FolderKanban,
+        color: "bg-orange-500/10 text-orange-500",
         status: "Nuevo",
     },
 ];
