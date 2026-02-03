@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2, Save, FileText, ArrowLeft, Loader2, Printer } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Plus, Trash2, Save, FileText, ArrowLeft, Loader2, Printer, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -63,6 +69,64 @@ const PDFDownloadLink = dynamic(
     }
 );
 
+// Custom Date Selector Component - Manual Absolute Positioning
+function DateSelector({
+    date,
+    onSelect,
+    label
+}: {
+    date: Date | undefined;
+    onSelect: (d: Date | undefined) => void;
+    label: string
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    return (
+        <div className="space-y-2 relative" ref={containerRef}>
+            <label className="text-xs font-semibold text-red-500 uppercase">{label}</label>
+            <Button
+                variant={"outline"}
+                className={cn(
+                    "w-full justify-start text-left font-normal bg-background border-input shadow-none transition-all duration-200",
+                    !date && "text-muted-foreground"
+                )}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <CalendarIcon className="mr-2 h-4 w-4 text-red-500" />
+                {date ? format(date, "PPP", { locale: es }) : <span>Seleccionar</span>}
+            </Button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        <div
+                            className="fixed inset-0 z-[9998] bg-transparent"
+                            onClick={() => setIsOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            className="absolute top-full mt-1 left-0 z-[9999] bg-popover border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-border/20"
+                        >
+                            <Calendar
+                                mode="single"
+                                selected={date}
+                                onSelect={(d) => {
+                                    onSelect(d);
+                                    setIsOpen(false);
+                                }}
+                                initialFocus
+                            />
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
 type QuoteItem = {
     id: string; // Temporary ID for UI
     description: string;
@@ -93,7 +157,7 @@ function QuoteGeneratorContent() {
 
     // Catalogs
     const [clients, setClients] = useState<Option[]>([]);
-    const [contacts, setContacts] = useState<Option[]>([]);
+    const [allContacts, setAllContacts] = useState<{ id: string, name: string, client_id?: string | null }[]>([]); // Store full contacts data
     const [positions, setPositions] = useState<Option[]>([]);
     const [areas, setAreas] = useState<Option[]>([]);
     const [units, setUnits] = useState<Option[]>([]);
@@ -114,6 +178,11 @@ function QuoteGeneratorContent() {
         validity_days: 30,
         tax_rate: 16
     });
+
+    // Filtered Contacts Logic
+    const filteredContacts = allContacts
+        .filter(c => !formData.client_id || c.client_id === formData.client_id)
+        .map(c => ({ value: c.id, label: c.name }));
 
     // Items State
     const [items, setItems] = useState<QuoteItem[]>([
@@ -194,7 +263,7 @@ function QuoteGeneratorContent() {
             try {
                 const catalog = await getCatalogData();
                 setClients(catalog.clients.map(c => ({ value: c.id, label: c.name })));
-                setContacts(catalog.contacts.map(c => ({ value: c.id, label: c.name })));
+                setAllContacts(catalog.contacts); // Store raw contacts for filtering
                 setPositions(catalog.positions.map(c => ({ value: c.id, label: c.name })));
                 setAreas(catalog.areas.map(c => ({ value: c.id, label: c.name })));
                 setUnits(catalog.units.map(c => ({ value: c.name, label: c.name })));
@@ -243,6 +312,16 @@ function QuoteGeneratorContent() {
     }, [editingId]);
 
     const handleFormChange = (updates: Partial<typeof formData>) => {
+        // If client changes, clear contact if it doesn't belong to the new client
+        if (updates.client_id && updates.client_id !== formData.client_id) {
+            // We can check if the current contact is valid for the new client.
+            // But simpler: just clear it if the client changes, forcing re-selection.
+            // Or verify against allContacts (which is available here).
+            const currentContact = allContacts.find(c => c.id === formData.contact_id);
+            if (currentContact && currentContact.client_id !== updates.client_id) {
+                updates.contact_id = "";
+            }
+        }
         setFormData(prev => ({ ...prev, ...updates }));
         setIsDirty(true);
     };
@@ -396,6 +475,48 @@ function QuoteGeneratorContent() {
 
     if (loading) return <div className="p-8 text-center text-muted-foreground">Cargando catálogos...</div>;
 
+    const handleCreateClient = async (name: string) => {
+        try {
+            setLoading(true);
+            const newId = await createClientEntry(name);
+            if (newId) {
+                const newClientOption = { value: newId, label: name };
+                setClients(prev => [...prev, newClientOption].sort((a, b) => a.label.localeCompare(b.label)));
+                toast.success(`Cliente "${name}" creado exitosamente.`);
+                return newId;
+            }
+            return null;
+        } catch (error: any) {
+            toast.error("Error al crear cliente: " + error.message);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateContact = async (name: string) => {
+        try {
+            if (!formData.client_id) {
+                toast.error("Selecciona un cliente primero para asociar el usuario.");
+                return null;
+            }
+            setLoading(true);
+            const newId = await createContactEntry(name, formData.client_id);
+            if (newId) {
+                const newContact = { id: newId, name: name, client_id: formData.client_id };
+                setAllContacts(prev => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
+                toast.success(`Usuario "${name}" creado exitosamente.`);
+                return newId;
+            }
+            return null;
+        } catch (error: any) {
+            toast.error("Error al crear usuario: " + error.message);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div id="cotizador-top" className="space-y-6 max-w-7xl mx-auto pb-20">
             {/* Header / Nav */}
@@ -454,21 +575,17 @@ function QuoteGeneratorContent() {
 
                     {/* Row 2 */}
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Fecha de Emisión</label>
-                        <Input
-                            type="date"
-                            value={formData.issue_date}
-                            onChange={e => handleFormChange({ issue_date: e.target.value })}
-                            className="bg-background border-input text-foreground"
+                        <DateSelector
+                            label="Fecha de Emisión"
+                            date={formData.issue_date ? new Date(formData.issue_date + 'T12:00:00') : undefined}
+                            onSelect={(d) => handleFormChange({ issue_date: d ? format(d, 'yyyy-MM-dd') : '' })}
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Fecha de Entrega</label>
-                        <Input
-                            type="date"
-                            value={formData.delivery_date}
-                            onChange={e => handleFormChange({ delivery_date: e.target.value })}
-                            className="bg-background border-input text-foreground"
+                        <DateSelector
+                            label="Fecha de Entrega"
+                            date={formData.delivery_date ? new Date(formData.delivery_date + 'T12:00:00') : undefined}
+                            onSelect={(d) => handleFormChange({ delivery_date: d ? format(d, 'yyyy-MM-dd') : '' })}
                         />
                     </div>
                     <div className="space-y-2">
@@ -494,12 +611,7 @@ function QuoteGeneratorContent() {
                             options={clients}
                             value={formData.client_id}
                             onSelect={(val) => handleFormChange({ client_id: val })}
-                            onCreate={async (name) => {
-                                const upperName = name.toUpperCase();
-                                const id = await createClientEntry(upperName);
-                                setClients([...clients, { value: id!, label: upperName }]);
-                                return id || null;
-                            }}
+                            onCreate={handleCreateClient}
                             createLabel="Crear Cliente"
                             placeholder="Seleccionar Cliente..."
                         />
@@ -507,17 +619,13 @@ function QuoteGeneratorContent() {
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-red-500 uppercase">Usuario (Contacto)</label>
                         <ComboboxCreatable
-                            options={contacts}
+                            options={filteredContacts}
                             value={formData.contact_id}
                             onSelect={(val) => handleFormChange({ contact_id: val })}
-                            onCreate={async (name) => {
-                                const upperName = name.toUpperCase();
-                                const id = await createContactEntry(upperName);
-                                setContacts([...contacts, { value: id!, label: upperName }]);
-                                return id || null;
-                            }}
+                            onCreate={handleCreateContact}
                             createLabel="Crear Contacto"
-                            placeholder="Nombre Completo..."
+                            placeholder={formData.client_id ? "Seleccionar Usuario..." : "Selecciona Cliente primero"}
+                            disabled={!formData.client_id}
                         />
                     </div>
                     <div className="space-y-2">
@@ -807,7 +915,7 @@ function QuoteGeneratorContent() {
                                             ...totals,
                                             quote_number: savedQuote?.quote_number || 0,
                                             client_name: clients.find(c => c.value === formData.client_id)?.label || "",
-                                            contact_name: contacts.find(c => c.value === formData.contact_id)?.label || "",
+                                            contact_name: allContacts.find(c => c.id === formData.contact_id)?.name || "",
                                             position_name: positions.find(c => c.value === formData.position_id)?.label || "",
                                             area_name: areas.find(c => c.value === formData.area_id)?.label || "",
                                         }}

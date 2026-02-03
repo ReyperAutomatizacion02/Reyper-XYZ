@@ -1,6 +1,7 @@
 {
-  "name": "temp_app",
+  "name": "reyper-xyz",
   "version": "0.1.0",
+  "description": "Sistema interno de gestión para Reyper - Maquinados CNC",
   "private": true,
   "scripts": {
     "dev": "next dev",

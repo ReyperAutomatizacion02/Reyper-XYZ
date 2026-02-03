@@ -37,23 +37,30 @@ export function UtilizationChart({ data }: UtilizationChartProps) {
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} layout="vertical" margin={{ left: 40, right: 20, top: 20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} opacity={0.3} />
+                    <CartesianGrid
+                        strokeDasharray="3 3"
+                        horizontal={true}
+                        vertical={true}
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeOpacity={0.25}
+                    />
                     <XAxis type="number" domain={[0, 100]} unit="%" hide />
                     <YAxis
                         type="category"
                         dataKey="machine"
                         width={100}
-                        tick={{ fontSize: 12 }}
+                        tick={{ fontSize: 12, fill: 'currentColor' }}
+                        className="text-muted-foreground"
                         interval={0}
                     />
                     <Tooltip
-                        cursor={{ fill: 'transparent' }}
+                        cursor={{ fill: 'currentColor', opacity: 0.05 }}
                         content={({ active, payload }) => {
                             if (active && payload && payload.length) {
                                 const d = payload[0].payload;
                                 return (
                                     <div className="bg-popover border border-border p-2 rounded-lg shadow-lg">
-                                        <p className="font-semibold text-sm">{d.machine}</p>
+                                        <p className="font-semibold text-sm text-popover-foreground">{d.machine}</p>
                                         <p className="text-sm text-green-500 font-medium">
                                             {d.efficiency.toFixed(1)}% ({d.hours.toFixed(1)}h)
                                         </p>
@@ -68,6 +75,7 @@ export function UtilizationChart({ data }: UtilizationChartProps) {
                         fill="hsl(var(--primary))"
                         radius={[0, 4, 4, 0]}
                         barSize={20}
+                        className="transition-all duration-300 hover:opacity-80"
                     />
                 </BarChart>
             </ResponsiveContainer>
@@ -80,21 +88,33 @@ export function ProjectsTrendChart({ data }: TrendChartProps) {
         <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                    <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeOpacity={0.25}
+                    />
                     <XAxis
                         dataKey="date"
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 10, fill: 'currentColor' }}
+                        className="text-muted-foreground"
                         tickMargin={10}
                         interval={4}
                     />
-                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <YAxis
+                        tick={{ fontSize: 10, fill: 'currentColor' }}
+                        className="text-muted-foreground"
+                        allowDecimals={false}
+                    />
                     <Tooltip
                         contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
                             borderColor: 'hsl(var(--border))',
                             borderRadius: '8px',
-                            fontSize: '12px'
+                            fontSize: '12px',
+                            color: 'hsl(var(--foreground))'
                         }}
+                        itemStyle={{ color: 'hsl(var(--foreground))' }}
                     />
                     <Line
                         type="linear"

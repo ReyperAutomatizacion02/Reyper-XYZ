@@ -13,10 +13,10 @@ export default async function AppNavbar() {
     } = await supabase.auth.getUser();
 
     return (
-        <header className="h-16 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex items-center justify-between px-6 sticky top-0 z-30">
+        <header className="h-16 border-b border-navbar-border bg-navbar-bg flex items-center justify-between px-6 sticky top-0 z-30">
             <div className="flex items-center gap-4">
                 {/* Placeholder for Breadcrumbs or Page Title */}
-                <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                <h1 className="text-lg font-semibold text-foreground">
                     Panel de Control
                 </h1>
             </div>
@@ -25,12 +25,12 @@ export default async function AppNavbar() {
                 <ThemeToggle />
 
                 {user ? (
-                    <div className="flex items-center gap-2 pl-4 border-l border-gray-200 dark:border-zinc-800">
+                    <div className="flex items-center gap-2 pl-4 border-l border-navbar-border">
                         <div className="flex flex-col items-end">
-                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <span className="text-sm font-medium text-foreground">
                                 {user.user_metadata.full_name || user.email?.split('@')[0] || "Usuario"}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="text-xs text-muted-foreground">
                                 {user.email}
                             </span>
                         </div>
@@ -42,7 +42,7 @@ export default async function AppNavbar() {
                     <div className="flex items-center gap-2">
                         <Link
                             href="/login"
-                            className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-colors"
+                            className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
                         >
                             Iniciar Sesión
                         </Link>

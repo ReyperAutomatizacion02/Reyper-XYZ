@@ -10,9 +10,11 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 358 84% 52%; /* #EC1C21 */
+    --primary: 358 84% 52%;
+    /* #EC1C21 */
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 3% 39%; /* #676161 */
+    --secondary: 0 3% 39%;
+    /* #676161 */
     --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
@@ -29,6 +31,17 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* Component-specific variables */
+    --sidebar-bg: 0 0% 100%;
+    --sidebar-hover: 0 0% 96.1%;
+    --navbar-bg: 0 0% 100%;
+    --navbar-border: 0 0% 89.8%;
+    --tooltip-bg: 0 0% 100%;
+    --tooltip-foreground: 0 0% 3.9%;
+    --table-header-bg: 0 0% 98%;
+    --table-row-even: 0 0% 99%;
+    --table-row-hover: 358 84% 52% / 0.05;
   }
 
   .dark {
@@ -56,6 +69,17 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    /* Component-specific variables */
+    --sidebar-bg: 0 0% 7%;
+    --sidebar-hover: 0 0% 14.9%;
+    --navbar-bg: 0 0% 3.9%;
+    --navbar-border: 0 0% 14.9%;
+    --tooltip-bg: 0 0% 7%;
+    --tooltip-foreground: 0 0% 98%;
+    --table-header-bg: 0 0% 10%;
+    --table-row-even: 0 0% 5%;
+    --table-row-hover: 358 84% 52% / 0.1;
   }
 }
 
@@ -75,4 +99,34 @@
 
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-orange-500;
+}
+
+/* Smooth theme transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Disable transitions for elements that shouldn't animate */
+.no-theme-transition,
+.no-theme-transition * {
+  transition: none !important;
+}
+
+/* Enhanced shadows for dark mode */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+}
+
+.dark .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.7), 0 8px 10px -6px rgb(0 0 0 / 0.5);
 }

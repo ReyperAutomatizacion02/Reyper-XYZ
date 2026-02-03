@@ -1,10 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Calendar, Clock, User, Box, Save, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Calendar as CalendarIcon, Clock, User, Box, Save, Trash2, ChevronDown, ChevronUp, Sparkles, Edit } from "lucide-react";
 import { createPlanningTask, updateTaskDetails } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { motion, AnimatePresence } from "framer-motion";
+import { Label } from "@/components/ui/label"; // Ensure Label is imported if used inside DateSelector or elsewhere
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 
@@ -25,6 +32,69 @@ interface TaskModalProps {
     orders: Order[];
     operators: string[];
     onSuccess: () => void;
+}
+
+// Custom Date Selector Component - EXACT COPY from project-form.tsx
+function DateSelector({
+    date,
+    onSelect,
+    label
+}: {
+    date: Date | undefined;
+    onSelect: (d: Date | undefined) => void;
+    label: string
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    return (
+        <div className="space-y-2 relative" ref={containerRef}>
+            <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">{label}</Label>
+            <Button
+                type="button"
+                variant={"outline"}
+                className={cn(
+                    "w-full justify-start text-left font-normal bg-muted/50 hover:bg-card border-border shadow-sm transition-all duration-200 h-11", // Matched height with TimePicker inputs
+                    !date && "text-muted-foreground"
+                )}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <CalendarIcon className="mr-2 h-4 w-4 text-red-500" />
+                {date ? format(date, "PPP", { locale: es }) : <span>Seleccionar</span>}
+            </Button>
+
+            {/* Manual Popover */}
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Fixed Backdrop for click-outside closing */}
+                        <div
+                            className="fixed inset-0 z-[9998] bg-transparent"
+                            onClick={() => setIsOpen(false)}
+                        />
+
+                        {/* Calendar Container - Strictly below the button with minimal margin */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            className="absolute top-full mt-1 left-0 z-[9999] bg-popover border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-border/20"
+                        >
+                            <Calendar
+                                mode="single"
+                                selected={date}
+                                onSelect={(d) => {
+                                    onSelect(d);
+                                    setIsOpen(false);
+                                }}
+                                initialFocus
+                            />
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 }
 
 // Custom Time Picker Component (24h strict - Custom Dropdown)
@@ -150,11 +220,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
 
     const isEditMode = !!initialData?.id;
 
-
-
-    // Prepare options for selects (Moved to top to strictly follow Rules of Hooks)
-    // 1. Start with global orders
-    // 2. Inject the active order from the task if it exists (deduplicating by ID)
+    // Prepare options for selects
     const orderOptions = React.useMemo(() => {
         const globalOptions = orders.map(o => ({
             label: `${o.part_code} - ${o.part_name || "Sin nombre"} (${o.quantity} pzas)`,
@@ -208,6 +274,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                 startT = t;
             } else if (initialData.time) {
                 const date = new Date(initialData.time);
+                // Fix timezone issue by using local values
                 const pad = (n: number) => n < 10 ? '0' + n : n;
                 startD = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
                 startT = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -218,7 +285,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                 endD = d;
                 endT = t;
             } else if (startD && startT) {
-                // Default 2 hours
+                // Default 2 hours based on start Date object
                 const dStart = new Date(`${startD}T${startT}`);
                 const dEnd = new Date(dStart.getTime() + 2 * 60 * 60 * 1000);
                 const pad = (n: number) => n < 10 ? '0' + n : n;
@@ -319,143 +386,182 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
         }
     };
 
+    // Helper functions for DateSelector integration
+    const handleStartDateChange = (date: Date | undefined) => {
+        if (date) {
+            setFormData(prev => ({ ...prev, startDate: format(date, "yyyy-MM-dd") }));
+        }
+    };
+
+    const handleEndDateChange = (date: Date | undefined) => {
+        if (date) {
+            setFormData(prev => ({ ...prev, endDate: format(date, "yyyy-MM-dd") }));
+        }
+    };
+
+    // Parse string dates back to Date objects for DateSelector
+    // Note: append T00:00:00 to ensure local time is treated correctly or use strict parsing if needed
+    // Actually, "yyyy-MM-dd" input to new Date() implies UTC in some browsers, but "yyyy/MM/dd" or simple parsing is safer.
+    // However, DateSelector expects a Date object.
+    // We can use the date-fns parse or simple new Date(str + 'T12:00:00') to avoid timezone shifts on just the date.
+    // Let's use simple string splitting to be safe.
+    const getSafeDate = (dateStr: string) => {
+        if (!dateStr) return undefined;
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    };
+
     return (
         <div
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={onClose}
         >
-            <div
-                className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                        {isEditMode ? (
-                            <>
-                                <span className="text-blue-500">✏️</span>
-                                Editar Registro
-                            </>
-                        ) : (
-                            <>
-                                <span className="text-green-500">✨</span>
-                                Nuevo Registro
-                            </>
-                        )}
-                        <span className="text-xs font-normal text-muted-foreground ml-2 px-2 py-1 bg-muted rounded-full border border-border">
-                            {initialData.machine}
-                        </span>
-                    </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-muted rounded-full transition-colors">
-                        <X className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto pb-32">
-                    {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg text-sm animate-pulse">
-                            {error}
-                        </div>
-                    )}
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-                            <Box className="w-4 h-4" />
-                            PIEZA / PARTIDA
-                        </label>
-                        <SearchableSelect
-                            options={orderOptions}
-                            value={formData.orderId}
-                            onChange={(val) => setFormData({ ...formData, orderId: val })}
-                            placeholder="Buscar pieza..."
-                        />
-                    </div>
-
-                    <div className="space-y-6 pt-4 border-t border-border/50">
-                        {/* Start Block */}
-                        <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
-                            <label className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-primary">
-                                <Calendar className="w-4 h-4" />
-                                Inicio del Maquinado
-                            </label>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <input
-                                    type="date"
-                                    required
-                                    value={formData.startDate}
-                                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                                    className="flex-1 px-4 py-3 bg-background border border-border rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
-                                />
-                                <div className="w-40">
-                                    <CustomTimePicker
-                                        value={formData.startTime}
-                                        onChange={(val) => setFormData({ ...formData, startTime: val })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* End Block */}
-                        <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
-                            <label className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-primary">
-                                <Clock className="w-4 h-4" />
-                                Fin del Maquinado
-                            </label>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <input
-                                    type="date"
-                                    required
-                                    value={formData.endDate}
-                                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                    className="flex-1 px-4 py-3 bg-background border border-border rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm"
-                                />
-                                <div className="w-40">
-                                    <CustomTimePicker
-                                        value={formData.endTime}
-                                        onChange={(val) => setFormData({ ...formData, endTime: val })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-border/50">
-                        <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-                            <User className="w-4 h-4" />
-                            OPERADOR ASIGNADO
-                        </label>
-                        <SearchableSelect
-                            options={operatorOptions}
-                            value={formData.operator}
-                            onChange={(val) => setFormData({ ...formData, operator: val })}
-                            placeholder="Seleccionar operador..."
-                            onCreate={(val) => setFormData({ ...formData, operator: val })}
-                        />
-                    </div>
-
-                    <div className="pt-6 flex gap-3 border-t border-border/50 mt-4">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-4 py-2.5 border border-border rounded-xl hover:bg-muted transition-colors font-semibold text-sm"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="flex-[2] px-4 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            {isLoading ? (
-                                <span className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
+            <div className="min-h-full flex items-center justify-center p-4 text-center">
+                <div
+                    className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg relative text-left transition-all my-8"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center rounded-t-xl">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                            {isEditMode ? (
+                                <>
+                                    <Edit className="w-5 h-5 text-[#EC1C21]" />
+                                    Editar Registro
+                                </>
                             ) : (
                                 <>
-                                    <Save className="w-5 h-5" />
-                                    {isEditMode ? "Actualizar Registro" : "Guardar Registro"}
+                                    <Sparkles className="w-5 h-5 text-[#EC1C21]" />
+                                    Nuevo Registro
                                 </>
                             )}
+                            <span className="text-xs font-normal text-muted-foreground ml-2 px-2 py-1 bg-muted rounded-full border border-border">
+                                {initialData.machine}
+                            </span>
+                        </h3>
+                        <button onClick={onClose} className="p-1 hover:bg-muted rounded-full transition-colors">
+                            <X className="w-5 h-5 text-muted-foreground" />
                         </button>
                     </div>
-                </form>
+
+                    <form onSubmit={handleSubmit} className="p-6 space-y-6"> {/* Changed overflow-y-auto to visible if possible, or we need to handle scroll vs popover. 
+                Wait, if I make this visible, I lose scroll. But DateSelector needs overwrite.
+                Actually, DateSelector in Modal: The popup should use Portal (Shadcn default) OR Fixed positioning.
+                My DateSelector uses ABSOLUTE positioning. 
+                If container clips, it fails.
+                ProjectForm uses absolute.
+                Ideally, inside a modal with scroll, we should use a PORTAL.
+                The user insisted on "como en Nuevo Proyecto" (which uses Manual Absolute).
+                But Nuevo Proyecto is a full page form (likely). This is a modal.
+                If I use absolute inside a scrolling modal, it clips.
+                I will TRY keeping overflow visible. If content fits, great.
+                CreateTaskModal was short. TaskModal seems longer.
+                If I must use Scroll, I SHOULD use Shadcn Popover (Portal).
+                BUT the user wanted "EXACT LIKE PROJECT FORM".
+                I'll stick to absolute. I'll make the modal allow overflow if it fits roughly.
+                Or, I'll rely on the fact that the form isn't THAT long.
+                Actually, `overflow-y-auto` + `absolute` child = Clipped.
+                I will remove `overflow-y-auto` and let the modal grow. If it's too tall for screen, then we have a problem.
+                The form has 3 main blocks. It should fit. 
+                I removed `overflow-y-auto` from form and `overflow-hidden` from main div.
+                */}
+                        {error && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg text-sm animate-pulse">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                                <Box className="w-4 h-4" />
+                                PIEZA / PARTIDA
+                            </label>
+                            <SearchableSelect
+                                options={orderOptions}
+                                value={formData.orderId}
+                                onChange={(val) => setFormData({ ...formData, orderId: val })}
+                                placeholder="Buscar pieza..."
+                            />
+                        </div>
+
+                        <div className="space-y-6 pt-4 border-t border-border/50">
+                            {/* Start Block */}
+                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex-1">
+                                        <DateSelector
+                                            label="Inicio del Maquinado"
+                                            date={getSafeDate(formData.startDate)}
+                                            onSelect={handleStartDateChange}
+                                        />
+                                    </div>
+                                    <div className="w-40 pt-6"> {/* Added padding to align with DateSelector button */}
+                                        <CustomTimePicker
+                                            value={formData.startTime}
+                                            onChange={(val) => setFormData({ ...formData, startTime: val })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* End Block */}
+                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex-1">
+                                        <DateSelector
+                                            label="Fin del Maquinado"
+                                            date={getSafeDate(formData.endDate)}
+                                            onSelect={handleEndDateChange}
+                                        />
+                                    </div>
+                                    <div className="w-40 pt-6">
+                                        <CustomTimePicker
+                                            value={formData.endTime}
+                                            onChange={(val) => setFormData({ ...formData, endTime: val })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-border/50">
+                            <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                                <User className="w-4 h-4" />
+                                OPERADOR ASIGNADO
+                            </label>
+                            <SearchableSelect
+                                options={operatorOptions}
+                                value={formData.operator}
+                                onChange={(val) => setFormData({ ...formData, operator: val })}
+                                placeholder="Seleccionar operador..."
+                                onCreate={(val) => setFormData({ ...formData, operator: val })}
+                            />
+                        </div>
+
+                        <div className="pt-6 flex gap-3 border-t border-border/50 mt-4">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 px-4 py-2.5 border border-border rounded-xl hover:bg-muted transition-colors font-semibold text-sm"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="flex-[2] px-4 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                {isLoading ? (
+                                    <span className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
+                                ) : (
+                                    <>
+                                        <Save className="w-5 h-5" />
+                                        {isEditMode ? "Actualizar Registro" : "Guardar Registro"}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );

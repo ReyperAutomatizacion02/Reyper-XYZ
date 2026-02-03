@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, FileEdit, Printer, ArrowLeft, History, Filter, Copy, Trash2, Loader2 } from "lucide-react";
+import { Search, FileEdit, Printer, ArrowLeft, History, Filter, Copy, Trash2, Loader2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ export default function QuoteHistoryPage() {
     const [quoteToPrint, setQuoteToPrint] = useState<any>(null);
     const [positions, setPositions] = useState<{ id: string, name: string }[]>([]);
     const [areas, setAreas] = useState<{ id: string, name: string }[]>([]);
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
     useEffect(() => {
         loadData();
@@ -137,7 +138,38 @@ export default function QuoteHistoryPage() {
         }
     };
 
-    const filteredQuotes = quotes.filter(q => {
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortedQuotes = (quotesToSort: QuoteSummary[]) => {
+        if (!sortConfig) return quotesToSort;
+
+        return [...quotesToSort].sort((a: any, b: any) => {
+            let aValue = a[sortConfig.key];
+            let bValue = b[sortConfig.key];
+
+            // Handle nested properties (e.g. client.name)
+            if (sortConfig.key === 'client.name') {
+                aValue = a.client?.name || "";
+                bValue = b.client?.name || "";
+            }
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    };
+
+    const filteredAndSortedQuotes = getSortedQuotes(quotes.filter(q => {
         const search = searchTerm.toLowerCase();
         const matchesClient = clientFilter === "all" || q.client?.name === clients.find(c => c.id === clientFilter)?.name;
 
@@ -145,7 +177,7 @@ export default function QuoteHistoryPage() {
             `COT-${q.quote_number}`.toLowerCase().includes(search) ||
             q.client?.name.toLowerCase().includes(search)
         );
-    });
+    }));
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('es-MX', {
@@ -208,22 +240,54 @@ export default function QuoteHistoryPage() {
                 <Table>
                     <TableHeader className="bg-muted/30">
                         <TableRow className="border-border">
-                            <TableHead className="w-[120px] font-bold text-red-500 uppercase">Folio</TableHead>
-                            <TableHead className="font-bold text-foreground">Fecha</TableHead>
-                            <TableHead className="font-bold text-foreground">Cliente</TableHead>
-                            <TableHead className="text-right font-bold text-foreground">Monto</TableHead>
+                            <TableHead
+                                className="w-[120px] font-bold text-red-500 uppercase cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleSort('quote_number')}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Folio
+                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead
+                                className="font-bold text-foreground cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleSort('issue_date')}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Fecha
+                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead
+                                className="font-bold text-foreground cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleSort('client.name')}
+                            >
+                                <div className="flex items-center gap-2">
+                                    Cliente
+                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                            </TableHead>
+                            <TableHead
+                                className="text-right font-bold text-foreground cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleSort('total')}
+                            >
+                                <div className="flex items-center justify-end gap-2">
+                                    Monto
+                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                            </TableHead>
                             <TableHead className="w-[200px] text-center font-bold text-foreground">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredQuotes.length === 0 ? (
+                        {filteredAndSortedQuotes.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">
                                     No se encontraron cotizaciones coincidentes.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredQuotes.map((q) => (
+                            filteredAndSortedQuotes.map((q) => (
                                 <TableRow key={q.id} className="border-border hover:bg-muted/50 transition-colors">
                                     <TableCell className="font-mono font-bold text-red-400">
                                         COT-{q.quote_number}

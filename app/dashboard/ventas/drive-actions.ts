@@ -1,13 +1,13 @@
 "use server";
 
 import { google } from "googleapis";
+import { logger } from "@/utils/logger";
 
 export async function scanDriveFolder(folderUrl: string) {
-    console.log("--- INICIANDO SCAN DRIVE FOLDER ---");
-    console.log("URL Recibida:", folderUrl);
+    logger.debug("Iniciando scan Drive folder", { folderUrl });
 
     if (!process.env.GOOGLE_API_KEY) {
-        console.error("ERROR: No se encontró GOOGLE_API_KEY en las variables de entorno.");
+        logger.error("No se encontró GOOGLE_API_KEY en las variables de entorno");
         return { success: false, error: "No se ha configurado la API Key de Google (GOOGLE_API_KEY)." };
     }
 
@@ -15,7 +15,7 @@ export async function scanDriveFolder(folderUrl: string) {
         // 1. Extract Folder ID
         const idMatch = folderUrl.match(/[-\w]{25,}/);
         const folderId = idMatch ? idMatch[0] : null;
-        console.log("ID Extraído:", folderId);
+        logger.debug("ID extraído de URL", { folderId });
 
         if (!folderId) {
             return { success: false, error: "URL de carpeta inválida. No se encontró un ID válido." };
@@ -27,7 +27,7 @@ export async function scanDriveFolder(folderUrl: string) {
             auth: process.env.GOOGLE_API_KEY
         });
 
-        console.log("Intentando listar archivos de:", folderId);
+        logger.debug("Intentando listar archivos", { folderId });
 
         // 3. List Files (All non-folder types: PDF, PNG, JPG, TIF, etc.)
         const response = await drive.files.list({
@@ -36,8 +36,10 @@ export async function scanDriveFolder(folderUrl: string) {
             orderBy: "name"
         });
 
-        console.log("Respuesta Drive (status):", response.status);
-        console.log("Archivos encontrados:", response.data.files?.length);
+        logger.debug("Respuesta Drive recibida", {
+            status: response.status,
+            filesCount: response.data.files?.length
+        });
 
         const files = response.data.files || [];
 
@@ -59,8 +61,7 @@ export async function scanDriveFolder(folderUrl: string) {
         return { success: true, items };
 
     } catch (error: any) {
-        console.error("--- ERROR EN DRIVE API ---");
-        console.error(JSON.stringify(error, null, 2)); // Detailed JSON error
+        logger.error("Error en Drive API", error);
 
         let errorMessage = `Error al conectar con Drive: ${error.message || "Desconocido"}`;
 

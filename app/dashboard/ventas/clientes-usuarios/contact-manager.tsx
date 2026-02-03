@@ -189,9 +189,9 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex gap-4 text-sm text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-md">
+                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border">
                         <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Total: <strong className="text-foreground">{contacts.length}</strong></span>
-                        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600" />
+                        <div className="w-px h-4 bg-border" />
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Activos: <strong className="text-green-600 dark:text-green-400">{contacts.filter(c => c.is_active !== false).length}</strong></span>
                     </div>
                     <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full">
@@ -201,17 +201,17 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-white dark:bg-zinc-950 shadow-sm overflow-hidden">
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
                 <Table>
-                    <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
+                    <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" onClick={() => requestSort("name")}>
+                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("name")}>
                                 <div className="flex items-center gap-1">
                                     Nombre Completo
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" onClick={() => requestSort("client_name")}>
+                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("client_name")}>
                                 <div className="flex items-center gap-1">
                                     Cliente Asociado
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
@@ -230,7 +230,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                             </TableRow>
                         ) : (
                             sortedContacts.map((contact) => (
-                                <TableRow key={contact.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
+                                <TableRow key={contact.id} className="hover:bg-muted/50">
                                     <TableCell className="font-medium flex items-center gap-2">
                                         <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg text-blue-600">
                                             <User className="w-4 h-4" />
@@ -241,7 +241,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                                         {contact.client_id ? clients.find(cl => cl.id === contact.client_id)?.name : <span className="text-muted-foreground italic">Sin asignar</span>}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${contact.is_active !== false ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30' : 'bg-zinc-50 text-zinc-500 border-zinc-200 dark:bg-zinc-900/50 dark:text-zinc-500 dark:border-zinc-800'}`}>
+                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${contact.is_active !== false ? 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400' : 'bg-muted text-muted-foreground border-border'}`}>
                                             {contact.is_active !== false ? "Activo" : "Inactivo"}
                                         </div>
                                     </TableCell>
@@ -300,7 +300,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                                         variant="outline"
                                         size="sm"
                                         onClick={handleAddName}
-                                        className="w-full border-dashed border-zinc-300 dark:border-zinc-700 text-muted-foreground hover:text-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                        className="w-full border-dashed border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                     >
                                         <Plus className="w-4 h-4 mr-2" />
                                         Agregar otro usuario

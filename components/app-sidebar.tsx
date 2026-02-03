@@ -132,11 +132,11 @@ export function AppSidebar() {
     return (
         <aside
             className={cn(
-                "h-screen bg-card border-r border-border transition-all duration-300 flex flex-col pt-16 md:pt-0 z-40 fixed md:relative shadow-xl shadow-black/5",
+                "h-screen bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col pt-16 md:pt-0 z-40 fixed md:relative shadow-xl",
                 isCollapsed ? "w-20" : "w-72"
             )}
         >
-            <div className="h-16 flex items-center justify-between px-4 border-b border-border bg-background/50 backdrop-blur-sm">
+            <div className="h-16 flex items-center justify-between px-4 border-b border-navbar-border bg-background/50 backdrop-blur-sm">
                 <span
                     className={cn(
                         "font-black text-xl tracking-tight transition-opacity duration-300",
@@ -147,7 +147,7 @@ export function AppSidebar() {
                 </span>
                 <button
                     onClick={handleToggleCollapse}
-                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    className="p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground hover:text-foreground transition-colors"
                 >
                     {isCollapsed ? <Menu className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
                 </button>

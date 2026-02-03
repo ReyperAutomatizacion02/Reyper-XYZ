@@ -173,9 +173,9 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex gap-4 text-sm text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-md">
+                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border">
                         <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Total: <strong className="text-foreground">{clients.length}</strong></span>
-                        <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-600" />
+                        <div className="w-px h-4 bg-border" />
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Activos: <strong className="text-green-600 dark:text-green-400">{clients.filter(c => c.is_active !== false).length}</strong></span>
                     </div>
                     <Button onClick={openCreateModal} className="bg-red-600 hover:bg-red-700 text-white rounded-full">
@@ -185,23 +185,23 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-white dark:bg-zinc-950 shadow-sm overflow-hidden">
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
                 <Table>
-                    <TableHeader className="bg-zinc-50 dark:bg-zinc-900">
+                    <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" onClick={() => requestSort("name")}>
+                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("name")}>
                                 <div className="flex items-center gap-1">
                                     Nombre
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" onClick={() => requestSort("business_name")}>
+                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("business_name")}>
                                 <div className="flex items-center gap-1">
                                     Razón Social
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="w-[150px] cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" onClick={() => requestSort("prefix")}>
+                            <TableHead className="w-[150px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("prefix")}>
                                 <div className="flex items-center gap-1">
                                     Prefijo
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
@@ -220,7 +220,7 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                             </TableRow>
                         ) : (
                             sortedClients.map((client) => (
-                                <TableRow key={client.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
+                                <TableRow key={client.id} className="hover:bg-muted/50">
                                     <TableCell className="font-medium flex items-center gap-2">
                                         <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg text-red-600">
                                             <Building2 className="w-4 h-4" />
@@ -230,7 +230,7 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                                     <TableCell className="text-zinc-500 text-sm">{client.business_name || "-"}</TableCell>
                                     <TableCell className="font-mono text-zinc-500">{client.prefix || "-"}</TableCell>
                                     <TableCell className="text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${client.is_active !== false ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30' : 'bg-zinc-50 text-zinc-500 border-zinc-200 dark:bg-zinc-900/50 dark:text-zinc-500 dark:border-zinc-800'}`}>
+                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${client.is_active !== false ? 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400' : 'bg-muted text-muted-foreground border-border'}`}>
                                             {client.is_active !== false ? (
                                                 <>
                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import moment from "moment";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/utils/logger";
 
 export async function updateTaskSchedule(taskId: string, start: string, end: string) {
     const cookieStore = await cookies();
@@ -17,7 +18,7 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
         .eq("id", taskId);
 
     if (error) {
-        console.error("Error updating task:", error);
+        logger.error("Error updating task", error);
         throw new Error("Failed to update task");
     }
 
@@ -66,7 +67,7 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
 
 
     if (error) {
-        console.error("Error creating task:", error);
+        logger.error("Error creating task", error);
         throw new Error("Failed to create task");
     }
 
@@ -90,7 +91,7 @@ export async function createPlanningTask(orderId: string, machine: string, start
         });
 
     if (error) {
-        console.error("Error creating planning task:", error);
+        logger.error("Error creating planning task", error);
         throw new Error("Failed to create task");
     }
 
@@ -112,7 +113,7 @@ export async function updateTaskDetails(taskId: string, orderId: string, machine
         .eq("id", taskId);
 
     if (error) {
-        console.error("Error updating planning task:", error);
+        logger.error("Error updating planning task", error);
         throw new Error("Failed to update task");
     }
 
@@ -130,7 +131,7 @@ export async function recordCheckIn(taskId: string) {
         .eq("id", taskId);
 
     if (error) {
-        console.error("Error recording check-in:", error);
+        logger.error("Error recording check-in", error);
         throw new Error("Failed to record check-in");
     }
 
@@ -148,7 +149,7 @@ export async function recordCheckOut(taskId: string) {
         .eq("id", taskId);
 
     if (error) {
-        console.error("Error recording check-out:", error);
+        logger.error("Error recording check-out", error);
         throw new Error("Failed to record check-out");
     }
 

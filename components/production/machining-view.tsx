@@ -225,11 +225,11 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                 )}
 
                 {filteredTasks.length === 0 && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 pb-20">
+                    <div className="absolute inset-0 top-32 flex flex-col items-center justify-center text-center p-6 pb-20 pointer-events-none">
                         <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6">
                             <Clock className="w-10 h-10 text-muted-foreground/30" />
                         </div>
-                        <h3 className="text-xl font-black tracking-tight mb-2 uppercase">No hay tareas para hoy</h3>
+                        <h3 className="text-xl font-black tracking-tight mb-2 uppercase text-foreground">No hay tareas para hoy</h3>
                         <p className="text-sm text-muted-foreground font-medium max-w-sm uppercase">
                             No tienes piezas planificadas para el día de hoy o todas han sido completadas satisfactoriamente.
                         </p>

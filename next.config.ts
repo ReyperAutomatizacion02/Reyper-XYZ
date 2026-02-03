@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Habilitar compresión para reducir tamaño de respuestas
+  compress: true,
+
+  // Ocultar header "X-Powered-By: Next.js" por seguridad
+  poweredByHeader: false,
+
+  // Habilitar modo estricto de React para detectar problemas
+  reactStrictMode: true,
+
   images: {
+    // Formatos modernos de imagen para mejor compresión
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -17,6 +28,18 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+
+  // Optimizaciones experimentales
+  experimental: {
+    // Optimizar imports de paquetes grandes
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-select',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-popover',
+    ],
+  },
 };
 
 export default nextConfig;
+

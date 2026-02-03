@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION is_admin()
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM user_profiles 
-    WHERE id = auth.uid() AND role = 'admin'
+    WHERE id = auth.uid() AND 'admin' = ANY(roles)
   );
 $$ LANGUAGE sql SECURITY DEFINER;
 

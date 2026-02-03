@@ -2,6 +2,7 @@ import Link from "next/link";
 import { forgotPassword } from "../auth/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { ArrowLeft } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function ForgotPasswordPage({
     searchParams,
@@ -22,6 +23,10 @@ export default function ForgotPasswordPage({
                 <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
                 Regresar
             </Link>
+
+            <div className="absolute right-8 top-8 z-20">
+                <ThemeToggle />
+            </div>
 
             <div className="w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-500">
                 <div className="glass-card p-8 sm:p-10 rounded-3xl border-border/50">

@@ -50,7 +50,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 
 interface ProjectFormProps {
     clients: { id: string; name: string; prefix?: string | null }[];
-    contacts: { id: string; name: string }[];
+    contacts: { id: string; name: string; client_id?: string }[];
     units: { id: string; name: string }[];
     materials: { id: string; name: string }[];
     initialDate: Date;
@@ -100,7 +100,7 @@ const ImagePreviewWithZoom = ({ src, fileId }: { src: string, fileId?: string })
 
     if (fileId) {
         return (
-            <div className="w-full h-full bg-white rounded-lg overflow-hidden shadow-2xl relative">
+            <div className="w-full h-full bg-card rounded-lg overflow-hidden shadow-2xl relative">
                 <iframe
                     src={`https://drive.google.com/file/d/${fileId}/preview`}
                     className="w-full h-full border-none"
@@ -194,7 +194,7 @@ function DateSelector({
             <Button
                 variant={"outline"}
                 className={cn(
-                    "w-full justify-start text-left font-normal bg-zinc-50/50 hover:bg-white border-zinc-200 shadow-sm transition-all duration-200",
+                    "w-full justify-start text-left font-normal bg-muted/50 hover:bg-card border-border shadow-sm transition-all duration-200",
                     !date && "text-muted-foreground"
                 )}
                 onClick={() => setIsOpen(!isOpen)}
@@ -218,7 +218,7 @@ function DateSelector({
                             initial={{ opacity: 0, scale: 0.95, y: -10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute top-full mt-1 left-0 z-[9999] bg-white dark:bg-zinc-900 border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-black/5"
+                            className="absolute top-full mt-1 left-0 z-[9999] bg-popover border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-border/20"
                         >
                             <Calendar
                                 mode="single"
@@ -266,12 +266,20 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
     // Data State (mutable for new additions)
     const [clientList, setClientList] = useState(clients);
-    const [contactList, setContactList] = useState(contacts);
+    const [allContacts, setAllContacts] = useState(contacts);
 
     // Form State
     const [selectedClient, setSelectedClient] = useState("");
     const [clientCode, setClientCode] = useState("");
     const [selectedUser, setSelectedUser] = useState("");
+
+    // Derived filtered contacts
+    // If no client selected, maybe show nothing? Or show all?
+    // User request: "only display contacts associated with the currently selected Client"
+    // So if no client, likely empty or "select client first".
+    const filteredContacts = selectedClient
+        ? allContacts.filter(c => c.client_id === selectedClient)
+        : [];
 
 
     // Staging State (Drive Selection)
@@ -287,6 +295,12 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         } else {
             setClientCode("");
             toast.info("Este cliente no tiene prefijo registrado.");
+        }
+
+        // Check if current user belongs to new client
+        const currentUser = allContacts.find(u => u.id === selectedUser);
+        if (currentUser && currentUser.client_id !== clientId) {
+            setSelectedUser("");
         }
     };
 
@@ -416,7 +430,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 name: projectName,
                 client_id: selectedClient,
                 company_name: clientList.find(c => c.id === selectedClient)?.name || "",
-                requestor: contactList.find(c => c.id === selectedUser)?.name || "",
+                requestor: allContacts.find(c => c.id === selectedUser)?.name || "",
                 start_date: format(requestDate, "yyyy-MM-dd"),
                 delivery_date: format(deliveryDate, "yyyy-MM-dd"),
                 status: "active"
@@ -554,11 +568,15 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     // User Creation
     const handleCreateContact = async (name: string) => {
         try {
+            if (!selectedClient) {
+                toast.error("Selecciona un cliente primero.");
+                return;
+            }
             setLoading(true);
-            const newId = await createContactEntry(name);
+            const newId = await createContactEntry(name, selectedClient);
             if (newId) {
-                const newContact = { id: newId, name: name };
-                setContactList(prev => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
+                const newContact = { id: newId, name: name, client_id: selectedClient };
+                setAllContacts(prev => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
                 setSelectedUser(newId);
                 toast.success(`Usuario "${name}" creado exitosamente.`);
             }
@@ -570,14 +588,14 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     };
 
     // Reusable styles for "Ghost" inputs in table
-    const ghostInputClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 h-9 font-medium";
-    const ghostTextareaClass = "bg-transparent border border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all duration-200 resize-none font-medium py-1.5 px-3 rounded-md";
-    const ghostTriggerClass = "bg-transparent border-transparent shadow-none hover:bg-red-50/10 focus:bg-white dark:focus:bg-zinc-900 focus:border-red-500/50 transition-all duration-200 h-9 font-medium";
+    const ghostInputClass = "bg-transparent border-transparent shadow-none hover:bg-primary/5 focus:bg-card focus:border-primary/50 transition-all duration-200 h-9 font-medium";
+    const ghostTextareaClass = "bg-transparent border border-transparent shadow-none hover:bg-primary/5 focus:bg-card focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200 resize-none font-medium py-1.5 px-3 rounded-md";
+    const ghostTriggerClass = "bg-transparent border-transparent shadow-none hover:bg-primary/5 focus:bg-card focus:border-primary/50 transition-all duration-200 h-9 font-medium";
 
     return (
         <div className="space-y-8 pb-20">
             <motion.div initial="hidden" animate="visible" variants={fadeIn}>
-                <Card className="border-border/40 shadow-xl shadow-red-500/5 relative rounded-2xl overflow-visible bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm">
+                <Card className="border-border/40 shadow-xl shadow-primary/5 relative rounded-2xl overflow-visible bg-card/80 backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 rounded-t-2xl" />
                     <CardContent className="p-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-8">
@@ -599,12 +617,13 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             <div className="space-y-2.5">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Usuario / Solicitante</Label>
                                 <SearchableSelect
-                                    options={contactList.map(c => ({ label: c.name, value: c.id }))}
+                                    options={filteredContacts.map(c => ({ label: c.name, value: c.id }))}
                                     value={selectedUser}
                                     onChange={setSelectedUser}
                                     onCreate={handleCreateContact}
-                                    placeholder="Seleccionar o crear..."
+                                    placeholder={selectedClient ? "Seleccionar o crear..." : "Selecciona Cliente primero"}
                                     className="w-full"
+                                    disabled={!selectedClient}
                                 />
                             </div>
 
@@ -628,7 +647,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                     placeholder="Ej. Fabricación de Estructura Principal..."
                                     value={projectName}
                                     onChange={(e) => setProjectName(e.target.value)}
-                                    className="bg-zinc-50/50 border-zinc-200 shadow-sm h-10 transition-all hover:bg-white focus:border-red-500/50"
+                                    className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
                                 />
                             </div>
 
@@ -642,7 +661,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                         placeholder="https://drive.google.com/drive/folders/..."
                                         value={driveFolderUrl}
                                         onChange={(e) => setDriveFolderUrl(e.target.value)}
-                                        className="bg-blue-50/30 border-blue-100 shadow-sm h-10 transition-all hover:bg-white focus:border-blue-500/50"
+                                        className="bg-blue-50/30 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900 shadow-sm h-10 transition-all hover:bg-card focus:border-blue-500/50"
                                     />
                                 </div>
                                 <div className="space-y-2.5">
@@ -652,7 +671,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                         min={1}
                                         value={itemsToGenerate}
                                         onChange={(e) => setItemsToGenerate(parseInt(e.target.value) || 1)}
-                                        className="bg-zinc-50/50 border-zinc-200 shadow-sm h-10 transition-all hover:bg-white focus:border-red-500/50"
+                                        className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
                                     />
                                 </div>
                             </div>
@@ -682,7 +701,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         className="space-y-4"
                     >
                         <div className="flex items-center justify-between px-2 pt-4">
-                            <h3 className="text-xl font-bold flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+                            <h3 className="text-xl font-bold flex items-center gap-2 text-foreground">
                                 <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 p-2 rounded-lg"><ImageIcon className="w-5 h-5" /></span>
                                 Zona de Selección
                                 <span className="text-sm font-normal text-muted-foreground ml-2">({stagingFiles.filter(f => f.selected).length} seleccionados)</span>
@@ -695,14 +714,14 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-6 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-6 bg-muted/50 rounded-2xl border border-dashed border-border">
                             {stagingFiles.map(file => (
                                 <div
                                     key={file.id}
                                     onClick={() => toggleStagingFile(file.id)}
                                     className={cn(
-                                        "relative group cursor-pointer border rounded-xl overflow-hidden transition-all duration-200 aspect-[3/4] bg-white dark:bg-zinc-800",
-                                        file.selected ? "ring-2 ring-blue-500 ring-offset-2 border-blue-500 shadow-xl shadow-blue-500/10 scale-[1.02]" : "border-zinc-200 hover:border-blue-300 opacity-70 hover:opacity-100 hover:scale-[1.02]"
+                                        "relative group cursor-pointer border rounded-xl overflow-hidden transition-all duration-200 aspect-[3/4] bg-card",
+                                        file.selected ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-background border-blue-500 shadow-xl shadow-blue-500/10 scale-[1.02]" : "border-border hover:border-blue-300 opacity-70 hover:opacity-100 hover:scale-[1.02]"
                                     )}
                                 >
                                     {/* Selection Indicator */}
@@ -723,7 +742,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                     </div>
 
                                     {/* Name Label */}
-                                    <div className="absolute bottom-0 left-0 w-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm p-2 text-[10px] font-medium truncate border-t text-center text-zinc-600 dark:text-zinc-300">
+                                    <div className="absolute bottom-0 left-0 w-full bg-card/95 backdrop-blur-sm p-2 text-[10px] font-medium truncate border-t border-border text-center text-muted-foreground">
                                         {file.name}
                                     </div>
                                 </div>
@@ -744,20 +763,20 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         className="space-y-4"
                     >
                         <div className="flex items-center justify-between px-2">
-                            <h3 className="text-2xl font-bold flex items-center gap-3 text-zinc-900 dark:text-zinc-100">
-                                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                            <h3 className="text-2xl font-bold flex items-center gap-3 text-foreground">
+                                <div className="p-2 bg-primary/10 rounded-lg">
                                     <FileText className="w-6 h-6 text-red-600" />
                                 </div>
                                 <span className="tracking-tight">Vista Previa</span>
-                                <span className="text-lg font-mono text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-md">{projectCode}</span>
+                                <span className="text-lg font-mono text-muted-foreground bg-muted px-3 py-1 rounded-md">{projectCode}</span>
                             </h3>
                         </div>
 
-                        <Card className="border-border/40 shadow-2xl shadow-black/5 overflow-hidden rounded-2xl bg-white dark:bg-zinc-950">
+                        <Card className="border-border/40 shadow-2xl overflow-hidden rounded-2xl bg-card">
                             <div className="overflow-x-auto">
                                 <Table className="min-w-[1200px]">
-                                    <TableHeader className="bg-zinc-50/80 dark:bg-zinc-900/50">
-                                        <TableRow className="hover:bg-transparent border-b-zinc-200/50">
+                                    <TableHeader className="bg-table-header-bg">
+                                        <TableRow className="hover:bg-transparent border-b-border/50">
                                             <TableHead className="w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">Código</TableHead>
                                             <TableHead className="w-auto min-w-[200px] max-w-[450px] font-bold text-xs uppercase tracking-wider text-zinc-500">Descripción / Nombre</TableHead>
                                             <TableHead className="min-w-[100px] font-bold text-xs uppercase tracking-wider text-zinc-500">Cant.</TableHead>
@@ -773,11 +792,11 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                             <TableRow
                                                 key={item.id}
                                                 className={cn(
-                                                    "border-b-zinc-100 dark:border-b-zinc-900 transition-colors hover:bg-red-50/50 dark:hover:bg-red-900/10",
-                                                    index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-zinc-50/50 dark:bg-zinc-900/50"
+                                                    "border-b-border transition-colors hover:bg-table-row-hover",
+                                                    index % 2 === 0 ? "bg-card" : "bg-table-row-even"
                                                 )}
                                             >
-                                                <TableCell className="font-mono font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap pl-4">{item.code}</TableCell>
+                                                <TableCell className="font-mono font-semibold text-foreground whitespace-nowrap pl-4">{item.code}</TableCell>
                                                 <TableCell>
                                                     <AutoResizeTextarea
                                                         value={item.description}

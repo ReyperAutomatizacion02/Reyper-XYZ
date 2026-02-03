@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Clock, LogOut } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function PendingApprovalPage() {
     return (
@@ -8,6 +9,10 @@ export default function PendingApprovalPage() {
             <div className="fixed inset-0 z-0">
                 <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-orange-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+            </div>
+
+            <div className="absolute right-8 top-8 z-20">
+                <ThemeToggle />
             </div>
 
             <div className="w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-500">

@@ -15,6 +15,7 @@ interface SearchableSelectProps {
     placeholder?: string;
     className?: string;
     onCreate?: (value: string) => void;
+    disabled?: boolean;
 }
 
 export function SearchableSelect({
@@ -23,7 +24,8 @@ export function SearchableSelect({
     onChange,
     placeholder = "Select...",
     className = "",
-    onCreate
+    onCreate,
+    disabled = false
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -64,6 +66,7 @@ export function SearchableSelect({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (disabled) return;
         if (!isOpen) {
             if (e.key === "Enter" || e.key === "ArrowDown" || e.key === " ") {
                 e.preventDefault();
@@ -126,8 +129,11 @@ export function SearchableSelect({
             <button
                 ref={triggerRef}
                 type="button"
-                className="flex items-center justify-between w-full px-3 py-2 text-sm bg-background border border-input rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                onClick={() => setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`flex items-center justify-between w-full px-3 py-2 text-sm bg-background border border-input rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 focus:border-primary
+                    ${disabled ? "opacity-50 cursor-not-allowed bg-muted" : "cursor-pointer hover:bg-accent hover:text-accent-foreground"}
+                `}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
                 onKeyDown={handleKeyDown}
             >
                 <span className={selectedOption ? "text-foreground" : "text-muted-foreground"}>
@@ -137,7 +143,7 @@ export function SearchableSelect({
             </button>
 
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border bg-white dark:bg-zinc-950 border-input rounded-md shadow-md animate-in fade-in-0 zoom-in-95 overflow-hidden">
+                <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border border-input rounded-md shadow-md animate-in fade-in-0 zoom-in-95 overflow-hidden">
                     <div className="flex items-center px-2 py-2 border-b border-input sticky top-0 bg-popover">
                         <Search className="w-4 h-4 mr-2 opacity-50" />
                         <input

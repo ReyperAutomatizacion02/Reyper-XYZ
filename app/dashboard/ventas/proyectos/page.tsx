@@ -68,10 +68,10 @@ export default function ActiveProjectsPage() {
 
         // Urgency color based on days remaining
         const daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-        let dateColor = "text-green-600";
-        if (daysRemaining < 0) dateColor = "text-red-700 font-bold"; // Overdue
-        else if (daysRemaining <= 7) dateColor = "text-red-500 font-bold"; // Urgent
-        else if (daysRemaining <= 15) dateColor = "text-yellow-600"; // Warning
+        let dateColor = "text-green-600 dark:text-green-500/80";
+        if (daysRemaining < 0) dateColor = "text-red-700 dark:text-red-400 font-bold"; // Overdue
+        else if (daysRemaining <= 7) dateColor = "text-red-500 dark:text-red-400 font-bold"; // Urgent
+        else if (daysRemaining <= 15) dateColor = "text-yellow-600 dark:text-yellow-500/80"; // Warning
 
         return { progress, dateColor, daysRemaining };
     };
@@ -167,15 +167,26 @@ export default function ActiveProjectsPage() {
                         const { progress, dateColor, daysRemaining } = getProjectStatus(project.start_date, project.delivery_date);
 
                         return (
-                            <Card key={project.id} className="group hover:shadow-lg transition-all duration-300 border-border bg-card/50 backdrop-blur-sm overflow-hidden">
+                            <Card
+                                key={project.id}
+                                onClick={() => setSelectedProject(project)}
+                                className={`group cursor-pointer hover:shadow-lg transition-all duration-300 border-border overflow-hidden ${selectedProject?.id === project.id
+                                    ? "ring-2 ring-primary/50 border-primary bg-card/80 dark:bg-card/40 shadow-md scale-[1.02]"
+                                    : "bg-card/40 dark:bg-card/20 backdrop-blur-sm"
+                                    }`}
+                            >
                                 <CardHeader className="pb-3 relative">
                                     <div className="flex justify-between items-start mb-2">
-                                        <Badge variant="outline" className="bg-red-500/5 text-red-600 border-red-200 font-mono font-bold tracking-wider shadow-sm backdrop-blur-md">
+                                        <Badge variant="outline" className="bg-red-500/5 text-red-600 dark:text-red-400 border-none shadow-none px-2 py-0.5 h-auto font-mono font-bold tracking-wider backdrop-blur-md">
                                             {project.code}
                                         </Badge>
-                                        <Badge className="bg-blue-500 text-white shadow-md shadow-blue-500/20 hover:bg-blue-600">
+                                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-[10px] uppercase tracking-widest px-1">
+                                            <span className="relative flex h-1.5 w-1.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400"></span>
+                                            </span>
                                             En Progreso
-                                        </Badge>
+                                        </div>
                                     </div>
                                     <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[3.5rem]">
                                         {project.name}
@@ -184,11 +195,11 @@ export default function ActiveProjectsPage() {
                                 <CardContent className="space-y-4 text-sm pb-6">
                                     <div className="space-y-2">
                                         <div className="flex items-center text-muted-foreground">
-                                            <Building2 className="w-4 h-4 mr-2 text-primary/60" />
+                                            <Building2 className="w-4 h-4 mr-2 text-muted-foreground/40 dark:text-muted-foreground/20" />
                                             <span className="font-medium text-foreground">{project.company}</span>
                                         </div>
                                         <div className="flex items-center text-muted-foreground">
-                                            <User2 className="w-4 h-4 mr-2 text-primary/60" />
+                                            <User2 className="w-4 h-4 mr-2 text-muted-foreground/40 dark:text-muted-foreground/20" />
                                             <span className="truncate">{project.requestor}</span>
                                         </div>
                                     </div>
@@ -210,25 +221,16 @@ export default function ActiveProjectsPage() {
                                                 <span>Progreso estimado</span>
                                                 <span>{Math.round(progress)}%</span>
                                             </div>
-                                            <Progress value={progress} className="h-2 bg-muted" indicatorClassName={daysRemaining < 7 ? "bg-red-500" : "bg-primary"} />
+                                            <Progress value={progress} className="h-2 bg-muted transition-all" indicatorClassName={daysRemaining < 7 ? "bg-red-500 dark:bg-red-600/80" : "bg-primary dark:bg-primary/80"} />
                                         </div>
                                         {daysRemaining < 0 && (
-                                            <p className="text-[10px] text-red-600 font-bold mt-1 flex items-center justify-end">
+                                            <p className="text-[10px] text-red-600 dark:text-red-400 font-bold mt-1 flex items-center justify-end opacity-90">
                                                 <AlertCircle className="w-3 h-3 mr-1" />
                                                 RETRASADO ({Math.abs(daysRemaining)} días)
                                             </p>
                                         )}
                                     </div>
                                 </CardContent>
-                                <CardFooter className="bg-muted/30 pt-4 pb-4 border-t border-border/50">
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm font-semibold text-xs uppercase tracking-wide border border-transparent hover:border-border transition-all"
-                                        onClick={() => setSelectedProject(project)}
-                                    >
-                                        Ver Detalles
-                                    </Button>
-                                </CardFooter>
                             </Card>
                         );
                     })}
