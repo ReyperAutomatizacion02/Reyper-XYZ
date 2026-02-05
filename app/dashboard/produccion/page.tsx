@@ -3,6 +3,7 @@ import { Calendar, ArrowRight, Wrench, Clock } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { ToolCard } from "@/components/tool-card";
 
 const TOOLS = [
     {
@@ -10,8 +11,8 @@ const TOOLS = [
         description: "Planificador de maquinados con vista Gantt interactiva",
         href: "/dashboard/produccion/planeacion",
         icon: Calendar,
-        color: "bg-primary/10 text-primary",
-        status: "Disponible",
+        colorClass: "text-red-500", // Primary/Brand Color
+        bgClass: "bg-red-500/10",
         roles: ["admin", "produccion"],
     },
     {
@@ -19,8 +20,8 @@ const TOOLS = [
         description: "Control de tiempos de maquinado y seguimiento personal",
         href: "/dashboard/produccion/maquinados",
         icon: Wrench,
-        color: "bg-blue-500/10 text-blue-500",
-        status: "Disponible",
+        colorClass: "text-blue-500", // Distinct color
+        bgClass: "bg-blue-500/10",
         roles: ["admin", "operador"],
     },
 ];
@@ -48,39 +49,23 @@ export default async function ProductionPage() {
             <DashboardHeader
                 title="Producción"
                 description="Herramientas para el área de producción"
-                icon={<Wrench className="w-8 h-8 text-primary" />}
+                icon={<Wrench className="w-8 h-8 text-red-600" />}
                 backUrl="/dashboard"
+                iconClassName="bg-red-600/10 text-red-600"
             />
 
             {/* Tools Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredTools.map((tool) => (
-                    <Link
+                    <ToolCard
                         key={tool.href}
+                        name={tool.name}
+                        description={tool.description}
                         href={tool.href}
-                        className="group p-6 rounded-2xl border border-border bg-card hover:shadow-xl hover:border-primary/30 transition-all duration-300"
-                    >
-                        <div className="flex items-start justify-between mb-4">
-                            <div className={`p-3 rounded-xl ${tool.color}`}>
-                                <tool.icon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-500/10 text-green-600">
-                                {tool.status}
-                            </span>
-                        </div>
-
-                        <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">
-                            {tool.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            {tool.description}
-                        </p>
-
-                        <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                            Abrir herramienta
-                            <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                    </Link>
+                        icon={tool.icon}
+                        colorClass={tool.colorClass}
+                        bgClass={tool.bgClass}
+                    />
                 ))}
 
                 {/* Placeholder for future tools */}

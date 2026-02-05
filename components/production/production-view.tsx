@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { ProductionViewSkeleton } from "@/components/ui/skeleton";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { useTour, TourStep } from "@/hooks/use-tour";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -254,6 +255,9 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         });
     };
 
+    // --- MODAL STATE (Lifted) ---
+    const [modalData, setModalData] = React.useState<any>(null);
+
     const selectAllMachines = () => {
         setSelectedMachines(new Set(allMachineNames));
         updateGanttPref({ selectedMachines: allMachineNames });
@@ -262,6 +266,124 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const clearAllMachines = () => {
         setSelectedMachines(new Set());
         updateGanttPref({ selectedMachines: [] });
+    };
+
+    // --- HELP TOUR HANDLER ---
+    const { startTour, driverObj } = useTour();
+
+    const handleStartTour = () => {
+        const isDemo = optimisticTasks.length === 0;
+
+        if (isDemo) {
+            // Create a mock task for demonstration
+            const demoTask: any = {
+                id: "demo-task-1",
+                order_id: "demo-order-1",
+                machine: machines[0]?.name || "CNC-01",
+                operator: "Juan Demo",
+                planned_date: new Date().toISOString(),
+                planned_end: new Date(Date.now() + 1000 * 60 * 60 * 4).toISOString(), // 4 hours
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                notes: "Tarea de demostración",
+                status: "planned",
+                production_orders: {
+                    id: "demo-order-1",
+                    // code: "ORD-DEMO", // Removed invalid property
+                    part_code: "PZA-DEMO-001",
+                    part_name: "Pieza Demo",
+                    quantity: 10,
+                    client: "Cliente Demo",
+                    status: "active",
+                    created_at: new Date().toISOString(),
+                    delivery_date: new Date(Date.now() + 86400000).toISOString(),
+                    priority: "normal",
+                    material: "Acero",
+                    notes: ""
+                } as any // Cast to any to avoid strict type checking on demo data
+            };
+            setOptimisticTasks([demoTask]);
+        }
+
+        const cleanup = () => {
+            if (isDemo) {
+                setOptimisticTasks([]);
+            }
+            setModalData(null); // Ensure modal closes
+        };
+
+        const steps: TourStep[] = [
+            {
+                element: "#planning-gantt-area",
+                popover: { title: "Área de Gantt", description: "Visualiza y gestiona la producción. Haz DOBLE CLIC en un espacio vacío para crear una tarea, o en una tarea existente para editarla.", side: "top", align: "center" }
+            },
+            {
+                element: "#planning-view-modes",
+                popover: { title: "Modos de Vista", description: "Cambia la escala de tiempo entre Hora, Día y Semana para ver mas detalle o el panorama general.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#planning-machine-filter",
+                popover: { title: "Filtro de Máquinas", description: "Selecciona qué máquinas quieres ver en el diagrama.", side: "bottom" }
+            },
+            {
+                element: "#planning-search",
+                popover: { title: "Buscador de Piezas", description: "Resalta rápidamente las tareas relacionadas con una pieza o código específico.", side: "bottom" }
+            },
+            {
+                element: "#planning-settings",
+                popover: { title: "Configuración", description: "Personaliza la visualización, como mostrar/ocultar líneas de dependencia.", side: "bottom" }
+            },
+            {
+                element: "#planning-fullscreen",
+                popover: { title: "Pantalla Completa", description: "Maximiza el área de trabajo para tener una mejor visión de toda la planta.", side: "left" }
+            },
+            // Transition Step to Modal (Index 6)
+            {
+                element: "#planning-gantt-area",
+                popover: { title: "Creación de Tareas", description: "Al hacer doble clic, se abrirá el formulario de tarea. ¡Vamos a verlo!", side: "top" },
+                onHighlightStarted: () => {
+                    // Backtracking: Ensure modal is closed if we return to this step
+                    setModalData(null);
+                }
+            },
+            // Step 7: Open Modal Explicitly
+            {
+                element: "#task-modal-content",
+                popover: { title: "Formulario de Tarea", description: "Aquí se abrirá el formulario. Llénalo con la información del trabajo.", side: "left", align: "center" },
+                onHighlightStarted: () => {
+                    // Open modal immediately so it is ready for next steps
+                    setModalData({
+                        machine: machines[0]?.name || "CNC-01",
+                        time: Date.now(),
+                        operator: "Juan Demo",
+                        isDemo: true // Flag to disable animation for instant rendering
+                    });
+                }
+            },
+            // Modal Steps (Index 8+)
+            {
+                element: "#task-modal-order",
+                popover: { title: "Selección de Pieza", description: "Busca y selecciona la orden de producción o pieza a maquinar.", side: "right" }
+            },
+            {
+                element: "#task-modal-start",
+                popover: { title: "Inicio Programado", description: "Define la fecha y hora de inicio. Puedes usar el calendario o escribir la hora.", side: "right" }
+            },
+            {
+                element: "#task-modal-end",
+                popover: { title: "Fin Estimado", description: "El sistema calculará el fin automáticamente, pero puedes ajustarlo manualmente.", side: "right" }
+            },
+            {
+                element: "#task-modal-operator",
+                popover: { title: "Asignación de Operador", description: "Asigna un operador responsable a esta tarea.", side: "top" }
+            },
+            {
+                element: "#task-modal-save",
+                popover: { title: "Guardar Cambios", description: "Guarda la tarea para reflejarla en el tablero de todos los usuarios.", side: "top" }
+            }
+        ];
+
+        startTour(steps, cleanup);
     };
 
     // Synchronize state if fullscreen is exited via Esc key
@@ -299,15 +421,18 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     <DashboardHeader
                         title="Planeación de Producción"
                         description="Planificador de maquinados con vista Gantt interactiva"
-                        icon={<Calendar className="w-8 h-8 text-primary" />}
+                        icon={<Calendar className="w-8 h-8" />}
                         backUrl="/dashboard/produccion"
+                        colorClass="text-red-500"
+                        bgClass="bg-red-500/10"
+                        onHelp={handleStartTour}
                     />
                 </div>
             )}
             {/* Compact Header */}
             <div className="flex-none px-4 py-2 border-b border-border bg-background/50 backdrop-blur-sm z-[200] flex items-center gap-3">
                 {/* View Mode Buttons */}
-                <div className="flex bg-muted rounded-lg p-0.5">
+                <div className="flex bg-muted rounded-lg p-0.5" id="planning-view-modes">
                     <button
                         onClick={() => handleViewModeChange("hour")}
                         className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "hour" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
@@ -329,7 +454,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </div>
 
                 {/* Machine Filter Dropdown */}
-                <div className="relative machine-filter-dropdown">
+                <div className="relative machine-filter-dropdown" id="planning-machine-filter">
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -379,7 +504,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </div>
 
                 {/* Search */}
-                <div className="flex-1 max-w-xs relative group">
+                <div className="flex-1 max-w-xs relative group" id="planning-search">
                     <Search className="absolute left-2.5 top-1.5 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
                         type="text"
@@ -393,7 +518,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
 
                 {/* Settings Menu */}
-                <div className="relative" ref={settingsRef}>
+                <div className="relative" ref={settingsRef} id="planning-settings">
                     <button
                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                         className={`p-1.5 rounded-lg border border-border transition-colors ${isSettingsOpen ? 'bg-primary/10 text-primary border-primary/30' : 'bg-background hover:bg-muted text-muted-foreground'}`}
@@ -477,6 +602,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
                 {/* Fullscreen Button */}
                 <button
+                    id="planning-fullscreen"
                     onClick={toggleFullscreen}
                     className="flex items-center gap-1.5 px-2 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-all font-semibold text-xs"
                     title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
@@ -490,7 +616,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             </div>
 
             {/* Bottom Content - Timeline with margins */}
-            <div className="flex-1 overflow-hidden relative p-4 flex flex-col">
+            <div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area">
                 <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">
                     <GanttSVG
                         initialMachines={machines}
@@ -507,6 +633,8 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         showDependencies={showDependencies}
                         zoomLevel={zoomLevel} // Pass zoom level
                         setZoomLevel={handleZoomChange} // Pass setter for zoom controls
+                        modalData={modalData}
+                        setModalData={setModalData}
                     />
                 </div>
             </div>

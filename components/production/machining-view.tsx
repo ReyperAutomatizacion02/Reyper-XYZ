@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { createClient } from "@/utils/supabase/client";
+import { useTour, TourStep } from "@/hooks/use-tour";
 import { DashboardHeader } from "@/components/dashboard-header";
 import {
     AlertDialog,
@@ -39,8 +40,87 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
     const [isSaving, setIsSaving] = useState(false);
     const [checkoutTaskId, setCheckoutTaskId] = useState<string | null>(null);
 
-    // Filter tasks - Only show non-completed tasks for TODAY
+    // --- TOUR & DEMO LOGIC ---
+    const { startTour, driverObj } = useTour();
+    const [demoMode, setDemoMode] = useState<"none" | "pending" | "active">("none");
+
+    const handleStartTour = () => {
+        // "pending" mode will now show exactly one active task
+        setDemoMode("pending");
+
+        const steps: TourStep[] = [
+            {
+                element: "#active-task-panel",
+                padding: 15,
+                popover: {
+                    title: "Tu Tarea en Tiempo Real",
+                    description: "Desde el primer segundo, puedes ver aquí la información de tu pieza activa. Este panel te muestra el código, nombre y tiempo de inicio.",
+                    side: "bottom",
+                    align: "center"
+                },
+                onHighlightStarted: () => setDemoMode("pending")
+            },
+            {
+                element: "#demo-task-pending",
+                padding: 10,
+                popover: {
+                    title: "Seguimiento Visual",
+                    description: "En el calendario, esta misma pieza aparece resaltada con color. Aquí puedes ver gráficamente cuánto tiempo llevas trabajando en ella.",
+                    side: "right",
+                    align: "center"
+                },
+                onHighlightStarted: () => setDemoMode("pending")
+            },
+            {
+                element: "#finish-task-btn",
+                padding: 10,
+                popover: {
+                    title: "Concluir Registro",
+                    description: "Cuando termines físicamente el maquinado, pulsa este botón. Se cerrará el registro actual y la máquina quedará lista para lo que sigue.",
+                    side: "bottom",
+                    align: "center"
+                },
+                onHighlightStarted: () => setDemoMode("pending"),
+                onDeselected: () => {
+                    setDemoMode("none");
+                }
+            }
+        ];
+
+        // Delay 1000ms to allow all initial animations to settle
+        setTimeout(() => {
+            startTour(steps, () => setDemoMode("none"));
+        }, 1000);
+    };
+
+    // Filter tasks - Only show non-completed tasks for TODAY (OR DEMO)
     const filteredTasks = useMemo(() => {
+        if (demoMode !== 'none') {
+            const now = moment();
+
+            // Exactly ONE task, active from start to satisfy all requirements
+            const demoTask: any = {
+                id: "demo-task-pending",
+                created_at: now.toISOString(),
+                machine: "01-MILTRONICS",
+                operator: operatorName,
+                order_id: "demo-order-1",
+                part_code_id: "demo-part-1",
+                planned_date: now.clone().subtract(30, 'minutes').toISOString(),
+                planned_end: now.clone().add(2, 'hours').toISOString(),
+                check_in: now.clone().subtract(15, 'minutes').toISOString(), // Active from start
+                check_out: null,
+                production_orders: {
+                    id: "demo-order-1",
+                    part_code: "DEMO-XYZ",
+                    part_name: "EJE DE TRANSMISIÓN",
+                    client: "MAQUINADOS REYPER"
+                }
+            };
+
+            return [demoTask];
+        }
+
         const today = moment().startOf('day');
         return initialTasks.filter(task => {
             const isCompleted = !!task.check_out;
@@ -49,9 +129,9 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
             const taskDate = moment(task.planned_date);
             return taskDate.isSame(today, 'day');
         });
-    }, [initialTasks]);
+    }, [initialTasks, demoMode, operatorName]);
 
-    // Identify active task - ONLY from today's filtered tasks
+    // Identify active task - ONLY from today's filtered tasks (OR DEMO)
     const activeTask = useMemo(() => {
         return filteredTasks.find(t => t.check_in && !t.check_out);
     }, [filteredTasks]);
@@ -59,8 +139,14 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
     // For GanttSVG machine filters
     const allMachineNames = useMemo(() => {
         const names = new Set(initialTasks.map(t => t.machine).filter((n): n is string => !!n));
+
+        // Inject Demo Machine if in tour mode
+        if (demoMode !== 'none') {
+            names.add("01-MILTRONICS");
+        }
+
         return Array.from(names);
-    }, [initialTasks]);
+    }, [initialTasks, demoMode]);
 
     // Get active task color - always calculate, even if null
     const activeTaskColor = useMemo(() => {
@@ -107,13 +193,16 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
 
     return (
         <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-background overflow-hidden font-sans">
-            <div className="px-6 pt-4 bg-card border-b border-border shadow-sm z-10">
+            <div id="machining-header" className="px-6 pt-4 bg-card border-b border-border shadow-sm z-10">
                 <DashboardHeader
                     title="MAQUINADOS"
                     description={`OPERADOR: ${operatorName}`}
-                    icon={<Wrench className="w-8 h-8 text-primary" />}
+                    icon={<Wrench className="w-8 h-8" />}
                     backUrl="/dashboard/produccion"
+                    colorClass="text-blue-500"
+                    bgClass="bg-blue-500/10"
                     className="mb-4 text-sm"
+                    onHelp={handleStartTour}
                     children={
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -126,7 +215,8 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
             {/* Focus Panel */}
             {activeTask && activeTaskColor ? (
                 <div
-                    className="flex-none px-6 py-4 flex items-center justify-between animate-in slide-in-from-top duration-500 relative overflow-hidden"
+                    id="active-task-panel"
+                    className={`flex-none px-6 py-4 flex items-center justify-between relative overflow-hidden ${demoMode === 'none' ? 'animate-in slide-in-from-top duration-500' : ''}`}
                     style={{
                         backgroundColor: `${activeTaskColor}15`,
                     }}
@@ -140,7 +230,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                     />
 
                     <div className="flex items-center gap-8 relative z-10">
-                        <div className="flex flex-col">
+                        <div id="active-task-info" className="flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: `${activeTaskColor}dd` }}>
                                 Tarea en Proceso
                             </span>
@@ -166,6 +256,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                     </div>
 
                     <Button
+                        id="finish-task-btn"
                         onClick={() => handleCheckOut(activeTask.id)}
                         disabled={isSaving}
                         className="font-black px-10 h-14 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-95 text-base relative z-10"
@@ -187,7 +278,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                 </div>
             )}
 
-            <div className="flex-1 overflow-hidden relative bg-muted/5">
+            <div id="machining-gantt-area" className="flex-1 overflow-hidden relative bg-muted/5">
                 <GanttSVG
                     initialMachines={[]}
                     initialOrders={[]}

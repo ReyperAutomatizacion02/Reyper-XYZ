@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2, FolderKanban } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { ToolCard } from "@/components/tool-card";
 
 const salesTools = [
     {
@@ -8,40 +9,40 @@ const salesTools = [
         description: "Crear y guardar nuevas cotizaciones.",
         href: "/dashboard/ventas/cotizador",
         icon: FilePlus,
-        color: "bg-red-500/10 text-red-500",
-        status: "Disponible",
+        colorClass: "text-red-500",
+        bgClass: "bg-red-500/10",
     },
     {
         name: "Nuevo Proyecto",
         description: "Generar códigos de proyecto y partidas automáticamente.",
         href: "/dashboard/ventas/nuevo-proyecto",
         icon: FilePlus,
-        color: "bg-orange-500/10 text-orange-500",
-        status: "Nuevo",
+        colorClass: "text-orange-500",
+        bgClass: "bg-orange-500/10",
     },
     {
         name: "Historial de Cotizaciones",
         description: "Consultar y gestionar cotizaciones pasadas.",
         href: "/dashboard/ventas/historial",
         icon: History,
-        color: "bg-blue-500/10 text-blue-500",
-        status: "Disponible",
+        colorClass: "text-blue-500",
+        bgClass: "bg-blue-500/10",
     },
     {
         name: "Clientes y Usuarios",
         description: "Gestionar catálogo de clientes y usuarios solicitantes.",
         href: "/dashboard/ventas/clientes-usuarios",
         icon: Users2,
-        color: "bg-indigo-500/10 text-indigo-500",
-        status: "Nuevo",
+        colorClass: "text-indigo-500",
+        bgClass: "bg-indigo-500/10",
     },
     {
         name: "Proyectos Activos",
         description: "Monitoreo en tiempo real de proyectos en curso.",
         href: "/dashboard/ventas/proyectos",
         icon: FolderKanban,
-        color: "bg-orange-500/10 text-orange-500",
-        status: "Nuevo",
+        colorClass: "text-orange-500",
+        bgClass: "bg-orange-500/10",
     },
 ];
 
@@ -59,32 +60,15 @@ export default function SalesPage() {
             {/* Tools Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {salesTools.map((tool) => (
-                    <Link
+                    <ToolCard
                         key={tool.href}
+                        name={tool.name}
+                        description={tool.description}
                         href={tool.href}
-                        className="group p-6 rounded-2xl border border-border bg-card hover:shadow-xl hover:border-red-500/30 transition-all duration-300"
-                    >
-                        <div className="flex items-start justify-between mb-4">
-                            <div className={`p-3 rounded-xl ${tool.color}`}>
-                                <tool.icon className="w-6 h-6" />
-                            </div>
-                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-500/10 text-green-600">
-                                {tool.status}
-                            </span>
-                        </div>
-
-                        <h3 className="text-lg font-bold mb-2 group-hover:text-red-500 transition-colors">
-                            {tool.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            {tool.description}
-                        </p>
-
-                        <div className="flex items-center text-sm font-medium text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                            Abrir herramienta
-                            <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                    </Link>
+                        icon={tool.icon}
+                        colorClass={tool.colorClass}
+                        bgClass={tool.bgClass}
+                    />
                 ))}
 
                 {/* Placeholder for future tools */}

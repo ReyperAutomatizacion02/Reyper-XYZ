@@ -11,9 +11,10 @@ import { Progress } from "@/components/ui/progress";
 import { getActiveProjects, getFilterOptions } from "../actions";
 import { toast } from "sonner";
 import Link from "next/link";
-import { ProjectDetailsPanel } from "./components/project-details-panel";
-import { ProjectsFilter } from "./components/projects-filter";
+import { ProjectDetailsPanel } from "@/components/sales/project-details-panel";
+import { ProjectsFilter } from "@/components/sales/projects-filter";
 import { useProjectFilters } from "./hooks/use-project-filters";
+import { useTour } from "@/hooks/use-tour";
 
 interface Project {
     id: string;
@@ -76,6 +77,60 @@ export default function ActiveProjectsPage() {
         return { progress, dateColor, daysRemaining };
     };
 
+    // --- HELP TOUR HANDLER ---
+    const { startTour } = useTour();
+
+    const handleStartTour = () => {
+        const isDemo = projects.length === 0;
+
+        if (isDemo) {
+            const demoProject = {
+                id: "demo-project",
+                code: "DEMO-001",
+                name: "Proyecto de Demostración (Tour)",
+                company: "Cliente Demo S.A.",
+                requestor: "Juan Demo",
+                start_date: new Date().toISOString(),
+                delivery_date: new Date(Date.now() + 86400000 * 5).toISOString(), // 5 days from now
+                status: "active"
+            };
+            setProjects([demoProject]);
+            setSelectedProject(demoProject);
+        } else {
+            // If projects exist, select the first one for the tour
+            setSelectedProject(projects[0]);
+        }
+
+        const cleanup = () => {
+            if (isDemo) setProjects([]);
+            setSelectedProject(null); // Close panel on finish
+        };
+
+        startTour([
+            {
+                element: "#active-projects-search",
+                popover: { title: "Búsqueda Rápida", description: "Encuentra proyectos por Código, Nombre o Cliente.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#active-projects-filters",
+                popover: { title: "Filtros Avanzados", description: "Filtra por Cliente, Solicitante, Estatus (A tiempo/Retrasado) o Rango de Fechas.", side: "bottom" }
+            },
+            {
+                element: "#active-project-card-0",
+                popover: { title: "Tarjeta de Proyecto", description: "Haz clic en cualquier tarjeta para ver el detalle completo.", side: "right", align: "center" }
+            },
+            // Side Panel Steps
+            {
+                element: "#project-details-panel",
+                popover: { title: "Panel de Detalles", description: "Aquí puedes ver toda la información del proyecto sin salir de la página.", side: "left", align: "start" }
+            },
+            {
+                element: "#project-details-items",
+                popover: { title: "Partidas del Proyecto", description: "Lista de piezas a fabricar. Haz clic en el código para ver el detalle de cada pieza.", side: "left", align: "center" }
+            }
+        ], cleanup);
+    };
+
     // Filter Logic
     const filteredProjects = projects.filter(p => {
         // 1. Text Search (Code, Name, Company)
@@ -130,14 +185,16 @@ export default function ActiveProjectsPage() {
             <DashboardHeader
                 title="Proyectos Activos"
                 description="Monitoreo de proyectos en curso y tiempos de entrega"
-                icon={<FolderKanban className="w-8 h-8 text-orange-500" />}
+                icon={<FolderKanban className="w-8 h-8" />}
                 backUrl="/dashboard/ventas"
-                iconClassName="bg-orange-500/10 text-orange-500"
+                colorClass="text-orange-500"
+                bgClass="bg-orange-500/10"
+                onHelp={handleStartTour}
             />
 
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1 max-w-md">
+                <div className="relative flex-1 max-w-md" id="active-projects-search">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar por Código, Nombre o Cliente..."
@@ -146,13 +203,15 @@ export default function ActiveProjectsPage() {
                         className="pl-10 bg-background/50 border-border focus:border-orange-500 transition-all shadow-sm"
                     />
                 </div>
-                <ProjectsFilter
-                    filters={filters}
-                    options={filterOptions}
-                    onUpdate={updateFilter}
-                    onReset={resetFilters}
-                    activeCount={activeFilterCount}
-                />
+                <div id="active-projects-filters">
+                    <ProjectsFilter
+                        filters={filters}
+                        options={filterOptions}
+                        onUpdate={updateFilter}
+                        onReset={resetFilters}
+                        activeCount={activeFilterCount}
+                    />
+                </div>
             </div>
 
             {/* Projects Grid */}
@@ -163,12 +222,13 @@ export default function ActiveProjectsPage() {
                 </div>
             ) : (
                 <div className={`grid gap-6 md:grid-cols-2 ${selectedProject ? "lg:grid-cols-2" : "lg:grid-cols-3"} transition-all duration-300`}>
-                    {filteredProjects.map((project) => {
+                    {filteredProjects.map((project, index) => {
                         const { progress, dateColor, daysRemaining } = getProjectStatus(project.start_date, project.delivery_date);
 
                         return (
                             <Card
                                 key={project.id}
+                                id={index === 0 ? "active-project-card-0" : undefined}
                                 onClick={() => setSelectedProject(project)}
                                 className={`group cursor-pointer hover:shadow-lg transition-all duration-300 border-border overflow-hidden ${selectedProject?.id === project.id
                                     ? "ring-2 ring-primary/50 border-primary bg-card/80 dark:bg-card/40 shadow-md scale-[1.02]"
@@ -235,13 +295,14 @@ export default function ActiveProjectsPage() {
                         );
                     })}
                 </div>
-            )}
+            )
+            }
 
             <ProjectDetailsPanel
                 project={selectedProject}
                 isOpen={!!selectedProject}
                 onClose={() => setSelectedProject(null)}
             />
-        </div>
+        </div >
     );
 }

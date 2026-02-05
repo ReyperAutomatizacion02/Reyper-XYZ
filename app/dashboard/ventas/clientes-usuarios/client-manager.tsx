@@ -170,22 +170,23 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                         className="pl-9"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        id="clients-search"
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border">
+                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border" id="clients-stats">
                         <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Total: <strong className="text-foreground">{clients.length}</strong></span>
                         <div className="w-px h-4 bg-border" />
                         <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Activos: <strong className="text-green-600 dark:text-green-400">{clients.filter(c => c.is_active !== false).length}</strong></span>
                     </div>
-                    <Button onClick={openCreateModal} className="bg-red-600 hover:bg-red-700 text-white rounded-full">
+                    <Button onClick={openCreateModal} className="bg-red-600 hover:bg-red-700 text-white rounded-full" id="clients-new-btn">
                         <Plus className="w-4 h-4 mr-2" />
                         Nuevo Cliente
                     </Button>
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden" id="clients-table">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>

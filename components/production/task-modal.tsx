@@ -28,6 +28,7 @@ interface TaskModalProps {
         orderId?: string;
         partCode?: string; // Fallback hint
         activeOrder?: Order | null; // Injected order to guarantee visibility
+        isDemo?: boolean; // Tour mode flag
     } | null;
     orders: Order[];
     operators: string[];
@@ -413,12 +414,17 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
 
     return (
         <div
-            className="fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+            className={cn(
+                "fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm",
+                // Only animate if NOT demo mode to ensure instant availability for tour driver
+                !initialData?.isDemo && "animate-in fade-in duration-200"
+            )}
             onClick={onClose}
         >
             <div className="min-h-full flex items-center justify-center p-4 text-center">
                 <div
-                    className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg relative text-left transition-all my-8"
+                    id="task-modal-content"
+                    className="bg-card w-full max-w-lg rounded-xl shadow-2xl border border-border/50 animate-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center rounded-t-xl">
@@ -470,7 +476,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                             </div>
                         )}
 
-                        <div className="space-y-2">
+                        <div className="space-y-2" id="task-modal-order">
                             <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
                                 <Box className="w-4 h-4" />
                                 PIEZA / PARTIDA
@@ -485,7 +491,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
 
                         <div className="space-y-6 pt-4 border-t border-border/50">
                             {/* Start Block */}
-                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
+                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60" id="task-modal-start">
                                 <div className="flex flex-col sm:flex-row gap-3">
                                     <div className="flex-1">
                                         <DateSelector
@@ -504,7 +510,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                             </div>
 
                             {/* End Block */}
-                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60">
+                            <div className="space-y-3 p-4 bg-muted/40 rounded-xl border border-border/60" id="task-modal-end">
                                 <div className="flex flex-col sm:flex-row gap-3">
                                     <div className="flex-1">
                                         <DateSelector
@@ -523,7 +529,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                             </div>
                         </div>
 
-                        <div className="space-y-2 pt-2 border-t border-border/50">
+                        <div className="space-y-2 pt-2 border-t border-border/50" id="task-modal-operator">
                             <label className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
                                 <User className="w-4 h-4" />
                                 OPERADOR ASIGNADO
@@ -546,6 +552,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                                 Cancelar
                             </button>
                             <button
+                                id="task-modal-save"
                                 type="submit"
                                 disabled={isLoading}
                                 className="flex-[2] px-4 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"

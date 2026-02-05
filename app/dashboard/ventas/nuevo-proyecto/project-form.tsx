@@ -3,12 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarIcon, Loader2, Save, FileText, RefreshCw, Plus, Trash2, X, ChevronDown, ImageIcon, ExternalLink, ZoomIn, ZoomOut, RotateCcw, Sparkles } from "lucide-react";
+import { CalendarIcon, Loader2, Save, FileText, RefreshCw, Plus, Trash2, X, ChevronDown, ImageIcon, ExternalLink, ZoomIn, ZoomOut, RotateCcw, Sparkles, FolderPlus } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { DashboardHeader } from "@/components/dashboard-header";
+import { useTour } from "@/hooks/use-tour";
 import { cn } from "@/lib/utils";
+/* removed duplicate imports */
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -67,6 +70,7 @@ interface GeneratedItem {
     url: string;
     thumbnail?: string;
     fileId?: string;
+    isDemo?: boolean; // Flag to identify demo items
 }
 
 interface StagingFile {
@@ -261,8 +265,100 @@ const AutoResizeTextarea = ({ value, onChange, placeholder, className, minHeight
 };
 
 export function ProjectForm({ clients, contacts, units, materials, initialDate }: ProjectFormProps) {
+    const { startTour } = useTour();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+
+    // --- TOUR HANDLER WITH DEMO MODE ---
+    const handleStartTour = () => {
+        // 1. Simulate Data if empty to reveal hidden sections
+        const isDemo = generatedItems.length === 0;
+
+        if (isDemo) {
+            // Populate Basic Info
+            setProjectCode("PRJ-DEMO-001");
+            setProjectName("Proyecto de Demostración (Tour)");
+            if (clients.length > 0) setSelectedClient(clients[0].id);
+            setDriveFolderUrl("https://drive.google.com/drive/folders/demo-folder-id");
+            setItemsToGenerate(5);
+
+            // Populate Staging Area (Selection Zone)
+            setStagingFiles([
+                { id: "demo-file-1", name: "Plano_Estructura_001.pdf", url: "", mimeType: "application/pdf", selected: true, thumbnail: "" }
+            ]);
+            setIsSelectingFiles(true);
+
+            // Populate Preview Table
+            setGeneratedItems([
+                { id: 1, code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "", isDemo: true },
+                { id: 2, code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", designNo: "D-002", material: "Bronce", url: "", isDemo: true }
+            ]);
+            setShowPreview(true);
+        }
+
+        // 2. Cleanup Function
+        const handleTourFinish = () => {
+            if (isDemo) {
+                setProjectCode("");
+                setProjectName("");
+                setSelectedClient("");
+                setDriveFolderUrl("");
+                setItemsToGenerate(0);
+                setStagingFiles([]);
+                setIsSelectingFiles(false);
+                setGeneratedItems([]);
+                setShowPreview(false);
+            }
+        };
+
+        // 3. Start Tour with granular steps
+        startTour([
+            {
+                element: "#project-client-wrapper",
+                popover: { title: "Cliente", description: "Primero selecciona la empresa para la cual es el proyecto.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#project-user-wrapper",
+                popover: { title: "Usuario / Solicitante", description: "Indica quién está solicitando este trabajo dentro de la empresa del cliente.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#project-date-request",
+                popover: { title: "Fecha de Solicitud", description: "La fecha en que se recibió la orden de trabajo.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#project-date-delivery",
+                popover: { title: "Fecha de Entrega", description: "Fecha compromiso para entregar el proyecto terminado.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#project-info-section",
+                popover: { title: "Identificación del Proyecto", description: "Escribe un nombre claro para el proyecto.", side: "top", align: "start" }
+            },
+            {
+                element: "#project-drive-input",
+                popover: { title: "Carpeta de Drive", description: "Si tienes los planos en Drive, pega el link aquí para importarlos automáticamente.", side: "top", align: "start" }
+            },
+            {
+                element: "#project-items-count",
+                popover: { title: "Cantidad de Partidas", description: "Si no usas Drive, indica cuántas filas vacías necesitas generar.", side: "top", align: "start" }
+            },
+            {
+                element: "#project-generate-btn",
+                popover: { title: "Generar Partidas", description: "Haz clic para procesar el link de Drive o crear las filas manuales.", side: "right", align: "center" }
+            },
+            {
+                element: "#project-staging-area",
+                popover: { title: "Zona de Selección (Importación)", description: "Si usaste Drive, aquí verás los archivos encontrados. Selecciona los que quieras agregar al proyecto.", side: "top", align: "center" }
+            },
+            {
+                element: "#project-preview-table",
+                popover: { title: "Tabla de Partidas", description: "Revisa y edita la información generada (descripciones, cantidades, materiales).", side: "top", align: "center" }
+            },
+            {
+                element: "#project-save-btn",
+                popover: { title: "Guardar Proyecto", description: "Finalmente, guarda el proyecto para registrarlo en el sistema.", side: "top", align: "end" }
+            }
+        ], handleTourFinish);
+    };
 
     // Data State (mutable for new additions)
     const [clientList, setClientList] = useState(clients);
@@ -594,6 +690,16 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
     return (
         <div className="space-y-8 pb-20">
+            <DashboardHeader
+                title="Nuevo Proyecto"
+                description="Generar cotización, códigos y partidas automáticamente."
+                icon={<FolderPlus className="w-8 h-8" />}
+                backUrl="/dashboard/ventas"
+                colorClass="text-red-500"
+                bgClass="bg-red-500/10"
+                onHelp={handleStartTour}
+            />
+
             <motion.div initial="hidden" animate="visible" variants={fadeIn}>
                 <Card className="border-border/40 shadow-xl shadow-primary/5 relative rounded-2xl overflow-visible bg-card/80 backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 rounded-t-2xl" />
@@ -601,7 +707,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-8">
 
                             {/* Client */}
-                            <div className="space-y-2.5">
+                            <div className="space-y-2.5" id="project-client-wrapper">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Cliente</Label>
                                 <SearchableSelect
                                     options={clientList.map(c => ({ label: c.name, value: c.id }))}
@@ -614,7 +720,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             </div>
 
                             {/* User / Requestor */}
-                            <div className="space-y-2.5">
+                            <div className="space-y-2.5" id="project-user-wrapper">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Usuario / Solicitante</Label>
                                 <SearchableSelect
                                     options={filteredContacts.map(c => ({ label: c.name, value: c.id }))}
@@ -628,20 +734,24 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             </div>
 
                             {/* Dates */}
-                            <DateSelector
-                                label="Fecha de Solicitud"
-                                date={requestDate}
-                                onSelect={(d) => d && setRequestDate(d)}
-                            />
+                            <div id="project-date-request">
+                                <DateSelector
+                                    label="Fecha de Solicitud"
+                                    date={requestDate}
+                                    onSelect={(d) => d && setRequestDate(d)}
+                                />
+                            </div>
 
-                            <DateSelector
-                                label="Fecha de Entrega"
-                                date={deliveryDate}
-                                onSelect={setDeliveryDate}
-                            />
+                            <div id="project-date-delivery">
+                                <DateSelector
+                                    label="Fecha de Entrega"
+                                    date={deliveryDate}
+                                    onSelect={setDeliveryDate}
+                                />
+                            </div>
 
                             {/* Project Info */}
-                            <div className="space-y-2.5 md:col-span-2">
+                            <div className="space-y-2.5 md:col-span-2" id="project-info-section">
                                 <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nombre del Proyecto</Label>
                                 <Input
                                     placeholder="Ej. Fabricación de Estructura Principal..."
@@ -652,8 +762,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             </div>
 
                             {/* Drive Folder Input & Items Count Row */}
-                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2.5 md:col-span-2">
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6" id="project-generation-section">
+                                <div className="space-y-2.5 md:col-span-2" id="project-drive-input">
                                     <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider flex items-center gap-2">
                                         Link Carpeta Drive (Opcional)
                                     </Label>
@@ -664,7 +774,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                         className="bg-blue-50/30 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900 shadow-sm h-10 transition-all hover:bg-card focus:border-blue-500/50"
                                     />
                                 </div>
-                                <div className="space-y-2.5">
+                                <div className="space-y-2.5" id="project-items-count">
                                     <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nº de Partidas</Label>
                                     <Input
                                         type="number"
@@ -679,6 +789,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
                         <div className="mt-10 flex justify-end">
                             <Button
+                                id="project-generate-btn"
                                 onClick={handleGeneratePreview}
                                 disabled={loading || !selectedClient || !projectName}
                                 className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-500/20 px-8 h-10 rounded-full transition-all duration-300 hover:scale-[1.02]"
@@ -695,6 +806,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
             <AnimatePresence>
                 {isSelectingFiles && (
                     <motion.div
+                        id="project-staging-area"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
@@ -772,7 +884,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                             </h3>
                         </div>
 
-                        <Card className="border-border/40 shadow-2xl overflow-hidden rounded-2xl bg-card">
+                        <Card className="border-border/40 shadow-2xl overflow-hidden rounded-2xl bg-card" id="project-preview-table">
                             <div className="overflow-x-auto">
                                 <Table className="min-w-[1200px]">
                                     <TableHeader className="bg-table-header-bg">
@@ -904,6 +1016,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         <div className="flex justify-end gap-3 pt-4 pb-12">
                             <Button variant="outline" onClick={() => setShowPreview(false)} className="rounded-full px-6">Cancelar</Button>
                             <Button
+                                id="project-save-btn"
                                 onClick={handleSave}
                                 disabled={loading || generatedItems.length === 0}
                                 className="bg-red-600 hover:bg-red-700 text-white rounded-full px-6 shadow-lg shadow-red-500/20"

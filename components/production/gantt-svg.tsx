@@ -33,6 +33,8 @@ interface GanttSVGProps {
     readOnly?: boolean;
     onTaskDoubleClick?: (task: PlanningTask) => void;
     hideDateNavigation?: boolean;
+    modalData?: any;
+    setModalData?: (data: any) => void;
 }
 
 // Helper for 15-minute snapping
@@ -72,7 +74,9 @@ export function GanttSVG({
     onHistorySnapshot,
     readOnly = false,
     onTaskDoubleClick,
-    hideDateNavigation = false
+    hideDateNavigation = false,
+    modalData: externalModalData,
+    setModalData: externalSetModalData
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -121,7 +125,13 @@ export function GanttSVG({
     }, [viewMode]);
 
     const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
-    const [modalData, setModalData] = useState<any>(null);
+    // Local state fallback if not provided (though we expect it provided)
+    const [localModalData, setLocalModalData] = useState<any>(null);
+
+    // Effective state
+    const modalData = externalModalData !== undefined ? externalModalData : localModalData;
+    const setModalData = externalSetModalData || setLocalModalData;
+
     const [draggingTask, setDraggingTask] = useState<{
         id: string,
         startX: number,
@@ -321,6 +331,71 @@ export function GanttSVG({
 
         return lanes;
     }, [filteredTasks]);
+
+    // PRE-CALCULATE UTILIZATION FOR ALL MACHINES (Rules of Hooks Fix)
+    const machineUtilizations = useMemo(() => {
+        const stats = new Map<string, number>();
+        const SHIFT_START = 6;
+        const SHIFT_END = 22;
+        const SHIFT_HOURS = SHIFT_END - SHIFT_START; // 16 hours
+
+        filteredMachines.forEach(m => {
+            const machineTasks = optimisticTasks.filter(t => (t.machine === m) || (m === "Sin Máquina" && !t.machine));
+            if (machineTasks.length === 0) {
+                stats.set(m, 0);
+                return;
+            }
+
+            const viewStart = timeWindow.start.clone().startOf('day');
+            const viewEnd = timeWindow.end.clone().subtract(2, 'hours').endOf('day');
+
+            let totalShiftHours = 0;
+            let occupiedHours = 0;
+
+            const currentDay = viewStart.clone();
+            while (currentDay.isBefore(viewEnd)) {
+                totalShiftHours += SHIFT_HOURS;
+
+                const dayShiftStart = currentDay.clone().hour(SHIFT_START);
+                const dayShiftEnd = currentDay.clone().hour(SHIFT_END);
+
+                const dailyTasks = machineTasks
+                    .filter(task => {
+                        const taskStart = moment(task.planned_date);
+                        const taskEnd = moment(task.planned_end);
+                        return taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart);
+                    })
+                    .sort((a, b) =>
+                        moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
+                    );
+
+                let currentLaneEnd = 0;
+                dailyTasks.forEach(task => {
+                    const taskStart = moment(task.planned_date);
+                    const taskEnd = moment(task.planned_end);
+                    if (taskStart.valueOf() >= currentLaneEnd) {
+                        if (taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart)) {
+                            const overlapStart = moment.max(taskStart, dayShiftStart);
+                            const overlapEnd = moment.min(taskEnd, dayShiftEnd);
+
+                            if (overlapEnd.isAfter(overlapStart)) {
+                                occupiedHours += overlapEnd.diff(overlapStart, 'hours', true);
+                                currentLaneEnd = taskEnd.valueOf();
+                            }
+                        }
+                        currentLaneEnd = Math.max(currentLaneEnd, taskEnd.valueOf());
+                    }
+                });
+
+                currentDay.add(1, 'days');
+            }
+
+            const ut = totalShiftHours === 0 ? 0 : Math.min(100, Math.round((occupiedHours / totalShiftHours) * 100));
+            stats.set(m, ut);
+        });
+
+        return stats;
+    }, [optimisticTasks, timeWindow, filteredMachines]);
 
     // Constants for bar sizing
     const BAR_HEIGHT = 36;
@@ -807,83 +882,8 @@ export function GanttSVG({
                             style={{ transform: `translateY(${-scrollPos.y}px)` }}
                         >
                             {filteredMachines.map((m, i) => {
-                                // Calculate Utilization
-                                const utilization = useMemo(() => {
-                                    const SHIFT_START = 6;
-                                    const SHIFT_END = 22;
-                                    const SHIFT_HOURS = SHIFT_END - SHIFT_START; // 16 hours
-
-                                    const machineTasks = optimisticTasks.filter(t => (t.machine === m) || (m === "Sin Máquina" && !t.machine));
-                                    if (machineTasks.length === 0) return 0;
-
-                                    const viewStart = timeWindow.start.clone().startOf('day');
-                                    // Fix: subtract 2 hours to safely exclude the 1-hour visual buffer spillover
-                                    // (e.g. 01:00 next day -> 23:00 prev day -> endOf prev day)
-                                    const viewEnd = timeWindow.end.clone().subtract(2, 'hours').endOf('day');
-
-                                    let totalShiftHours = 0;
-                                    let occupiedHours = 0;
-
-                                    // Iterate through each day in the view
-                                    const currentDay = viewStart.clone();
-                                    while (currentDay.isBefore(viewEnd)) {
-                                        totalShiftHours += SHIFT_HOURS;
-
-                                        const dayShiftStart = currentDay.clone().hour(SHIFT_START);
-                                        const dayShiftEnd = currentDay.clone().hour(SHIFT_END);
-
-                                        // Filter for "Lane 1" tasks only (Ignore overlaps completely)
-                                        // IMPORTANT: Only consider tasks that fall on THIS specific day
-                                        const dailyTasks = machineTasks
-                                            .filter(task => {
-                                                const taskStart = moment(task.planned_date);
-                                                const taskEnd = moment(task.planned_end);
-                                                // Task must intersect with this day's shift window
-                                                return taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart);
-                                            })
-                                            .sort((a, b) =>
-                                                moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
-                                            );
-
-                                        let currentLaneEnd = 0; // Tracks the end of the last accepted task in Lane 1
-
-                                        dailyTasks.forEach(task => {
-                                            const taskStart = moment(task.planned_date);
-                                            const taskEnd = moment(task.planned_end);
-
-                                            // 1. Strict Lane 1 Check: Task must start after the previous one ended
-                                            // (If it overlaps even by a second, it's Lane 2 and we ignore it per user request)
-                                            if (taskStart.valueOf() >= currentLaneEnd) {
-
-                                                // 2. Check intersection with 6am-10pm Shift
-                                                if (taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart)) {
-                                                    const overlapStart = moment.max(taskStart, dayShiftStart);
-                                                    const overlapEnd = moment.min(taskEnd, dayShiftEnd);
-
-                                                    if (overlapEnd.isAfter(overlapStart)) {
-                                                        const duration = overlapEnd.diff(overlapStart, 'hours', true);
-                                                        occupiedHours += duration;
-
-                                                        // Update Lane 1 end boundary
-                                                        currentLaneEnd = taskEnd.valueOf();
-                                                    }
-                                                }
-                                                // Even if out of shift, if it's Lane 1, update boundary? 
-                                                // Yes, strictly mask subsequent overlaps.
-                                                currentLaneEnd = Math.max(currentLaneEnd, taskEnd.valueOf());
-                                            }
-                                        });
-
-
-                                        currentDay.add(1, 'days');
-                                    }
-
-                                    if (totalShiftHours === 0) return 0;
-                                    return Math.min(100, Math.round((occupiedHours / totalShiftHours) * 100)); // Cap at 100 visually? Or show overload? 
-                                    // User requirements implies overload might be possible if working nights, but we constraint to shift. 
-                                    // If we work "extra" hours outside shift, technically we could be >100% of shift capacity if we count them. 
-                                    // BUT my logic above strictly clips to shift window. So max is 100% of shift.
-                                }, [optimisticTasks, timeWindow, m]);
+                                // Get Pre-calculated Utilization
+                                const utilization = machineUtilizations.get(m) || 0;
 
                                 let badgeColor = "bg-muted text-muted-foreground";
                                 if (utilization > 85) badgeColor = "bg-green-500/20 text-green-600";
@@ -1013,6 +1013,7 @@ export function GanttSVG({
                                 return (
                                     <motion.g
                                         key={task.id}
+                                        id={task.id}
                                         initial={{ opacity: 0 }}
                                         animate={{
                                             opacity: activeTask ? 0.9 : 1,

@@ -5,7 +5,7 @@ import { X, Calendar, User2, Building2, Package, Image as ImageIcon, Loader2, Ch
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { getProjectDetails } from "../../actions";
+import { getProjectDetails } from "@/app/dashboard/ventas/actions";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -84,6 +84,7 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
                         className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16 overflow-hidden"
+                        id="project-details-panel"
                     >
                         <AnimatePresence mode="wait">
                             {!selectedItem ? (
@@ -95,7 +96,7 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                                     className="flex flex-col h-full"
                                 >
                                     {/* Header */}
-                                    <div className="p-6 border-b border-border bg-muted/10 flex-shrink-0">
+                                    <div className="p-6 border-b border-border bg-muted/10 flex-shrink-0" id="project-details-header">
                                         <div className="flex items-start justify-between mb-4">
                                             <Badge variant="outline" className="bg-red-500/5 text-red-600 dark:text-red-400 border-none shadow-none px-2 py-0.5 h-auto font-mono font-bold tracking-wider">
                                                 {project.code}
@@ -120,7 +121,7 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                                     {/* Scrollable Content */}
                                     <div className="flex-1 overflow-y-auto p-6 space-y-8">
                                         {/* Dates & Progress */}
-                                        <section className="space-y-4">
+                                        <section className="space-y-4" id="project-details-dates">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center">
                                                 <Calendar className="w-4 h-4 mr-2" /> Tiempos
                                             </h3>
@@ -146,7 +147,7 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                                         </section>
 
                                         {/* Production Orders / Items */}
-                                        <section className="space-y-4">
+                                        <section className="space-y-4" id="project-details-items">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                                                 <span className="flex items-center"><Package className="w-4 h-4 mr-2" /> Partidas ({items.length})</span>
                                                 {loading && <Loader2 className="w-3 h-3 animate-spin" />}

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Filter, X, Calendar as CalendarIcon, Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ProjectFilters } from "../hooks/use-project-filters";
+import { ProjectFilters } from "@/app/dashboard/ventas/proyectos/hooks/use-project-filters";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 

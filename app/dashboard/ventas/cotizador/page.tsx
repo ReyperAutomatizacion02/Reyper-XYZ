@@ -46,7 +46,7 @@ import {
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 
-import { ComboboxCreatable, Option } from "../components/ComboboxCreatable";
+import { ComboboxCreatable, Option } from "@/components/sales/combobox-creatable";
 import {
     createClientEntry,
     createContactEntry,
@@ -59,7 +59,7 @@ import {
     updateQuote
 } from "../actions";
 
-import { QuotePDF } from "../components/QuotePDF";
+import { QuotePDF } from "@/components/sales/quote-pdf";
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -136,6 +136,8 @@ type QuoteItem = {
     total: number;
 };
 
+import { useTour } from "@/hooks/use-tour";
+
 export default function QuoteGeneratorPage() {
     return (
         <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
@@ -145,6 +147,7 @@ export default function QuoteGeneratorPage() {
 }
 
 function QuoteGeneratorContent() {
+    const { startTour } = useTour();
     const router = useRouter();
     const searchParams = useSearchParams();
     const editingId = searchParams.get("id");
@@ -523,170 +526,253 @@ function QuoteGeneratorContent() {
             <DashboardHeader
                 title="Generar Cotización"
                 description="Ventas / Nueva Cotización"
-                icon={<FileText className="w-8 h-8 text-red-500" />}
+                icon={<FileText className="w-8 h-8" />}
                 onBack={handleBack}
-                iconClassName="text-red-500"
+                colorClass="text-red-500"
+                bgClass="bg-red-500/10"
+                onHelp={() => startTour([
+                    {
+                        element: "#quote-header-inputs",
+                        popover: {
+                            title: "Datos de Encabezado",
+                            description: "Define cómo cotizar (DMR/Inversa), el número de requisición y el número de parte.",
+                            side: "bottom",
+                            align: "start"
+                        }
+                    },
+                    {
+                        element: "#quote-dates-inputs",
+                        popover: {
+                            title: "Fechas y Moneda",
+                            description: "Establece la fecha de emisión, la entrega estimada y la moneda de la cotización.",
+                            side: "bottom",
+                            align: "start"
+                        }
+                    },
+                    {
+                        element: "#quote-client-inputs",
+                        popover: {
+                            title: "Cliente y Usuario",
+                            description: "Selecciona al cliente y el contacto. Si no existen, puedes crearlos escribiendo el nombre y haciendo clic en 'Crear'.",
+                            side: "top",
+                            align: "start"
+                        }
+                    },
+                    {
+                        element: "#quote-extra-inputs",
+                        popover: {
+                            title: "Detalles Adicionales",
+                            description: "Información complementaria como Puesto, Área y vigencia de la oferta.",
+                            side: "top",
+                            align: "start"
+                        }
+                    },
+                    {
+                        element: "#quote-items-section",
+                        popover: {
+                            title: "Listado de Partidas",
+                            description: "Aquí agregas los productos. Define descripción, cantidad, unidad (creables) y precio.",
+                            side: "top",
+                            align: "center"
+                        }
+                    },
+                    {
+                        element: "#quote-add-item-btn",
+                        popover: {
+                            title: "Agregar Más Partidas",
+                            description: "Usa este botón para añadir más filas a tu cotización.",
+                            side: "right",
+                            align: "center"
+                        }
+                    },
+                    {
+                        element: "#quote-totals-section",
+                        popover: {
+                            title: "Validación y Totales",
+                            description: "Verifica los subtotales e impuestos. Si faltan datos, aquí aparecerán las alertas de validación.",
+                            side: "left",
+                            align: "center"
+                        }
+                    },
+                    {
+                        element: "#quote-final-actions",
+                        popover: {
+                            title: "Guardar o Imprimir",
+                            description: "Finaliza guardando la cotización. Podrás generar el PDF una vez guardada.",
+                            side: "top",
+                            align: "end"
+                        }
+                    }
+                ])}
             />
 
             {/* General Info Card */}
-            <Card className="bg-card border-border">
+            <Card id="quote-client-section" className="bg-card border-border">
                 <CardHeader className="pb-4 border-b border-border">
                     <CardTitle className="text-red-500 font-semibold text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5" />
                         Información General
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 grid gap-6 md:grid-cols-3">
+                <CardContent id="quote-details-section" className="pt-6 grid gap-6 md:grid-cols-3">
                     {/* Row 1 */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Cotizar como</label>
-                        <Select
-                            value={formData.quote_as}
-                            onValueChange={(value) => handleFormChange({ quote_as: value })}
-                        >
-                            <SelectTrigger className="bg-background border-input text-foreground">
-                                <SelectValue placeholder="Seleccionar..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="DMR">DMR</SelectItem>
-                                <SelectItem value="JOSE DE JESUS">JOSE DE JESUS</SelectItem>
-                                <SelectItem value="INVERSA">INVERSA</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase"># No. Requisición</label>
-                        <Input
-                            value={formData.requisition_no}
-                            onChange={e => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
-                            placeholder="REQ-001"
-                            className="bg-background border-input text-foreground uppercase"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">No. Parte</label>
-                        <Input
-                            value={formData.part_no}
-                            onChange={e => handleFormChange({ part_no: e.target.value.toUpperCase() })}
-                            placeholder="PN-X99"
-                            className="bg-background border-input text-foreground uppercase"
-                        />
+                    <div id="quote-header-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Cotizar como</label>
+                            <Select
+                                value={formData.quote_as}
+                                onValueChange={(value) => handleFormChange({ quote_as: value })}
+                            >
+                                <SelectTrigger className="bg-background border-input text-foreground">
+                                    <SelectValue placeholder="Seleccionar..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="DMR">DMR</SelectItem>
+                                    <SelectItem value="JOSE DE JESUS">JOSE DE JESUS</SelectItem>
+                                    <SelectItem value="INVERSA">INVERSA</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase"># No. Requisición</label>
+                            <Input
+                                value={formData.requisition_no}
+                                onChange={e => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
+                                placeholder="REQ-001"
+                                className="bg-background border-input text-foreground uppercase"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">No. Parte</label>
+                            <Input
+                                value={formData.part_no}
+                                onChange={e => handleFormChange({ part_no: e.target.value.toUpperCase() })}
+                                placeholder="PN-X99"
+                                className="bg-background border-input text-foreground uppercase"
+                            />
+                        </div>
                     </div>
 
                     {/* Row 2 */}
-                    <div className="space-y-2">
-                        <DateSelector
-                            label="Fecha de Emisión"
-                            date={formData.issue_date ? new Date(formData.issue_date + 'T12:00:00') : undefined}
-                            onSelect={(d) => handleFormChange({ issue_date: d ? format(d, 'yyyy-MM-dd') : '' })}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <DateSelector
-                            label="Fecha de Entrega"
-                            date={formData.delivery_date ? new Date(formData.delivery_date + 'T12:00:00') : undefined}
-                            onSelect={(d) => handleFormChange({ delivery_date: d ? format(d, 'yyyy-MM-dd') : '' })}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Moneda</label>
-                        <Select
-                            value={formData.currency}
-                            onValueChange={(value) => handleFormChange({ currency: value })}
-                        >
-                            <SelectTrigger className="bg-background border-input text-foreground">
-                                <SelectValue placeholder="Seleccionar..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="MXN">MXN</SelectItem>
-                                <SelectItem value="USD">USD</SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <div id="quote-dates-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                        <div className="space-y-2">
+                            <DateSelector
+                                label="Fecha de Emisión"
+                                date={formData.issue_date ? new Date(formData.issue_date + 'T12:00:00') : undefined}
+                                onSelect={(d) => handleFormChange({ issue_date: d ? format(d, 'yyyy-MM-dd') : '' })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <DateSelector
+                                label="Fecha de Entrega"
+                                date={formData.delivery_date ? new Date(formData.delivery_date + 'T12:00:00') : undefined}
+                                onSelect={(d) => handleFormChange({ delivery_date: d ? format(d, 'yyyy-MM-dd') : '' })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Moneda</label>
+                            <Select
+                                value={formData.currency}
+                                onValueChange={(value) => handleFormChange({ currency: value })}
+                            >
+                                <SelectTrigger className="bg-background border-input text-foreground">
+                                    <SelectValue placeholder="Seleccionar..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="MXN">MXN</SelectItem>
+                                    <SelectItem value="USD">USD</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     {/* Row 3 - Dynamic Comboboxes */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Cliente</label>
-                        <ComboboxCreatable
-                            options={clients}
-                            value={formData.client_id}
-                            onSelect={(val) => handleFormChange({ client_id: val })}
-                            onCreate={handleCreateClient}
-                            createLabel="Crear Cliente"
-                            placeholder="Seleccionar Cliente..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Usuario (Contacto)</label>
-                        <ComboboxCreatable
-                            options={filteredContacts}
-                            value={formData.contact_id}
-                            onSelect={(val) => handleFormChange({ contact_id: val })}
-                            onCreate={handleCreateContact}
-                            createLabel="Crear Contacto"
-                            placeholder={formData.client_id ? "Seleccionar Usuario..." : "Selecciona Cliente primero"}
-                            disabled={!formData.client_id}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Condiciones de Pago (Días)</label>
-                        <Input
-                            type="number"
-                            step={5}
-                            value={formData.payment_terms_days}
-                            onChange={e => handleFormChange({ payment_terms_days: parseInt(e.target.value) })}
-                            className="bg-background border-input text-foreground"
-                        />
+                    <div id="quote-client-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Cliente</label>
+                            <ComboboxCreatable
+                                options={clients}
+                                value={formData.client_id}
+                                onSelect={(val) => handleFormChange({ client_id: val })}
+                                onCreate={handleCreateClient}
+                                createLabel="Crear Cliente"
+                                placeholder="Seleccionar Cliente..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Usuario (Contacto)</label>
+                            <ComboboxCreatable
+                                options={filteredContacts}
+                                value={formData.contact_id}
+                                onSelect={(val) => handleFormChange({ contact_id: val })}
+                                onCreate={handleCreateContact}
+                                createLabel="Crear Contacto"
+                                placeholder={formData.client_id ? "Seleccionar Usuario..." : "Selecciona Cliente primero"}
+                                disabled={!formData.client_id}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Condiciones de Pago (Días)</label>
+                            <Input
+                                type="number"
+                                step={5}
+                                value={formData.payment_terms_days}
+                                onChange={e => handleFormChange({ payment_terms_days: parseInt(e.target.value) })}
+                                className="bg-background border-input text-foreground"
+                            />
+                        </div>
                     </div>
 
                     {/* Row 4 */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Puesto</label>
-                        <ComboboxCreatable
-                            options={positions}
-                            value={formData.position_id}
-                            onSelect={(val) => handleFormChange({ position_id: val })}
-                            onCreate={async (name) => {
-                                const upperName = name.toUpperCase();
-                                const id = await createPositionEntry(upperName);
-                                setPositions([...positions, { value: id!, label: upperName }]);
-                                return id || null;
-                            }}
-                            createLabel="Crear Puesto"
-                            placeholder="Ej. Mantenimiento..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Área</label>
-                        <ComboboxCreatable
-                            options={areas}
-                            value={formData.area_id}
-                            onSelect={(val) => handleFormChange({ area_id: val })}
-                            onCreate={async (name) => {
-                                const upperName = name.toUpperCase();
-                                const id = await createAreaEntry(upperName);
-                                setAreas([...areas, { value: id!, label: upperName }]);
-                                return id || null;
-                            }}
-                            createLabel="Crear Área"
-                            placeholder="Ej. Producción..."
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-red-500 uppercase">Vigencia (Días)</label>
-                        <Input
-                            type="number"
-                            step={5}
-                            value={formData.validity_days}
-                            onChange={e => handleFormChange({ validity_days: parseInt(e.target.value) })}
-                            className="bg-background border-input text-foreground"
-                        />
+                    <div id="quote-extra-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Puesto</label>
+                            <ComboboxCreatable
+                                options={positions}
+                                value={formData.position_id}
+                                onSelect={(val) => handleFormChange({ position_id: val })}
+                                onCreate={async (name) => {
+                                    const upperName = name.toUpperCase();
+                                    const id = await createPositionEntry(upperName);
+                                    setPositions([...positions, { value: id!, label: upperName }]);
+                                    return id || null;
+                                }}
+                                createLabel="Crear Puesto"
+                                placeholder="Ej. Mantenimiento..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Área</label>
+                            <ComboboxCreatable
+                                options={areas}
+                                value={formData.area_id}
+                                onSelect={(val) => handleFormChange({ area_id: val })}
+                                onCreate={async (name) => {
+                                    const upperName = name.toUpperCase();
+                                    const id = await createAreaEntry(upperName);
+                                    setAreas([...areas, { value: id!, label: upperName }]);
+                                    return id || null;
+                                }}
+                                createLabel="Crear Área"
+                                placeholder="Ej. Producción..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">Vigencia (Días)</label>
+                            <Input
+                                type="number"
+                                step={5}
+                                value={formData.validity_days}
+                                onChange={e => handleFormChange({ validity_days: parseInt(e.target.value) })}
+                                className="bg-background border-input text-foreground"
+                            />
+                        </div>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Items Table Card */}
-            <Card className="bg-card border-border">
+            <Card id="quote-items-section" className="bg-card border-border">
                 <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
                     <CardTitle className="text-red-500 font-semibold text-lg">Lotes y/o Items</CardTitle>
                 </CardHeader>
@@ -805,8 +891,8 @@ function QuoteGeneratorContent() {
                         </TableBody>
                     </Table>
 
-                    <div className="p-4 border-t border-border">
-                        <Button onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <div id="quote-items-footer" className="p-4 border-t border-border">
+                        <Button id="quote-add-item-btn" onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground">
                             <Plus className="w-4 h-4 mr-2" />
                             Agregar Fila
                         </Button>
@@ -816,7 +902,7 @@ function QuoteGeneratorContent() {
 
             {/* Totals Section */}
             <div className="flex flex-col items-end gap-6">
-                <Card className="w-full md:w-[350px] bg-card border-border">
+                <Card id="quote-totals-section" className="w-full md:w-[350px] bg-card border-border">
                     <CardContent className="pt-6 space-y-4">
                         {validationErrors.length > 0 && (
                             <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-md mb-4">
@@ -854,7 +940,7 @@ function QuoteGeneratorContent() {
                     </CardContent>
                 </Card>
 
-                <div className="flex items-center gap-4">
+                <div id="quote-final-actions" className="flex items-center gap-4">
                     {/* Reset Button (Reiniciar) - Always visible */}
                     <AlertDialog>
                         <AlertDialogTrigger asChild>

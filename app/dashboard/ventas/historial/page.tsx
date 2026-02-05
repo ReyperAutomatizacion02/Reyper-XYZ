@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { useTour } from "@/hooks/use-tour";
 import {
     Select,
     SelectContent,
@@ -35,7 +36,7 @@ import {
 import { getQuotesHistory, deleteQuote, getCatalogData, getQuoteById } from "../actions";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
-import { QuotePDF } from "../components/QuotePDF";
+import { QuotePDF } from "@/components/sales/quote-pdf";
 
 import { pdf } from "@react-pdf/renderer";
 
@@ -186,6 +187,50 @@ export default function QuoteHistoryPage() {
         }).format(val);
     };
 
+    // --- HELP TOUR HANDLER ---
+    const { startTour } = useTour();
+
+    const handleStartTour = () => {
+        const isDemo = quotes.length === 0;
+
+        if (isDemo) {
+            setQuotes([
+                {
+                    id: "demo-id",
+                    quote_number: 1234,
+                    issue_date: new Date().toISOString().split('T')[0],
+                    total: 25000.50,
+                    currency: "MXN",
+                    client: { name: "Cliente Demo S.A." },
+                    contact: { name: "Juan Demo" }
+                }
+            ]);
+        }
+
+        const cleanup = () => {
+            if (isDemo) setQuotes([]);
+        };
+
+        startTour([
+            {
+                element: "#history-new-quote-btn",
+                popover: { title: "Nueva Cotización", description: "Crea una nueva cotización desde cero pulsando este botón.", side: "left", align: "start" }
+            },
+            {
+                element: "#history-search-filter",
+                popover: { title: "Búsqueda y Filtros", description: "Encuentra cotizaciones rápidamente buscando por Folio (COT-...) o Cliente.", side: "bottom", align: "start" }
+            },
+            {
+                element: "#history-table",
+                popover: { title: "Listado de Historial", description: "Aquí se muestran todas las cotizaciones ordenadas. Puedes reordenar las columnas haciendo clic en sus encabezados.", side: "top", align: "center" }
+            },
+            {
+                element: "#history-actions-header",
+                popover: { title: "Acciones", description: "En esta columna encontrarás botones para: Duplicar (Crear copia), Editar, Imprimir PDF o Borrar.", side: "left", align: "center" }
+            }
+        ], cleanup);
+    };
+
     if (loading) return <div className="p-8 text-center text-muted-foreground">Cargando historial...</div>;
 
     return (
@@ -193,12 +238,14 @@ export default function QuoteHistoryPage() {
             <DashboardHeader
                 title="Historial de Cotizaciones"
                 description="Búsqueda, edición y descarga de cotizaciones"
-                icon={<History className="w-8 h-8 text-red-500" />}
+                icon={<History className="w-8 h-8" />}
                 backUrl="/dashboard/ventas"
-                iconClassName="text-red-500"
+                colorClass="text-red-500"
+                bgClass="bg-red-500/10"
+                onHelp={handleStartTour}
                 children={
                     <Link href="/dashboard/ventas/cotizador">
-                        <Button className="bg-red-600 hover:bg-red-700 text-white font-bold">
+                        <Button id="history-new-quote-btn" className="bg-red-600 hover:bg-red-700 text-white font-bold">
                             Nueva Cotización
                         </Button>
                     </Link>
@@ -206,7 +253,7 @@ export default function QuoteHistoryPage() {
             />
 
             {/* Filters */}
-            <Card className="bg-card border-border border-l-4 border-l-red-500 shadow-sm">
+            <Card className="bg-card border-border border-l-4 border-l-red-500 shadow-sm" id="history-search-filter">
                 <CardContent className="pt-6">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 relative">
@@ -236,7 +283,7 @@ export default function QuoteHistoryPage() {
             </Card>
 
             {/* History Table */}
-            <Card className="bg-card border-border overflow-hidden">
+            <Card className="bg-card border-border overflow-hidden" id="history-table">
                 <Table>
                     <TableHeader className="bg-muted/30">
                         <TableRow className="border-border">
@@ -276,7 +323,7 @@ export default function QuoteHistoryPage() {
                                     <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="w-[200px] text-center font-bold text-foreground">Acciones</TableHead>
+                            <TableHead className="w-[200px] text-center font-bold text-foreground" id="history-actions-header">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
