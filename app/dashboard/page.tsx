@@ -1,5 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+export const dynamic = 'force-dynamic';
 import {
     FolderKanban,
     Package,
@@ -13,6 +16,7 @@ import {
     PieChart
 } from "lucide-react";
 import { UtilizationChart, ProjectsTrendChart, ItemsStatusChart } from "./charts";
+import { RealtimeRefresher } from "@/components/realtime-refresher";
 
 // Helper to calculate days difference
 function getDaysUntil(dateStr: string): number {
@@ -320,6 +324,8 @@ export default async function DashboardPage() {
     return (
         <div className="space-y-6">
             <div>
+                <RealtimeRefresher table="projects" />
+                <RealtimeRefresher table="production_orders" />
                 <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
                 <p className="text-muted-foreground">Resumen general de productividad y proyectos</p>
             </div>

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { MachiningRealtimeWrapper } from "@/components/production/machining-realtime-wrapper";
 
+export const dynamic = 'force-dynamic';
+
 export default async function MaquinadosPage() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

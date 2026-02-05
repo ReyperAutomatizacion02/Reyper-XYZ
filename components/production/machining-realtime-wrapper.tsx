@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { MachiningView } from "./machining-view";
 import { Database } from "@/utils/supabase/types";
 import { createClient } from "@/utils/supabase/client";
+import { useRealtime } from "@/hooks/use-realtime";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
@@ -22,42 +23,56 @@ export function MachiningRealtimeWrapper({
     const [tasks, setTasks] = useState<PlanningTask[]>(initialTasks);
     const [isUpdating, setIsUpdating] = useState(false);
 
-    // Poll for updates every 5 seconds
-    useEffect(() => {
-        const fetchTasks = async () => {
-            try {
-                setIsUpdating(true);
-                const supabase = createClient();
-                const { data: updatedTasks, error } = await supabase
-                    .from('planning')
-                    .select(`
-                        *,
-                        production_orders (*)
-                    `)
-                    .eq('operator', operatorName)
-                    .order('planned_date', { ascending: true });
+    const fetchTasks = useCallback(async () => {
+        try {
+            console.log('Fetching tasks for operator:', operatorName);
+            setIsUpdating(true);
+            const supabase = createClient();
 
-                if (!error && updatedTasks) {
-                    setTasks(updatedTasks as PlanningTask[]);
-                }
-            } catch (error) {
-                console.error('Error fetching tasks:', error);
-            } finally {
-                setIsUpdating(false);
+            // Note: Same query structure as the server component for consistency
+            const { data: updatedTasks, error } = await supabase
+                .from('planning')
+                .select(`
+                    *,
+                    production_orders (*)
+                `)
+                .order('planned_date', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching tasks in RealtimeWrapper:', error);
+                return;
             }
-        };
 
-        // Initial fetch after mount
-        const initialTimer = setTimeout(fetchTasks, 2000);
+            let filteredTasks = updatedTasks || [];
+            if (operatorName !== "Administrador") {
+                filteredTasks = filteredTasks.filter(t => t.operator === operatorName);
+            }
 
-        // Set up polling interval
-        const interval = setInterval(fetchTasks, 5000);
-
-        return () => {
-            clearTimeout(initialTimer);
-            clearInterval(interval);
-        };
+            console.log('Fetched and filtered tasks count:', filteredTasks.length);
+            setTasks(filteredTasks as PlanningTask[]);
+        } catch (error) {
+            console.error('Exception in fetchTasks:', error);
+        } finally {
+            setIsUpdating(false);
+        }
     }, [operatorName]);
+
+    // Initial fetch sync and refresh when operator changes
+    useEffect(() => {
+        fetchTasks();
+    }, [fetchTasks]);
+
+    // Setup Realtime to listen for any changes in planning table
+    useRealtime('planning', (payload) => {
+        console.log('Real-time update received for planning table:', payload.eventType);
+        fetchTasks();
+    });
+
+    // Also listen for production_orders since they are joined
+    useRealtime('production_orders', (payload) => {
+        console.log('Real-time update received for production_orders table:', payload.eventType);
+        fetchTasks();
+    });
 
     // Generate a stable key based on task IDs and their check status
     // This will only change when tasks are added/removed or when check_in/check_out changes
@@ -70,7 +85,7 @@ export function MachiningRealtimeWrapper({
             {/* Subtle loading indicator */}
             {isUpdating && (
                 <div className="absolute top-2 right-2 z-50">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                 </div>
             )}
 

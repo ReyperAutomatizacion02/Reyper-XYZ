@@ -1,6 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { ProductionView } from "@/components/production/production-view";
+import { RealtimeRefresher } from "@/components/realtime-refresher";
+
+export const dynamic = 'force-dynamic';
 
 export default async function PlaneacionPage() {
     const cookieStore = await cookies();
@@ -20,11 +23,15 @@ export default async function PlaneacionPage() {
     const operators = Array.from(new Set((operatorsRes.data || []).map(t => t.operator as string))).sort();
 
     return (
-        <ProductionView
-            machines={machines}
-            orders={orders}
-            tasks={tasks}
-            operators={operators}
-        />
+        <>
+            <RealtimeRefresher table="production_orders" />
+            <RealtimeRefresher table="planning" />
+            <ProductionView
+                machines={machines}
+                orders={orders}
+                tasks={tasks}
+                operators={operators}
+            />
+        </>
     );
 }

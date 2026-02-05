@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { getQuotesHistory, deleteQuote, getCatalogData, getQuoteById } from "../actions";
 import { toast } from "sonner";
+import { useRealtime } from "@/hooks/use-realtime";
 import dynamic from "next/dynamic";
 import { QuotePDF } from "@/components/sales/quote-pdf";
 
@@ -67,6 +68,11 @@ export default function QuoteHistoryPage() {
     useEffect(() => {
         loadData();
     }, []);
+
+    // Subscribe to real-time changes
+    useRealtime("sales_quotes", () => {
+        loadData();
+    });
 
     const loadData = async () => {
         try {
