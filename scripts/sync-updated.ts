@@ -238,9 +238,11 @@ async function runSync() {
                     last_edited_at: page.last_edited_time
                 };
 
-                // SMART STATUS: Only set 'active' if it's a NEW project.
-                // If it already exists in projectMap, we omit 'status' so Supabase preserves the current value (e.g. 'delivered')
-                if (!projectMap.has(page.id)) {
+                // SMART STATUS: Set 'active' if new OR if current status is missing/unknown
+                const currentSupaId = projectMap.get(page.id);
+                const currentStatus = currentSupaId ? projectStatusMap.get(currentSupaId) : null;
+
+                if (!currentSupaId || !currentStatus || currentStatus === 'unknown' || currentStatus === '') {
                     projectData.status = 'active';
                 }
 
@@ -271,6 +273,7 @@ async function runSync() {
                         } else {
                             if (singleData && singleData[0]) {
                                 projectMap.set(singleData[0].notion_id!, singleData[0].id);
+                                if (p.status) projectStatusMap.set(singleData[0].id, p.status);
                                 stats.projects++;
                                 batchTotal++;
                                 // console.log(`      ✅ Recuperado: [${p.code}]`);
@@ -278,7 +281,13 @@ async function runSync() {
                         }
                     }
                 } else {
-                    data?.forEach(p => projectMap.set(p.notion_id!, p.id));
+                    data?.forEach(p => {
+                        projectMap.set(p.notion_id!, p.id);
+                        const matchedItem = uniqueBatch.find((b: any) => b.notion_id === p.notion_id) as any;
+                        if (matchedItem?.status) {
+                            projectStatusMap.set(p.id, matchedItem.status);
+                        }
+                    });
                     stats.projects += uniqueBatch.length;
                     batchTotal += uniqueBatch.length;
                 }

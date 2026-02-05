@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 
 export interface TourStep {
-    element: string;
+    element?: string;
     popover: {
         title: string;
         description: string;

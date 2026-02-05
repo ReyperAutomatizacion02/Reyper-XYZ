@@ -131,6 +131,7 @@ export function AppSidebar() {
 
     return (
         <aside
+            id="app-sidebar"
             className={cn(
                 "h-screen bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col pt-16 md:pt-0 z-40 fixed md:relative shadow-xl",
                 isCollapsed ? "w-20" : "w-72"
@@ -138,6 +139,7 @@ export function AppSidebar() {
         >
             <div className="h-16 flex items-center justify-between px-4 border-b border-navbar-border bg-background/50 backdrop-blur-sm">
                 <span
+                    id="sidebar-logo"
                     className={cn(
                         "font-black text-xl tracking-tight transition-opacity duration-300",
                         isCollapsed && "opacity-0 hidden"
@@ -153,7 +155,7 @@ export function AppSidebar() {
                 </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto py-6 px-3">
+            <nav id="sidebar-nav" className="flex-1 overflow-y-auto py-6 px-3">
                 <ul className="space-y-1.5">
                     {filteredItems.map((item) => {
                         const isActive =

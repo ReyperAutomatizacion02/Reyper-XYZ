@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { UtilizationChart, ProjectsTrendChart, ItemsStatusChart } from "./charts";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
+import { DashboardClientHeader } from "@/components/dashboard/dashboard-client-header";
 
 // Helper to calculate days difference
 function getDaysUntil(dateStr: string): number {
@@ -323,15 +324,12 @@ export default async function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <RealtimeRefresher table="projects" />
-                <RealtimeRefresher table="production_orders" />
-                <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-                <p className="text-muted-foreground">Resumen general de productividad y proyectos</p>
-            </div>
+            <RealtimeRefresher table="projects" />
+            <RealtimeRefresher table="production_orders" />
+            <DashboardClientHeader />
 
             {/* KPI Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div id="dash-kpi-cards" className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 {/* Proyectos Vencidos (New) */}
                 <div className="p-6 rounded-xl border bg-card shadow-sm border-l-4 border-l-red-500">
                     <div className="flex justify-between items-start">
@@ -447,7 +445,7 @@ export default async function DashboardPage() {
             {/* CHARTS SECTION */}
             <div className="grid gap-6 md:grid-cols-2">
                 {/* Utilization Chart */}
-                <div className="rounded-xl border bg-card shadow-sm p-6">
+                <div id="dash-chart-utilization" className="rounded-xl border bg-card shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-6">
                         <BarChart3 className="w-5 h-5 text-muted-foreground" />
                         <div>
@@ -459,7 +457,7 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Status Distribution Chart (New) */}
-                <div className="rounded-xl border bg-card shadow-sm p-6">
+                <div id="dash-chart-status" className="rounded-xl border bg-card shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-6">
                         <PieChart className="w-5 h-5 text-muted-foreground" />
                         <div>
@@ -471,7 +469,7 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Trends Chart */}
-                <div className="rounded-xl border bg-card shadow-sm p-6 md:col-span-2">
+                <div id="dash-chart-trends" className="rounded-xl border bg-card shadow-sm p-6 md:col-span-2">
                     <div className="flex items-center gap-2 mb-6">
                         <LineChart className="w-5 h-5 text-muted-foreground" />
                         <div>
@@ -484,7 +482,7 @@ export default async function DashboardPage() {
             </div>
 
             {/* Upcoming Deliveries List */}
-            <div className="rounded-xl border bg-card shadow-sm">
+            <div id="dash-deliveries-list" className="rounded-xl border bg-card shadow-sm">
                 <div className="p-6 border-b">
                     <h3 className="text-lg font-semibold">Próximas Entregas</h3>
                 </div>
