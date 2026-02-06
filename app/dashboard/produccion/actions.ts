@@ -155,3 +155,52 @@ export async function recordCheckOut(taskId: string) {
 
     revalidatePath("/dashboard/produccion/maquinados");
 }
+
+export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // 1. Insert Draft Tasks
+    if (draftTasks.length > 0) {
+        // Remove helper fields like isDraft and production_orders (nested object)
+        const toInsert = draftTasks.map(t => ({
+            order_id: t.order_id,
+            machine: t.machine,
+            planned_date: t.planned_date,
+            planned_end: t.planned_end,
+            operator: t.operator || null,
+        }));
+
+        const { error: insError } = await (supabase.from("planning" as any) as any).insert(toInsert);
+        if (insError) {
+            logger.error("Error batch inserting tasks", insError);
+            throw new Error("Failed to insert draft tasks");
+        }
+    }
+
+    // 2. Update Changed Tasks
+    if (changedTasks.length > 0) {
+        // Supabase doesn't support batch updates with different values easily in a single call 
+        // without complex syntax (using upsert with IDs).
+        // Since changedTasks is usually small, we can do it in a loop or use upsert.
+
+        // Let's use upsert if they have IDs
+        const toUpdate = changedTasks.map(t => ({
+            id: t.id,
+            order_id: t.order_id,
+            machine: t.machine,
+            planned_date: t.planned_date,
+            planned_end: t.planned_end,
+            operator: t.operator || null,
+        }));
+
+        const { error: updError } = await (supabase.from("planning" as any) as any).upsert(toUpdate);
+        if (updError) {
+            logger.error("Error batch updating tasks", updError);
+            throw new Error("Failed to update changed tasks");
+        }
+    }
+
+    revalidatePath("/dashboard/produccion");
+    revalidatePath("/dashboard/produccion/planeacion");
+}

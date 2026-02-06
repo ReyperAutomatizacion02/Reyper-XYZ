@@ -176,9 +176,9 @@ async function runSync() {
 
     const projectMap = new Map<string, string>(); // notion_id -> supabase_id
     const projectStatusMap = new Map<string, string>(); // supabase_id -> status
-    const orderMap = new Map<string, string>(); // notion_id -> supabase_id
+    const orderMap = new Map<string, any>(); // notion_id -> supabase_record
     const machinesSet = new Set<string>(); // machine names
-    let stats = { projects: 0, items: 0, planning: 0, machines: 0, skipped: 0 };
+    let stats = { projects: 0, items: 0, planning: 0, machines: 0, skipped: 0, updated: 0 };
 
     // --- PHASE 0: LOAD CONTEXT ---
     console.log("🔍 Cargando contexto de Supabase...");
@@ -195,9 +195,9 @@ async function runSync() {
     }
     dbPage = 0;
     while (true) {
-        const { data } = await supabase.from("production_orders").select("id, notion_id").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
+        const { data } = await supabase.from("production_orders").select("*").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
         if (!data || data.length === 0) break;
-        data.forEach(o => { if (o.notion_id) orderMap.set(o.notion_id, o.id); });
+        data.forEach(o => { if (o.notion_id) orderMap.set(o.notion_id, o); });
         if (data.length < 1000) break;
         dbPage++;
     }
@@ -335,9 +335,11 @@ async function runSync() {
                     projectStatusMap.set(sId, 'active'); // Update local map
                 }
 
-                let finalImageUrl: string | null = null;
+                const existingRecord = orderMap.get(page.id);
+
+                let finalImageUrl: string | null = existingRecord?.image || null;
                 const imageProp = props["07-A MOSTRAR"]?.files;
-                if (imageProp && imageProp.length > 0) {
+                if (!finalImageUrl && imageProp && imageProp.length > 0) {
                     const notionImgUrl = imageProp[0].file?.url || imageProp[0].external?.url;
                     if (notionImgUrl) {
                         finalImageUrl = await syncNotionImage(page.id, notionImgUrl);
@@ -345,7 +347,7 @@ async function runSync() {
                     }
                 }
 
-                return {
+                const notionData = {
                     part_code: props["01-CODIGO PIEZA"]?.title?.[0]?.plain_text || "S/N",
                     part_name: props["01-NOMBRE DE LA PIEZA"]?.rich_text?.[0]?.plain_text || null,
                     genral_status: props["06-ESTATUS GENERAL"]?.select?.name || null,
@@ -355,8 +357,32 @@ async function runSync() {
                     project_id: sId,
                     notion_id: page.id,
                     last_edited_at: page.last_edited_time,
-                    image: finalImageUrl
+                    image: finalImageUrl,
+                    treatment: props["06-ESPECIFICACION DE TRATAMIENTO"]?.select?.name || null,
+                    model_url: props["07-URL 3D"]?.url || null,
+                    drawing_url: props["01-URL PLANO"]?.url || null,
+                    design_no: props["01-No. DISEÑO"]?.rich_text?.[0]?.plain_text || null
                 };
+
+                // SMART SYNC: Only update if anything changed or if fields were null
+                if (existingRecord) {
+                    const hasChanged =
+                        notionData.part_code !== existingRecord.part_code ||
+                        notionData.part_name !== existingRecord.part_name ||
+                        notionData.genral_status !== existingRecord.genral_status ||
+                        notionData.material !== existingRecord.material ||
+                        notionData.material_confirmation !== existingRecord.material_confirmation ||
+                        notionData.quantity !== existingRecord.quantity ||
+                        notionData.treatment !== existingRecord.treatment ||
+                        notionData.model_url !== existingRecord.model_url ||
+                        notionData.drawing_url !== existingRecord.drawing_url ||
+                        notionData.design_no !== existingRecord.design_no ||
+                        notionData.image !== existingRecord.image;
+
+                    if (!hasChanged) return null;
+                }
+
+                return notionData;
             }));
             const clean = batch.filter(i => i !== null) as any[];
             if (clean.length > 0) {

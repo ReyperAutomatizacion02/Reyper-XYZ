@@ -1074,15 +1074,15 @@ export function GanttSVG({
                                             height={height}
                                             rx={6}
                                             fill={color}
-                                            className="shadow-xl transition-opacity hover:opacity-100 opacity-90"
+                                            className={`shadow-xl transition-all duration-300 ${(task as any).isDraft ? 'opacity-70' : 'hover:opacity-100 opacity-90'}`}
                                             style={{
                                                 filter: activeTask
                                                     ? `drop-shadow(0 8px 15px ${color})`
                                                     : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))",
-                                                stroke: activeTask ? "white" : "rgba(255,255,255,0.2)",
-                                                strokeWidth: activeTask ? 2 : 1
+                                                stroke: activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
+                                                strokeWidth: activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
+                                                strokeDasharray: (task as any).isDraft ? "4 2" : "none"
                                             }}
-                                        // onMouseDown removed from here to Interaction Shield
                                         />
                                         {/* Interaction Shield (Underneath Resize Handle) */}
                                         <rect
@@ -1193,7 +1193,7 @@ export function GanttSVG({
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="fixed z-[9999] pointer-events-none"
+                        className="fixed z-[100] pointer-events-none"
                         style={{
                             left: tooltipPos.x,
                             top: tooltipPos.mode === 'below' ? tooltipPos.y : undefined,
@@ -1249,7 +1249,7 @@ export function GanttSVG({
             {/* Context Menu Portal */}
             {contextMenu && (
                 <div
-                    className="fixed z-[9999] bg-popover border border-border shadow-md rounded-md py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed z-[100] bg-popover border border-border shadow-md rounded-md py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()}
                 >
