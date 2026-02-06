@@ -7,6 +7,7 @@ import { cn } from "@/utils/cn";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { SidebarSkeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/utils/supabase/client";
+import { useSidebar } from "./sidebar-context";
 import {
     LayoutDashboard,
     Hammer,
@@ -22,6 +23,7 @@ import {
     ClipboardList,
     Package,
     Shield,
+    X,
 } from "lucide-react";
 
 
@@ -57,6 +59,7 @@ export function AppSidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
+    const { isMobileOpen, setIsMobileOpen, toggleMobile } = useSidebar();
 
     // User preferences for sidebar state
     const { getSidebarPrefs, updateSidebarPref, isLoading: prefsLoading } = useUserPreferences();
@@ -130,111 +133,134 @@ export function AppSidebar() {
     }
 
     return (
-        <aside
-            id="app-sidebar"
-            className={cn(
-                "h-screen bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col pt-16 md:pt-0 z-40 fixed md:relative shadow-xl",
-                isCollapsed ? "w-20" : "w-72"
+        <>
+            {/* Backdrop for mobile */}
+            {isMobileOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-[9998] lg:hidden backdrop-blur-sm transition-opacity animate-in fade-in duration-300"
+                    onClick={() => setIsMobileOpen(false)}
+                />
             )}
-        >
-            <div className="h-16 flex items-center justify-between px-4 border-b border-navbar-border bg-background/50 backdrop-blur-sm">
-                <span
-                    id="sidebar-logo"
-                    className={cn(
-                        "font-black text-xl tracking-tight transition-opacity duration-300",
-                        isCollapsed && "opacity-0 hidden"
-                    )}
-                >
-                    Reyper<span className="text-primary">XYZ</span>
-                </span>
-                <button
-                    onClick={handleToggleCollapse}
-                    className="p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    {isCollapsed ? <Menu className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-                </button>
-            </div>
 
-            <nav id="sidebar-nav" className="flex-1 overflow-y-auto py-6 px-3">
-                <ul className="space-y-1.5">
-                    {filteredItems.map((item) => {
-                        const isActive =
-                            item.href === "/dashboard"
-                                ? pathname === "/dashboard"
-                                : pathname === item.href || pathname.startsWith(item.href + "/");
-                        return (
-                            <li key={item.href}>
+            <aside
+                id="app-sidebar"
+                className={cn(
+                    "h-screen bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col z-[9999] fixed lg:relative shadow-xl",
+                    isCollapsed ? "lg:w-20" : "lg:w-72",
+                    isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full lg:translate-x-0"
+                )}
+            >
+                <div className="h-16 flex items-center justify-between px-4 border-b border-navbar-border bg-sidebar-bg shrink-0">
+                    <span
+                        id="sidebar-logo"
+                        className={cn(
+                            "font-black text-xl tracking-tight transition-opacity duration-300",
+                            isCollapsed && "lg:opacity-0 lg:hidden"
+                        )}
+                    >
+                        Reyper<span className="text-primary">XYZ</span>
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                        {/* Mobile close button */}
+                        <button
+                            onClick={() => setIsMobileOpen(false)}
+                            className="lg:hidden p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        {/* Desktop collapse button */}
+                        <button
+                            onClick={handleToggleCollapse}
+                            className="hidden lg:block p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            {isCollapsed ? <Menu className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </div>
+
+                <nav id="sidebar-nav" className="flex-1 overflow-y-auto py-6 px-3">
+                    <ul className="space-y-1.5">
+                        {filteredItems.map((item) => {
+                            const isActive =
+                                item.href === "/dashboard"
+                                    ? pathname === "/dashboard"
+                                    : pathname === item.href || pathname.startsWith(item.href + "/");
+                            return (
+                                <li key={item.href}>
+                                    <Link
+                                        href={item.href}
+                                        className={cn(
+                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
+                                            isActive
+                                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                                            isCollapsed && "lg:justify-center"
+                                        )}
+                                    >
+                                        <item.icon className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", isActive && "animate-pulse")} />
+                                        <span
+                                            className={cn(
+                                                "whitespace-nowrap transition-all duration-300 font-medium",
+                                                isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
+                                            )}
+                                        >
+                                            {item.name}
+                                        </span>
+                                    </Link>
+                                </li>
+                            );
+                        })}
+
+                        {/* Admin Panel - Solo visible para admins */}
+                        {isAdmin && (
+                            <li className="pt-4 mt-4 border-t border-border">
                                 <Link
-                                    href={item.href}
+                                    href="/dashboard/admin-panel"
                                     className={cn(
                                         "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                                        isActive
-                                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                                        isCollapsed && "justify-center"
+                                        pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")
+                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
+                                            : "text-red-500 hover:text-red-600 hover:bg-red-500/10",
+                                        isCollapsed && "lg:justify-center"
                                     )}
                                 >
-                                    <item.icon className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", isActive && "animate-pulse")} />
+                                    <Shield className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", (pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")) && "animate-pulse")} />
                                     <span
                                         className={cn(
                                             "whitespace-nowrap transition-all duration-300 font-medium",
-                                            isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100 block"
+                                            isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
                                         )}
                                     >
-                                        {item.name}
+                                        Panel Admin
                                     </span>
                                 </Link>
                             </li>
-                        );
-                    })}
+                        )}
+                    </ul>
+                </nav>
 
-                    {/* Admin Panel - Solo visible para admins */}
-                    {isAdmin && (
-                        <li className="pt-4 mt-4 border-t border-border">
-                            <Link
-                                href="/dashboard/admin-panel"
-                                className={cn(
-                                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                                    pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")
-                                        ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
-                                        : "text-red-500 hover:text-red-600 hover:bg-red-500/10",
-                                    isCollapsed && "justify-center"
-                                )}
-                            >
-                                <Shield className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", (pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")) && "animate-pulse")} />
-                                <span
-                                    className={cn(
-                                        "whitespace-nowrap transition-all duration-300 font-medium",
-                                        isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100 block"
-                                    )}
-                                >
-                                    Panel Admin
-                                </span>
-                            </Link>
-                        </li>
-                    )}
-                </ul>
-            </nav>
-
-            <div className="p-4 border-t border-border bg-background/30">
-                <button
-                    onClick={handleLogout}
-                    className={cn(
-                        "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-colors group",
-                        isCollapsed && "justify-center"
-                    )}
-                >
-                    <LogOut className="w-5 h-5 min-w-[1.25rem] group-hover:-translate-x-1 transition-transform" />
-                    <span
+                <div className="p-4 border-t border-border bg-background/30">
+                    <button
+                        onClick={handleLogout}
                         className={cn(
-                            "whitespace-nowrap transition-all duration-300 font-medium",
-                            isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100 block"
+                            "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-colors group",
+                            isCollapsed && "lg:justify-center"
                         )}
                     >
-                        Cerrar Sesión
-                    </span>
-                </button>
-            </div>
-        </aside>
+                        <LogOut className="w-5 h-5 min-w-[1.25rem] group-hover:-translate-x-1 transition-transform" />
+                        <span
+                            className={cn(
+                                "whitespace-nowrap transition-all duration-300 font-medium",
+                                isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
+                            )}
+                        >
+                            Cerrar Sesión
+                        </span>
+                    </button>
+                </div>
+            </aside>
+        </>
     );
 }

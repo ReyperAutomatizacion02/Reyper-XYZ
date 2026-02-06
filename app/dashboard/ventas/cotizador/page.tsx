@@ -777,119 +777,121 @@ function QuoteGeneratorContent() {
                     <CardTitle className="text-red-500 font-semibold text-lg">Lotes y/o Items</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 px-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="border-border hover:bg-muted/50">
-                                <TableHead className="w-[50px] text-muted-foreground">LOT</TableHead>
-                                <TableHead className="text-muted-foreground">Descripción</TableHead>
-                                <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
-                                <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
-                                <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
-                                <TableHead className="w-[150px] text-muted-foreground text-right">Total</TableHead>
-                                <TableHead className="w-[50px] text-muted-foreground"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {items.map((item, index) => (
-                                <TableRow key={item.id} className="border-border hover:bg-muted/50">
-                                    <TableCell className="font-mono text-muted-foreground text-center font-bold">{index + 1}</TableCell>
-                                    <TableCell>
-                                        <Textarea
-                                            value={item.description}
-                                            onChange={(e) => updateItem(index, 'description', e.target.value)}
-                                            placeholder="DESCRIPCIÓN DETALLADA DEL ARTÍCULO..."
-                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase"
-                                            ref={(el) => {
-                                                if (el) {
-                                                    el.style.height = 'auto';
-                                                    el.style.height = el.scrollHeight + 'px';
-                                                }
-                                            }}
-                                            onInput={(e) => {
-                                                const target = e.target as HTMLTextAreaElement;
-                                                target.style.height = 'auto';
-                                                target.style.height = target.scrollHeight + 'px';
-                                            }}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center justify-center">
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                value={item.quantity}
-                                                onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                                                className="w-20 bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center text-foreground"
-                                            />
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex justify-center">
-                                            <ComboboxCreatable
-                                                options={units}
-                                                value={item.unit}
-                                                onSelect={(val) => {
-                                                    // Find label for the value if needed, or just use val if we store name directly
-                                                    updateItem(index, 'unit', val);
-                                                }}
-                                                onCreate={async (name) => {
-                                                    const upperName = name.toUpperCase();
-                                                    await createUnitEntry(upperName);
-                                                    setUnits([...units, { value: upperName, label: upperName }]);
-                                                    return upperName;
-                                                }}
-                                                createLabel="Crear U.M."
-                                                placeholder="U.M."
-                                                searchPlaceholder="Buscar unidad..."
-                                                className="w-24 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-center"
-                                            />
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input
-                                            type="text"
-                                            defaultValue={item.unit_price === 0 ? "" : formatCurrency(item.unit_price)}
-                                            key={`${item.id}-${item.unit_price}`}
-                                            onBlur={(e) => {
-                                                const rawValue = e.target.value.replace(/,/g, '');
-                                                if (!rawValue) {
-                                                    updateItem(index, 'unit_price', 0);
-                                                    return;
-                                                }
-                                                const numericValue = parseFloat(rawValue);
-                                                if (isNaN(numericValue)) {
-                                                    updateItem(index, 'unit_price', 0);
-                                                    return;
-                                                }
-                                                updateItem(index, 'unit_price', numericValue);
-                                            }}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (/[^0-9.,]/.test(val)) {
-                                                    e.target.value = val.replace(/[^0-9.,]/g, '');
-                                                }
-                                            }}
-                                            placeholder="0.00"
-                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right text-foreground font-mono"
-                                        />
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono text-foreground">
-                                        ${formatCurrency(item.total)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeItem(index)}
-                                            className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </TableCell>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="border-border hover:bg-muted/50">
+                                    <TableHead className="w-[50px] text-muted-foreground">LOT</TableHead>
+                                    <TableHead className="text-muted-foreground">Descripción</TableHead>
+                                    <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
+                                    <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
+                                    <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
+                                    <TableHead className="w-[150px] text-muted-foreground text-right">Total</TableHead>
+                                    <TableHead className="w-[50px] text-muted-foreground"></TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {items.map((item, index) => (
+                                    <TableRow key={item.id} className="border-border hover:bg-muted/50">
+                                        <TableCell className="font-mono text-muted-foreground text-center font-bold">{index + 1}</TableCell>
+                                        <TableCell>
+                                            <Textarea
+                                                value={item.description}
+                                                onChange={(e) => updateItem(index, 'description', e.target.value)}
+                                                placeholder="DESCRIPCIÓN DETALLADA DEL ARTÍCULO..."
+                                                className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase"
+                                                ref={(el) => {
+                                                    if (el) {
+                                                        el.style.height = 'auto';
+                                                        el.style.height = el.scrollHeight + 'px';
+                                                    }
+                                                }}
+                                                onInput={(e) => {
+                                                    const target = e.target as HTMLTextAreaElement;
+                                                    target.style.height = 'auto';
+                                                    target.style.height = target.scrollHeight + 'px';
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center justify-center">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                                    className="w-20 bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center text-foreground"
+                                                />
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex justify-center">
+                                                <ComboboxCreatable
+                                                    options={units}
+                                                    value={item.unit}
+                                                    onSelect={(val) => {
+                                                        // Find label for the value if needed, or just use val if we store name directly
+                                                        updateItem(index, 'unit', val);
+                                                    }}
+                                                    onCreate={async (name) => {
+                                                        const upperName = name.toUpperCase();
+                                                        await createUnitEntry(upperName);
+                                                        setUnits([...units, { value: upperName, label: upperName }]);
+                                                        return upperName;
+                                                    }}
+                                                    createLabel="Crear U.M."
+                                                    placeholder="U.M."
+                                                    searchPlaceholder="Buscar unidad..."
+                                                    className="w-24 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-center"
+                                                />
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                type="text"
+                                                defaultValue={item.unit_price === 0 ? "" : formatCurrency(item.unit_price)}
+                                                key={`${item.id}-${item.unit_price}`}
+                                                onBlur={(e) => {
+                                                    const rawValue = e.target.value.replace(/,/g, '');
+                                                    if (!rawValue) {
+                                                        updateItem(index, 'unit_price', 0);
+                                                        return;
+                                                    }
+                                                    const numericValue = parseFloat(rawValue);
+                                                    if (isNaN(numericValue)) {
+                                                        updateItem(index, 'unit_price', 0);
+                                                        return;
+                                                    }
+                                                    updateItem(index, 'unit_price', numericValue);
+                                                }}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (/[^0-9.,]/.test(val)) {
+                                                        e.target.value = val.replace(/[^0-9.,]/g, '');
+                                                    }
+                                                }}
+                                                placeholder="0.00"
+                                                className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right text-foreground font-mono"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-foreground">
+                                            ${formatCurrency(item.total)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => removeItem(index)}
+                                                className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
 
                     <div id="quote-items-footer" className="p-4 border-t border-border">
                         <Button id="quote-add-item-btn" onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground">

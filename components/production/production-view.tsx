@@ -430,7 +430,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </div>
             )}
             {/* Compact Header */}
-            <div className="flex-none px-4 py-2 border-b border-border bg-background/50 backdrop-blur-sm z-[200] flex items-center gap-3">
+            <div className="flex-none px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm z-[200] flex flex-wrap items-center gap-3">
                 {/* View Mode Buttons */}
                 <div className="flex bg-muted rounded-lg p-0.5" id="planning-view-modes">
                     <button
@@ -504,12 +504,12 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </div>
 
                 {/* Search */}
-                <div className="flex-1 max-w-xs relative group" id="planning-search">
+                <div className="flex-1 min-w-[150px] max-w-xs relative group" id="planning-search">
                     <Search className="absolute left-2.5 top-1.5 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
                         type="text"
                         placeholder="Buscar pieza..."
-                        className="w-full pl-8 pr-3 py-1 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />

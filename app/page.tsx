@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, CheckCircle2, Menu, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function LandingPage() {
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
     return (
         <div className="min-h-screen flex flex-col bg-background selection:bg-primary selection:text-white transition-colors duration-300 overflow-hidden">
             {/* Background Gradients */}
@@ -14,12 +17,13 @@ export default function LandingPage() {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] opacity-30 delay-1000 animate-pulse pointer-events-none" />
             </div>
 
-            <header className="px-6 py-6 flex justify-between items-center z-50 max-w-7xl mx-auto w-full">
+            <header className="px-4 md:px-6 py-4 md:py-6 flex justify-between items-center z-50 max-w-7xl mx-auto w-full">
                 <div className="flex items-center gap-2">
-                    <span className="font-bold text-2xl tracking-tight">Reyper<span className="text-primary">XYZ</span></span>
+                    <span className="font-bold text-xl md:text-2xl tracking-tight">Reyper<span className="text-primary">XYZ</span></span>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 md:gap-4">
                     <ThemeToggle />
+                    {/* Desktop Auth Links */}
                     <div className="hidden md:flex items-center gap-4">
                         <Link
                             href="/login"
@@ -34,8 +38,46 @@ export default function LandingPage() {
                             Registrarse
                         </Link>
                     </div>
+                    {/* Mobile Menu Button */}
+                    <button
+                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        className="md:hidden p-2 rounded-lg hover:bg-muted text-foreground transition-colors"
+                        aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+                    >
+                        {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                    </button>
                 </div>
             </header>
+
+            {/* Mobile Menu Dropdown */}
+            <AnimatePresence>
+                {mobileMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="md:hidden absolute top-16 left-0 right-0 z-40 px-4"
+                    >
+                        <div className="bg-card border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
+                            <Link
+                                href="/login"
+                                className="text-sm font-medium hover:text-primary transition-colors px-4 py-3 rounded-xl hover:bg-muted text-center"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Iniciar Sesión
+                            </Link>
+                            <Link
+                                href="/register"
+                                className="bg-primary text-white px-5 py-3 rounded-xl text-sm font-medium hover:opacity-90 transition-all text-center shadow-lg shadow-primary/25"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Registrarse
+                            </Link>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <main className="flex-1 flex flex-col items-center justify-center p-6 text-center relative z-10 w-full max-w-7xl mx-auto">
                 <motion.div

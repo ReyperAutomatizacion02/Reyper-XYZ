@@ -274,39 +274,47 @@ export default async function DashboardPage() {
     const utilizationData = calculateUtilization(planningTasks || []);
 
     // 3. Chart Data: Project Trends
+    // We want the last 30 days including today in local time
+    const trendMap: Record<string, { new: number, delivered: number }> = {};
+    const nowLocal = new Date();
+    // Start at today at 00:00:00 local
+    const baseDate = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+
+    const getFormatted = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    for (let i = 0; i < 30; i++) {
+        const d = new Date(baseDate.getTime());
+        d.setDate(d.getDate() - i);
+        trendMap[getFormatted(d)] = { new: 0, delivered: 0 };
+    }
+
+    const thirtyDaysAgoStr = getFormatted(new Date(baseDate.getTime() - 31 * 24 * 60 * 60 * 1000));
+
     const { data: trendProjects } = await supabase
         .from("projects")
         .select("start_date, delivery_date, status")
-        .limit(10000); // Fetch all for clientside filtering to avoid missing deliveries
-    // .gte("created_at", thirtyDaysAgo.toISOString());
-
-    // Group Projects by Date
-    const trendMap: Record<string, { new: number, delivered: number }> = {};
-
-    // Init last 30 days
-    for (let i = 0; i < 30; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        trendMap[dateStr] = { new: 0, delivered: 0 };
-    }
+        .or(`start_date.gte.${thirtyDaysAgoStr},delivery_date.gte.${thirtyDaysAgoStr}`);
 
     trendProjects?.forEach(p => {
-        const sDate = p.start_date; // Use start_date for new projects
-        if (sDate && trendMap[sDate]) trendMap[sDate].new++;
+        // start_date and delivery_date from Supabase's DATE column are 'YYYY-MM-DD' strings
+        if (p.start_date && trendMap[p.start_date] !== undefined) {
+            trendMap[p.start_date].new++;
+        }
 
-        const dDate = p.delivery_date;
-        // Only count as delivered if status is completed
-        if (dDate && trendMap[dDate] && p.status === 'completed') {
-            trendMap[dDate].delivered++;
+        if (p.delivery_date && p.status === 'completed' && trendMap[p.delivery_date] !== undefined) {
+            trendMap[p.delivery_date].delivered++;
         }
     });
 
     const trendData = Object.entries(trendMap)
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, counts]) => {
-            // Fix timezone offset: Parse manually (YYYY-MM-DD)
-            const [y, m, d] = date.split('-').map(Number);
+        .map(([dateKey, counts]) => {
+            const [y, m, d] = dateKey.split('-').map(Number);
             const localDate = new Date(y, m - 1, d);
             return {
                 date: localDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
@@ -329,7 +337,7 @@ export default async function DashboardPage() {
             <DashboardClientHeader />
 
             {/* KPI Cards */}
-            <div id="dash-kpi-cards" className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div id="dash-kpi-cards" className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
                 {/* Proyectos Vencidos (New) */}
                 <div className="p-6 rounded-xl border bg-card shadow-sm border-l-4 border-l-red-500">
                     <div className="flex justify-between items-start">

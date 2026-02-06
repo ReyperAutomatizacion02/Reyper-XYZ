@@ -206,10 +206,10 @@ export function ItemsStatusChart({ data }: StatusChartProps) {
                         itemStyle={{ color: 'hsl(var(--foreground))' }}
                     />
                     <Legend
-                        layout="vertical"
-                        verticalAlign="middle"
-                        align="right"
-                        wrapperStyle={{ fontSize: '12px' }}
+                        layout={typeof window !== 'undefined' && window.innerWidth < 1024 ? "horizontal" : "vertical"}
+                        verticalAlign={typeof window !== 'undefined' && window.innerWidth < 1024 ? "bottom" : "middle"}
+                        align={typeof window !== 'undefined' && window.innerWidth < 1024 ? "center" : "right"}
+                        wrapperStyle={{ fontSize: '11px', paddingTop: window.innerWidth < 1024 ? '20px' : '0' }}
                     />
                 </PieChart>
             </ResponsiveContainer>
