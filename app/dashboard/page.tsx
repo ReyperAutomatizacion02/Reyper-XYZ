@@ -158,32 +158,35 @@ export default async function DashboardPage() {
 
     // --- FETCH DATA ---
 
-    // 1. KPI Data
-    const { data: rawProjects } = await supabase
+    // 1. KPI Data - Optimized combined query
+    const { data: projectsWithOrders } = await supabase
         .from("projects")
-        .select("*")
+        .select(`
+            *,
+            production_orders(project_id, genral_status)
+        `)
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
 
-    const rawProjectIds = rawProjects?.map(p => p.id) || [];
+    // Filter projects and extract active parts in one pass
+    const projects = [];
+    const activeParts: any[] = [];
 
-    // Fetch project ids from production_orders to know which projects have parts
-    const { data: rawActiveParts } = await supabase
-        .from("production_orders")
-        .select("project_id, genral_status")
-        .in("project_id", rawProjectIds.length > 0 ? rawProjectIds : ['none']);
+    if (projectsWithOrders) {
+        for (const pj of projectsWithOrders) {
+            const parts = (pj.production_orders as any[]) || [];
+            const pjActiveParts = parts.filter(part => {
+                const s = (part.genral_status || "").toUpperCase();
+                return !s.includes("D7-ENTREGADA") && !s.includes("D8-CANCELADA");
+            });
 
-    // Filter out delivered or cancelled parts
-    const activeParts = rawActiveParts?.filter((part: any) => {
-        const s = (part.genral_status || "").toUpperCase();
-        return !s.includes("D7-ENTREGADA") && !s.includes("D8-CANCELADA");
-    }) || [];
+            if (pjActiveParts.length > 0) {
+                projects.push(pj);
+                activeParts.push(...pjActiveParts);
+            }
+        }
+    }
 
-    // Get set of project IDs that actually have PENDING parts
-    const projectIdsWithParts = new Set(activeParts.map(p => p.project_id));
-
-    // Filter projects to only those that have PENDING parts
-    const projects = rawProjects?.filter(p => projectIdsWithParts.has(p.id)) || [];
     const totalProjects = projects.length;
     const totalParts = activeParts.length;
 

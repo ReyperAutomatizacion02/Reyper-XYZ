@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
-import { Calendar, Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut } from "lucide-react";
+import { Calendar, Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut, Link2, Lock, Unlock } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import moment from "moment";
-import { updateTaskSchedule, batchSavePlanning } from "@/app/dashboard/produccion/actions";
+import { updateTaskSchedule, batchSavePlanning, fetchScenarios, saveScenario, deleteScenario, markScenarioApplied, toggleTaskLocked } from "@/app/dashboard/produccion/actions";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
@@ -14,9 +14,13 @@ import { DashboardHeader } from "@/components/dashboard-header";
 import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { EvaluationModal } from "./evaluation-modal";
-import { Wand2, ClipboardList, AlertTriangle, XCircle, CheckCircle2, ArrowUpAZ, ArrowDownZA } from "lucide-react";
-import { generateAutomatedPlanning, compareOrdersByPriority } from "@/lib/scheduling-utils";
+import { Wand2, ClipboardList, AlertTriangle, XCircle, CheckCircle2, ArrowUpAZ, ArrowDownZA, ListOrdered, FileText, X, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
+import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask } from "@/lib/scheduling-utils";
+import { ScenarioComparison } from "./scenario-comparison";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
+import { extractDriveFileId } from "@/lib/drive-utils";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { AutoPlanDialog } from "./auto-plan-dialog";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -45,6 +49,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [showDependencies, setShowDependencies] = useState(true);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [hideEmptyMachines, setHideEmptyMachines] = useState(true);
     const [prefsInitialized, setPrefsInitialized] = useState(false);
     const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -52,9 +57,17 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [isEvalListOpen, setIsEvalListOpen] = useState(false);
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
     const [selectedOrderForEval, setSelectedOrderForEval] = useState<Order | null>(null);
+    const [selectedEvalIndex, setSelectedEvalIndex] = useState<number>(-1);
+    const [evalNavigationList, setEvalNavigationList] = useState<Order[]>([]);
+    const [previewFileId, setPreviewFileId] = useState<string | null>(null);
 
     // Draft Tasks for Auto-Plan Preview
     const [draftTasks, setDraftTasks] = useState<PlanningTask[]>([]);
+
+    // Scenario Management
+    const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
+    const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
+    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
 
     // Evaluation Search and Filters
     const [evalSearchQuery, setEvalSearchQuery] = useState("");
@@ -62,6 +75,8 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [treatmentFilter, setTreatmentFilter] = useState("all");
     const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">("asc");
     const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">("auto");
+    const [showEvaluated, setShowEvaluated] = useState(false);
+    const [isAutoPlanDialogOpen, setIsAutoPlanDialogOpen] = useState(false);
 
     // Filter orders that need evaluation
     const ordersPendingEvaluation = useMemo(() => {
@@ -91,15 +106,22 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 if (treatmentFilter === "no" && hasTreatment) return false;
             }
 
-            return !o.evaluation || (Array.isArray(o.evaluation) && o.evaluation.length === 0);
-            return !o.evaluation || (Array.isArray(o.evaluation) && o.evaluation.length === 0);
+            const hasEvaluation = o.evaluation && Array.isArray(o.evaluation) && o.evaluation.length > 0;
+            if (showEvaluated) {
+                if (!hasEvaluation) return false;
+            } else {
+                if (hasEvaluation) return false;
+            }
+
+            return true;
         });
 
         // Sorting: Configurable (Priority, Date, Code, or Both)
         filtered.sort((a, b) => {
             // Priority is the DEFAULT behavior ("auto" or if selected)
             if (evalSortBy === "auto") {
-                return compareOrdersByPriority(a, b);
+                const res = compareOrdersByPriority(a, b);
+                return evalSortDirection === "asc" ? res : -res;
             }
 
             const dateA = a.projects?.delivery_date || a.created_at || "";
@@ -130,7 +152,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         });
 
         return filtered;
-    }, [orders, evalSearchQuery, clientFilter, treatmentFilter, evalSortDirection, evalSortBy]);
+    }, [orders, evalSearchQuery, clientFilter, treatmentFilter, evalSortDirection, evalSortBy, showEvaluated]);
 
     // Get unique clients for the filter
     const uniqueClients = useMemo(() => {
@@ -148,10 +170,31 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             if (ganttPrefs.viewMode) setViewMode(ganttPrefs.viewMode);
             if (ganttPrefs.showDependencies !== undefined) setShowDependencies(ganttPrefs.showDependencies);
             if (ganttPrefs.zoomLevel) setZoomLevel(ganttPrefs.zoomLevel);
+            if (ganttPrefs.hideEmptyMachines !== undefined) setHideEmptyMachines(ganttPrefs.hideEmptyMachines);
             // Note: selectedMachines initialized in a separate effect below (needs allMachineNames)
             setPrefsInitialized(true);
         }
     }, [prefsLoading, prefsInitialized, ganttPrefs]);
+
+    // Load saved scenarios on mount
+    useEffect(() => {
+        fetchScenarios().then((data: any[]) => {
+            setSavedScenarios(data.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                strategy: s.strategy,
+                config: s.config,
+                tasks: s.tasks || [],
+                skipped: s.skipped || [],
+                metrics: s.metrics || {},
+                created_by: s.created_by,
+                created_at: s.created_at,
+                applied_at: s.applied_at,
+            })));
+        }).catch(err => {
+            console.error("Failed to load scenarios:", err);
+        });
+    }, []);
 
     // Save viewMode preference
     const handleViewModeChange = (newMode: "hour" | "day" | "week") => {
@@ -166,29 +209,114 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         updateGanttPref({ showDependencies: value });
     };
 
-    // Auto-Plan logic
+    // Auto-Plan logic (Triggering the Dialog)
     const handleAutoPlan = () => {
-        const result = generateAutomatedPlanning(
-            orders,
-            [...tasks, ...draftTasks],
-            machines.map(m => m.name)
-        );
+        setIsAutoPlanDialogOpen(true);
+    };
 
-        if (result.tasks.length === 0) {
-            toast.warning("No hay piezas aptas para planeación automática (necesitan evaluación y CAD)");
+    // Scenario: Save
+    const handleSaveScenario = async (data: { name: string; strategy: string; config: any; result: SchedulingResult }) => {
+        toast.loading("Guardando escenario...", { id: "save-scenario" });
+        try {
+            await saveScenario({
+                name: data.name,
+                strategy: data.strategy,
+                config: data.config,
+                tasks: data.result.tasks,
+                skipped: data.result.skipped,
+                metrics: data.result.metrics,
+            });
+            toast.success(`Escenario "${data.name}" guardado`, { id: "save-scenario" });
+            // Refresh scenarios list
+            const updated = await fetchScenarios();
+            setSavedScenarios(updated.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                strategy: s.strategy,
+                config: s.config,
+                tasks: s.tasks || [],
+                skipped: s.skipped || [],
+                metrics: s.metrics || {},
+                created_by: s.created_by,
+                created_at: s.created_at,
+                applied_at: s.applied_at,
+            })));
+        } catch (err) {
+            toast.error("Error al guardar escenario", { id: "save-scenario" });
+            throw err;
+        }
+    };
+
+    // Scenario: Preview on Gantt
+    const handlePreviewScenario = (scenario: SavedScenario) => {
+        if (activePreviewId === scenario.id) {
+            // Toggle off
+            setActivePreviewId(null);
+            setDraftTasks([]);
             return;
         }
+        setActivePreviewId(scenario.id);
+        setDraftTasks(scenario.tasks as any);
+        toast.info(`Preview: "${scenario.name}" — ${scenario.tasks.length} tareas en borrador.`);
+    };
 
-        setDraftTasks(prev => [...prev, ...result.tasks as any]);
-        toast.success(`Se generaron ${result.tasks.length} tareas de planeación (Vista Previa)`);
-
-        if (result.skipped.length > 0) {
-            console.warn("Piezas saltadas:", result.skipped);
+    // Scenario: Apply (save tasks to DB permanently)
+    const handleApplyScenario = async (scenario: SavedScenario) => {
+        if (scenario.tasks.length === 0) {
+            toast.warning("Este escenario no tiene tareas.");
+            return;
         }
+        toast.loading("Aplicando escenario...", { id: "apply-scenario" });
+        try {
+            await batchSavePlanning(scenario.tasks as any[], []);
+            await markScenarioApplied(scenario.id);
+            toast.success(`Escenario "${scenario.name}" aplicado permanentemente`, { id: "apply-scenario" });
+            setDraftTasks([]);
+            setActivePreviewId(null);
+            // Refresh scenarios to update applied_at
+            const updated = await fetchScenarios();
+            setSavedScenarios(updated.map((s: any) => ({
+                id: s.id, name: s.name, strategy: s.strategy, config: s.config,
+                tasks: s.tasks || [], skipped: s.skipped || [],
+                metrics: s.metrics || {}, created_by: s.created_by,
+                created_at: s.created_at, applied_at: s.applied_at,
+            })));
+            router.refresh();
+        } catch (err) {
+            toast.error("Error al aplicar escenario", { id: "apply-scenario" });
+        }
+    };
+
+    // Scenario: Delete
+    const handleDeleteScenario = async (scenarioId: string) => {
+        toast.loading("Eliminando...", { id: "delete-scenario" });
+        try {
+            await deleteScenario(scenarioId);
+            setSavedScenarios(prev => prev.filter(s => s.id !== scenarioId));
+            if (activePreviewId === scenarioId) {
+                setActivePreviewId(null);
+                setDraftTasks([]);
+            }
+            toast.success("Escenario eliminado", { id: "delete-scenario" });
+        } catch (err) {
+            toast.error("Error al eliminar", { id: "delete-scenario" });
+        }
+    };
+
+    // Scenario: Cycle between saved scenario previews
+    const handleCyclePreview = (direction: -1 | 1) => {
+        if (savedScenarios.length < 2) return;
+        const currentIdx = savedScenarios.findIndex(s => s.id === activePreviewId);
+        const nextIdx = (currentIdx + direction + savedScenarios.length) % savedScenarios.length;
+        const nextScenario = savedScenarios[nextIdx];
+        setActivePreviewId(nextScenario.id);
+        setDraftTasks(nextScenario.tasks as any);
+        toast.info(`Preview: ${nextScenario.name}`);
     };
 
     const handleDiscardDrafts = () => {
         setDraftTasks([]);
+        setActivePreviewId(null);
         toast.info("Planeación automática descartada");
     };
 
@@ -223,6 +351,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Close settings on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            // Close settings
             if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
                 setIsSettingsOpen(false);
             }
@@ -240,8 +369,42 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [savedTasks, setSavedTasks] = useState<PlanningTask[]>(tasks);
     const [optimisticTasks, setOptimisticTasks] = useState<PlanningTask[]>(tasks);
     const [history, setHistory] = useState<PlanningTask[][]>([]);
+
+    const handleNextEval = () => {
+        if (selectedEvalIndex < evalNavigationList.length - 1) {
+            const nextIndex = selectedEvalIndex + 1;
+            setSelectedEvalIndex(nextIndex);
+            setSelectedOrderForEval(evalNavigationList[nextIndex]);
+        }
+    };
+
+    const handlePrevEval = () => {
+        if (selectedEvalIndex > 0) {
+            const prevIndex = selectedEvalIndex - 1;
+            setSelectedEvalIndex(prevIndex);
+            setSelectedOrderForEval(evalNavigationList[prevIndex]);
+        }
+    };
     const [future, setFuture] = useState<PlanningTask[][]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [cascadeMode, setCascadeMode] = useState(false);
+
+    // Lock/Unlock handler
+    const handleToggleLock = async (taskId: string, locked: boolean) => {
+        // Optimistic update
+        setOptimisticTasks(prev => prev.map(t =>
+            t.id === taskId ? { ...t, locked } : t
+        ));
+        try {
+            await toggleTaskLocked(taskId, locked);
+        } catch {
+            // Revert on error
+            setOptimisticTasks(prev => prev.map(t =>
+                t.id === taskId ? { ...t, locked: !locked } : t
+            ));
+            toast.error("Error al cambiar bloqueo");
+        }
+    };
 
     // List of all tasks (real + draft) for the Gantt chart
     const allTasks = useMemo(() => [...optimisticTasks, ...draftTasks], [optimisticTasks, draftTasks]);
@@ -625,19 +788,34 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
                     {isMachineFilterOpen && (
                         <div className="absolute top-full left-0 mt-1 w-64 bg-background border border-border rounded-lg shadow-xl z-[9999] overflow-hidden">
-                            <div className="p-2 border-b border-border flex gap-2">
-                                <button
-                                    onClick={selectAllMachines}
-                                    className="flex-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded transition-colors"
-                                >
-                                    Todas
-                                </button>
-                                <button
-                                    onClick={clearAllMachines}
-                                    className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-                                >
-                                    Ninguna
-                                </button>
+                            <div className="p-2 border-b border-border space-y-2">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={selectAllMachines}
+                                        className="flex-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded transition-colors"
+                                    >
+                                        Todas
+                                    </button>
+                                    <button
+                                        onClick={clearAllMachines}
+                                        className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
+                                    >
+                                        Ninguna
+                                    </button>
+                                </div>
+                                <label className="flex items-center justify-between px-2 py-1.5 hover:bg-muted rounded cursor-pointer transition-colors border-t border-border mt-1 pt-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ocultar vacías</span>
+                                    <input
+                                        type="checkbox"
+                                        checked={hideEmptyMachines}
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setHideEmptyMachines(val);
+                                            updateGanttPref({ hideEmptyMachines: val });
+                                        }}
+                                        className="w-3.5 h-3.5 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
+                                    />
+                                </label>
                             </div>
                             <div className="max-h-60 overflow-y-auto p-2 space-y-1">
                                 {allMachineNames.map(machineName => (
@@ -697,6 +875,16 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                 />
                             </label>
 
+                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
+                                <span className="text-sm">Arrastre en Cascada</span>
+                                <input
+                                    type="checkbox"
+                                    checked={cascadeMode}
+                                    onChange={(e) => setCascadeMode(e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
+                                />
+                            </label>
+
                             {/* More settings can go here */}
                         </div>
                     )}
@@ -708,22 +896,76 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         variant="outline"
                         size="sm"
                         onClick={() => setIsEvalListOpen(!isEvalListOpen)}
-                        className={`h-8 font-bold text-xs gap-2 ${ordersPendingEvaluation.length > 0 ? "border-amber-500/50 bg-amber-500/5 text-amber-600 hover:bg-amber-500/10" : ""}`}
+                        className={`h-9 font-bold text-xs gap-2 px-4 transition-all active:scale-95 shadow-sm ${showEvaluated
+                            ? "border-blue-500/50 bg-blue-500/5 text-blue-600 hover:bg-blue-500/10"
+                            : ordersPendingEvaluation.length > 0
+                                ? "border-amber-500/50 bg-amber-500/5 text-amber-600 hover:bg-amber-500/10"
+                                : "border-border text-muted-foreground"
+                            }`}
                     >
-                        <ClipboardList className="w-4 h-4" />
-                        <span>Evaluar {ordersPendingEvaluation.length > 0 && `(${ordersPendingEvaluation.length})`}</span>
+                        <ClipboardList className={`w-4 h-4 ${showEvaluated ? "text-blue-500" : ordersPendingEvaluation.length > 0 ? "text-amber-500" : ""}`} />
+                        <span>
+                            {showEvaluated
+                                ? `Ver evaluadas (${ordersPendingEvaluation.length})`
+                                : ordersPendingEvaluation.length > 0
+                                    ? `Evaluar ${ordersPendingEvaluation.length} piezas`
+                                    : "Sin pendientes"}
+                        </span>
                     </Button>
 
                     <Button
                         size="sm"
                         className="h-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs gap-2 shadow-md shadow-blue-500/20"
                         onClick={handleAutoPlan}
-                        disabled={draftTasks.length > 0}
                         id="auto-plan-btn"
                     >
                         <Wand2 className="w-4 h-4" />
                         <span>Auto-Plan</span>
                     </Button>
+
+                    {/* Compare Scenarios */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsComparisonOpen(true)}
+                        className={`h-8 font-bold text-xs gap-2 transition-all ${savedScenarios.length > 0 ? "border-primary/30 text-primary hover:bg-primary/10" : "border-border text-muted-foreground"}`}
+                    >
+                        <BarChart3 className="w-4 h-4" />
+                        <span className="hidden lg:inline">Comparar</span>
+                        {savedScenarios.length > 0 && (
+                            <span className="text-[10px] font-black bg-primary/10 text-primary rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                                {savedScenarios.length}
+                            </span>
+                        )}
+                    </Button>
+
+                    {/* Cycle Preview Scenario Controls */}
+                    {activePreviewId && savedScenarios.length > 1 && (
+                        <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-4 duration-200">
+                            <div className="h-5 w-px bg-border mx-1" />
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCyclePreview(-1)}
+                                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-primary"
+                                title="Escenario anterior"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <span className="text-[10px] font-bold text-primary/80 uppercase max-w-[100px] truncate" title={savedScenarios.find(s => s.id === activePreviewId)?.name}>
+                                {savedScenarios.find(s => s.id === activePreviewId)?.name || "Preview"}
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCyclePreview(1)}
+                                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-primary"
+                                title="Escenario siguiente"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Save Controls - Only visible when there are changes */}
@@ -785,6 +1027,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         optimisticTasks={allTasks}
                         setOptimisticTasks={handleTasksChange}
                         onHistorySnapshot={handleHistorySnapshot}
+                        hideEmptyMachines={hideEmptyMachines}
                         searchQuery={searchQuery}
                         viewMode={viewMode}
                         isFullscreen={isFullscreen}
@@ -795,13 +1038,17 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         setZoomLevel={handleZoomChange} // Pass setter for zoom controls
                         modalData={modalData}
                         setModalData={setModalData}
+                        onToggleLock={handleToggleLock}
+                        cascadeMode={cascadeMode}
                     />
                 </div>
             </div>
 
             {/* Evaluation List Sidebar (Simple) */}
             {isEvalListOpen && (
-                <div className="fixed top-[64px] right-0 bottom-0 w-80 bg-background/95 backdrop-blur-md border-l border-border shadow-2xl z-[1000] flex flex-col animate-in slide-in-from-right-8 duration-300">
+                <div
+                    className="fixed top-[64px] right-0 bottom-0 w-[450px] bg-background/95 backdrop-blur-md border-l border-border shadow-2xl z-[1000] flex flex-col animate-in slide-in-from-right-8 duration-300"
+                >
                     <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
                         <h3 className="font-bold text-sm flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-[#EC1C21]" />
@@ -810,6 +1057,30 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         <Button variant="ghost" size="icon" onClick={() => setIsEvalListOpen(false)} className="h-8 w-8 rounded-full hover:bg-muted">
                             <XCircle className="w-4 h-4" />
                         </Button>
+                    </div>
+
+                    {/* Tabs Segmentado */}
+                    <div className="px-3 pt-3">
+                        <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
+                            <button
+                                onClick={() => setShowEvaluated(false)}
+                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${!showEvaluated
+                                    ? "bg-background text-primary shadow-sm ring-1 ring-border"
+                                    : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Por Evaluar
+                            </button>
+                            <button
+                                onClick={() => setShowEvaluated(true)}
+                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${showEvaluated
+                                    ? "bg-background text-primary shadow-sm ring-1 ring-border"
+                                    : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                Evaluadas
+                            </button>
+                        </div>
                     </div>
 
                     {/* Search and Filters */}
@@ -826,90 +1097,179 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                             />
                         </div>
 
-                        {/* Filters & Sort Row */}
-                        <div className="flex gap-2">
-                            {/* Client Filter */}
-                            <CustomDropdown
-                                options={uniqueClients.map(c => ({ label: c, value: c }))}
-                                value={clientFilter}
-                                onChange={setClientFilter}
-                                className="flex-1"
-                                searchable={true}
-                                multiple={true}
-                                placeholder="Clientes"
-                            />
+                        {/* Sections Row */}
+                        <div className="space-y-3">
+                            {/* Filtros Section */}
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-1 px-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    <Filter className="w-3 h-3" />
+                                    <span>Filtrar por</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    {/* Client Filter */}
+                                    <div className="flex-1 min-w-0">
+                                        <CustomDropdown
+                                            options={uniqueClients.map(c => ({ label: c, value: c }))}
+                                            value={clientFilter}
+                                            onChange={setClientFilter}
+                                            className="w-full"
+                                            searchable={true}
+                                            multiple={true}
+                                            placeholder="Clientes"
+                                        />
+                                    </div>
 
-                            {/* Treatment Filter */}
-                            <CustomDropdown
-                                options={[
-                                    { label: "Trat.", value: "all" },
-                                    { label: "Con", value: "yes" },
-                                    { label: "Sin", value: "no" }
-                                ]}
-                                value={treatmentFilter}
-                                onChange={setTreatmentFilter}
-                                className="w-24"
-                            />
+                                    {/* Treatment Filter */}
+                                    <div className="shrink-0 w-32">
+                                        <CustomDropdown
+                                            options={[
+                                                { label: "Todo Trat.", value: "all" },
+                                                { label: "Con Tratamiento", value: "yes" },
+                                                { label: "Sin Tratamiento", value: "no" }
+                                            ]}
+                                            value={treatmentFilter}
+                                            onChange={setTreatmentFilter}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
 
-                            {/* Sort Toggle */}
-                            <div className="flex gap-1">
-                                <CustomDropdown
-                                    options={[
-                                        { label: "Auto (Prioridad)", value: "auto" },
-                                        { label: "Fecha", value: "date" },
-                                        { label: "Código", value: "code" },
-                                        { label: "Ambos", value: "both" }
-                                    ]}
-                                    value={evalSortBy}
-                                    onChange={setEvalSortBy}
-                                    className="w-20"
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 px-2 border-border/60 hover:border-primary/50 hover:bg-primary/5 transition-all shrink-0"
-                                    onClick={() => setEvalSortDirection(prev => prev === "asc" ? "desc" : "asc")}
-                                    title={evalSortDirection === "asc" ? "Orden Ascendente" : "Orden Descendente"}
-                                >
-                                    {evalSortDirection === "asc" ? <ArrowUpAZ className="w-4 h-4 text-primary" /> : <ArrowDownZA className="w-4 h-4 text-primary" />}
-                                </Button>
+                            {/* Orden Section */}
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-1 px-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    <ListOrdered className="w-3 h-3" />
+                                    <span>Ordenar por</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <CustomDropdown
+                                            options={[
+                                                { label: "Prioridad (Auto)", value: "auto" },
+                                                { label: "Fecha de Entrega", value: "date" },
+                                                { label: "Código de Pieza", value: "code" },
+                                                { label: "Fecha + Código", value: "both" }
+                                            ]}
+                                            value={evalSortBy}
+                                            onChange={setEvalSortBy}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-3 border-border/60 hover:border-primary/50 hover:bg-primary/5 transition-all shrink-0 flex gap-2 items-center"
+                                        onClick={() => setEvalSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                                        title={evalSortDirection === "asc" ? "Orden Ascendente" : "Orden Descendente"}
+                                    >
+                                        {evalSortDirection === "asc" ? (
+                                            <>
+                                                <ArrowUpAZ className="w-4 h-4 text-primary" />
+                                                <span className="text-[10px] font-bold uppercase">Asc</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ArrowDownZA className="w-4 h-4 text-primary" />
+                                                <span className="text-[10px] font-bold uppercase">Desc</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-2">
                         {ordersPendingEvaluation.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-                                <ClipboardList className="w-8 h-8 opacity-20 mb-2" />
-                                <p className="text-xs">No hay piezas pendientes</p>
+                            <div className="flex flex-col items-center justify-center p-12 text-center bg-muted/5 rounded-3xl border border-dashed border-border/60 mx-2 mt-4">
+                                <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center shadow-sm mb-4 border border-border/40">
+                                    <ClipboardList className="w-8 h-8 text-muted-foreground opacity-40" />
+                                </div>
+                                <h4 className="text-sm font-bold text-foreground">¡Todo al día!</h4>
+                                <p className="text-[11px] text-muted-foreground mt-1 max-w-[180px]">
+                                    {showEvaluated
+                                        ? "No se han encontrado piezas evaluadas con los filtros actuales."
+                                        : "No hay piezas pendientes de evaluación por ahora."}
+                                </p>
                             </div>
                         ) : (
-                            ordersPendingEvaluation.map(order => (
-                                <div
-                                    key={order.id}
-                                    onClick={() => {
-                                        setSelectedOrderForEval(order);
-                                        setIsEvalModalOpen(true);
-                                    }}
-                                    className="p-3 rounded-lg border border-border bg-card hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all group"
-                                >
-                                    <div className="flex items-start justify-between mb-1">
-                                        <div className="text-xs font-black uppercase text-primary">
-                                            {order.part_code}
-                                        </div>
-                                        {(order as any).delivery_date && (
-                                            <div className="text-[10px] text-muted-foreground">
-                                                {moment((order as any).delivery_date).format("DD MMM")}
+                            ordersPendingEvaluation.map(order => {
+                                const deliveryDate = (order as any).projects?.delivery_date;
+                                const companyName = (order as any).projects?.company;
+                                const blueprintUrl = (order as any).drawing_url;
+
+                                return (
+                                    <div
+                                        key={order.id}
+                                        className="p-3 rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all group relative overflow-hidden"
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div
+                                                className="cursor-pointer flex-1"
+                                                onClick={() => {
+                                                    const idx = ordersPendingEvaluation.findIndex(o => o.id === order.id);
+                                                    setEvalNavigationList([...ordersPendingEvaluation]);
+                                                    setSelectedEvalIndex(idx);
+                                                    setSelectedOrderForEval(order);
+                                                    setIsEvalModalOpen(true);
+                                                }}
+                                            >
+                                                <div className="text-xs font-black uppercase text-primary mb-0.5 tracking-tight">
+                                                    {order.part_code}
+                                                </div>
+                                                <div className="text-[11px] font-bold text-foreground leading-tight line-clamp-2 pr-6">
+                                                    {order.part_name}
+                                                </div>
                                             </div>
-                                        )}
+
+                                            {/* Action Buttons & Date in one line */}
+                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                {blueprintUrl && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 rounded-md bg-primary/5 text-primary hover:bg-primary hover:text-white transition-colors border border-primary/20"
+                                                        title="Ver Plano"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const fileId = extractDriveFileId(blueprintUrl);
+                                                            if (fileId) {
+                                                                setPreviewFileId(fileId);
+                                                            } else {
+                                                                window.open(blueprintUrl, '_blank');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <FileText className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                )}
+                                                {deliveryDate && (
+                                                    <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded border border-border/50">
+                                                        {moment(deliveryDate).format("DD MMM")}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
+                                            <div className="text-[10px] text-muted-foreground font-medium truncate max-w-[180px]">
+                                                {companyName || "Sin Empresa"}
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2 text-[9px] font-black uppercase text-primary/70 hover:text-primary hover:bg-primary/5 rounded-md"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedOrderForEval(order);
+                                                    setIsEvalModalOpen(true);
+                                                }}
+                                            >
+                                                Evaluar
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] font-medium text-foreground/70 truncate mb-2">
-                                        {order.part_name}
-                                    </div>
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="text-[9px] font-bold text-primary uppercase">Evaluar ahora</span>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
@@ -921,9 +1281,73 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 onClose={() => setIsEvalModalOpen(false)}
                 order={selectedOrderForEval as any}
                 machines={machines}
-                onSuccess={() => {
+                onSuccess={(newSteps) => {
+                    if (selectedEvalIndex !== -1 && evalNavigationList[selectedEvalIndex]) {
+                        const updatedList = [...evalNavigationList];
+                        const updatedItem = { ...updatedList[selectedEvalIndex] } as any;
+                        updatedItem.evaluation = newSteps;
+                        updatedList[selectedEvalIndex] = updatedItem;
+                        setEvalNavigationList(updatedList);
+                    }
                     router.refresh();
                 }}
+                onNext={handleNextEval}
+                onPrevious={handlePrevEval}
+                hasNext={selectedEvalIndex < evalNavigationList.length - 1}
+                hasPrevious={selectedEvalIndex > 0}
+            />
+
+            {/* PDF/Drive Preview Modal */}
+            <Dialog open={!!previewFileId} onOpenChange={(open) => !open && setPreviewFileId(null)}>
+                <DialogContent className="max-w-5xl h-[90vh] p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10002]">
+                    <div className="relative w-full h-full flex flex-col">
+                        <div className="p-4 bg-muted/10 border-b border-border flex items-center justify-between">
+                            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                Vista Previa de Plano
+                            </DialogTitle>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => setPreviewFileId(null)}
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                        <div className="flex-1 bg-muted/5">
+                            {previewFileId && (
+                                <iframe
+                                    src={`https://drive.google.com/file/d/${previewFileId}/preview`}
+                                    className="w-full h-full border-none"
+                                    allow="autoplay"
+                                    title="Blueprint Preview"
+                                ></iframe>
+                            )}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            {/* Auto-Plan Configuration Dialog */}
+            <AutoPlanDialog
+                isOpen={isAutoPlanDialogOpen}
+                onClose={() => setIsAutoPlanDialogOpen(false)}
+                orders={orders}
+                tasks={[...tasks]}
+                machines={machines.map(m => m.name)}
+                onSaveScenario={handleSaveScenario}
+                scenarioCount={savedScenarios.length}
+            />
+
+            {/* Scenario Comparison Panel */}
+            <ScenarioComparison
+                isOpen={isComparisonOpen}
+                onClose={() => setIsComparisonOpen(false)}
+                scenarios={savedScenarios}
+                onPreview={handlePreviewScenario}
+                onApply={handleApplyScenario}
+                onDelete={handleDeleteScenario}
+                activePreviewId={activePreviewId}
             />
         </div>
     );

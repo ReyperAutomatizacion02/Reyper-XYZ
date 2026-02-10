@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { Database } from "../utils/supabase/types";
 import moment from "moment";
 
+// --- CONFIGURATION ---
 dotenv.config({ path: ".env.local" });
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN as string;
@@ -23,60 +24,45 @@ const supabase = createClient<Database>(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// CLI Arguments
+// --- CLI ARGS ---
 const args = process.argv.slice(2);
-const daysFlagIndex = args.indexOf("--days");
-const DAYS_BACK = daysFlagIndex !== -1 ? parseInt(args[daysFlagIndex + 1]) || 3 : 3;
+const DAYS_BACK = (args.indexOf("--days") !== -1) ? (parseInt(args[args.indexOf("--days") + 1]) || 3) : 3;
+const SINCE_DATE = args.includes("--today") ? moment().format("YYYY-MM-DD") : ((args.indexOf("--since") !== -1) ? args[args.indexOf("--since") + 1] : null);
+const UNTIL_DATE = args.includes("--today") ? moment().format("YYYY-MM-DD") : ((args.indexOf("--until") !== -1) ? args[args.indexOf("--until") + 1] : null);
+const FULL_SYNC = args.includes("--full") || args.includes("--all");
 
-const RUN_PROJECTS = args.includes("--projects");
-const RUN_ITEMS = args.includes("--items");
-const RUN_PLANNING = args.includes("--planning");
-const FULL_SYNC = args.includes("--full");
+const RUN_PJ = args.includes("--projects") || (!args.includes("--items") && !args.includes("--planning") && !args.includes("--full") && !args.includes("--all")) || FULL_SYNC;
+const RUN_IT = args.includes("--items") || (!args.includes("--projects") && !args.includes("--planning") && !args.includes("--full") && !args.includes("--all")) || FULL_SYNC;
+const RUN_PL = args.includes("--planning") || (!args.includes("--projects") && !args.includes("--items") && !args.includes("--full") && !args.includes("--all")) || FULL_SYNC;
 
-const sinceFlagIndex = args.indexOf("--since");
-const SINCE_DATE = sinceFlagIndex !== -1 ? args[sinceFlagIndex + 1] : null;
+// --- UTILS ---
 
-const untilFlagIndex = args.indexOf("--until");
-const UNTIL_DATE = untilFlagIndex !== -1 ? args[untilFlagIndex + 1] : null;
-
-// If no specific flags are provided, run all
-const runAll = !RUN_PROJECTS && !RUN_ITEMS && !RUN_PLANNING;
-const shouldRunProjects = runAll || RUN_PROJECTS;
-const shouldRunItems = runAll || RUN_ITEMS;
-const shouldRunPlanning = runAll || RUN_PLANNING;
-
-/**
- * Utility to fetch with retries and exponential backoff
- * Handles 429, 500, 502, 503, 504
- */
 async function fetchWithRetry(url: string, options: any, retries = 5, backoff = 2000) {
     for (let i = 0; i < retries; i++) {
         try {
             const res = await fetch(url, options);
             if (res.ok) return await res.json();
-
-            if ([429, 500, 502, 503, 504].includes(res.status)) {
-                console.warn(`⚠️ Notion API error ${res.status}. Reintentando en ${backoff / 1000}s... (Intento ${i + 1}/${retries})`);
-                await new Promise(res => setTimeout(res, backoff));
+            if ([429, 502, 503, 504].includes(res.status)) {
+                const wait = res.status === 429 ? 5000 : backoff;
+                console.warn(`   ⚠️ Notion ${res.status}. Reintentando en ${wait / 1000}s... (Intento ${i + 1}/${retries})`);
+                await new Promise(r => setTimeout(r, wait));
                 backoff *= 2;
                 continue;
             }
-
-            throw new Error(`Notion API Error: ${res.status} ${await res.text()}`);
+            throw new Error(`API Error: ${res.status} ${await res.text()}`);
         } catch (e: any) {
             if (i === retries - 1) throw e;
-            console.warn(`⚠️ Error de red: ${e.message}. Reintentando...`);
-            await new Promise(res => setTimeout(res, backoff));
+            await new Promise(r => setTimeout(r, backoff));
             backoff *= 2;
         }
     }
 }
 
-async function fetchNotionBatch(dbId: string, filter?: any, cursor?: string) {
+async function queryNotion(dbId: string, filter?: any, cursor?: string, sorts?: any[]) {
     const body: any = { page_size: 100 };
     if (filter) body.filter = filter;
     if (cursor) body.start_cursor = cursor;
-
+    if (sorts) body.sorts = sorts;
     return await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}/query`, {
         method: "POST",
         headers: {
@@ -88,413 +74,389 @@ async function fetchNotionBatch(dbId: string, filter?: any, cursor?: string) {
     });
 }
 
-function getThresholdISO() {
-    if (SINCE_DATE) {
-        const m = moment(SINCE_DATE).startOf('day');
-        if (m.isValid()) {
-            return m.toISOString();
+async function getNotionPage(pageId: string) {
+    return await fetchWithRetry(`https://api.notion.com/v1/pages/${pageId}`, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${NOTION_TOKEN}`,
+            "Notion-Version": "2022-06-28"
         }
-        console.warn(`⚠️ Fecha --since '${SINCE_DATE}' no es válida. Usando --days en su lugar.`);
-    }
-    const date = new Date();
-    date.setDate(date.getDate() - DAYS_BACK);
-    return date.toISOString();
+    });
 }
 
-function getUntilISO() {
-    if (UNTIL_DATE) {
-        const m = moment(UNTIL_DATE).endOf('day');
-        if (m.isValid()) {
-            return m.toISOString();
-        }
-        console.warn(`⚠️ Fecha --until '${UNTIL_DATE}' no es válida.`);
-    }
-    return null;
-}
-
-function buildNotionFilter(propertyName: string, sinceISO: string, untilISO: string | null) {
+function buildFilter(sinceISO: string, untilISO: string | null, propName: string = 'SYSTEM') {
     if (FULL_SYNC) return undefined;
 
-    const filters: any[] = [
-        { property: propertyName, last_edited_time: { on_or_after: sinceISO } }
-    ];
-
-    if (untilISO) {
-        filters.push({ property: propertyName, last_edited_time: { on_or_before: untilISO } });
+    let base: any;
+    if (propName === 'SYSTEM') {
+        base = {
+            timestamp: "last_edited_time",
+            last_edited_time: { on_or_after: sinceISO }
+        };
+        if (untilISO) base.last_edited_time.on_or_before = untilISO;
+    } else {
+        // Notion allows filtering properties of type 'last_edited_time'
+        base = {
+            property: propName,
+            last_edited_time: { on_or_after: sinceISO }
+        };
+        if (untilISO) base.last_edited_time.on_or_before = untilISO;
     }
-
-    return filters.length === 1 ? filters[0] : { and: filters };
+    return base;
 }
 
-/**
- * Handles Notion dates and ensures UTC-6 offset
- */
-function formatNotionDate(dateStr: string | null | undefined) {
+function formatTime(dateStr: string | null | undefined) {
     if (!dateStr) return null;
     const m = moment(dateStr);
     if (!m.isValid()) return dateStr;
     if (dateStr.length === 10) return dateStr;
-    let localM = m;
-    if (!dateStr.includes("+") && !dateStr.includes("Z") && !/-\d{2}:\d{2}$/.test(dateStr)) {
-        localM = moment(`${dateStr}-06:00`);
-    }
-    return localM.format("YYYY-MM-DDTHH:mm:ss");
+    const local = dateStr.match(/[Z+\-]/) ? m : moment(`${dateStr}-06:00`);
+    return local.format("YYYY-MM-DDTHH:mm:ss");
 }
 
-async function syncNotionImage(notionPageId: string, imageUrl: string): Promise<string | null> {
+async function syncImage(id: string, url: string): Promise<string | null> {
     try {
-        const imgRes = await fetch(imageUrl);
-        if (!imgRes.ok) return null;
-        const blob = await imgRes.blob();
-        const contentType = imgRes.headers.get("content-type") || "image/jpeg";
-        const extension = contentType.split("/")[1] || "jpg";
-        const filePath = `items/${notionPageId}.${extension}`;
-        await supabase.storage.from("partidas").upload(filePath, blob, { contentType, upsert: true });
-        const { data: { publicUrl } } = supabase.storage.from("partidas").getPublicUrl(filePath);
-        return publicUrl;
-    } catch (e) {
-        return null;
-    }
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        const ext = (res.headers.get("content-type") || "image/jpeg").split("/")[1] || "jpg";
+        const path = `items/${id}.${ext}`;
+        await supabase.storage.from("partidas").upload(path, blob, { contentType: res.headers.get("content-type") || "image/jpeg", upsert: true });
+        return supabase.storage.from("partidas").getPublicUrl(path).data.publicUrl;
+    } catch { return null; }
 }
 
-async function runSync() {
-    const threshold = getThresholdISO();
-    const until = getUntilISO();
-    console.log(`\n🚀 INICIANDO SINCRONIZACIÓN DE REGISTROS ACTUALIZADOS`);
-
-    let modeText = "";
-    if (FULL_SYNC) modeText = "COMPLETO (Sin filtros)";
-    else if (SINCE_DATE && UNTIL_DATE) modeText = `RANGO DE FECHAS (${SINCE_DATE} hasta ${UNTIL_DATE})`;
-    else if (SINCE_DATE) modeText = `FECHA ESPECÍFICA (Desde: ${SINCE_DATE})`;
-    else modeText = `INCREMENTAL (${DAYS_BACK} días)`;
-
-    console.log(`📅 Modo: ${modeText}`);
-    if (!FULL_SYNC) {
-        console.log(`📅 Umbral Inicio: ${threshold}`);
-        if (until) console.log(`📅 Umbral Fin: ${until}`);
-    }
-
-    const projectMap = new Map<string, string>(); // notion_id -> supabase_id
-    const projectStatusMap = new Map<string, string>(); // supabase_id -> status
-    const orderMap = new Map<string, any>(); // notion_id -> supabase_record
-    const machinesSet = new Set<string>(); // machine names
-    let stats = { projects: 0, items: 0, planning: 0, machines: 0, skipped: 0, updated: 0 };
-
-    // --- PHASE 0: LOAD CONTEXT ---
-    console.log("🔍 Cargando contexto de Supabase...");
-    let dbPage = 0;
+async function fetchAll(query: any) {
+    let all: any[] = [];
+    let from = 0;
+    const step = 1000;
     while (true) {
-        const { data } = await supabase.from("projects").select("id, notion_id, status").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
+        const { data, error } = await query.range(from, from + step - 1);
+        if (error) throw error;
         if (!data || data.length === 0) break;
-        data.forEach(p => {
-            if (p.notion_id) projectMap.set(p.notion_id, p.id);
-            projectStatusMap.set(p.id, p.status || 'unknown');
-        });
-        if (data.length < 1000) break;
-        dbPage++;
+        all = all.concat(data);
+        if (data.length < step) break;
+        from += step;
     }
-    dbPage = 0;
-    while (true) {
-        const { data } = await supabase.from("production_orders").select("*").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
-        if (!data || data.length === 0) break;
-        data.forEach(o => { if (o.notion_id) orderMap.set(o.notion_id, o); });
-        if (data.length < 1000) break;
-        dbPage++;
+    return all;
+}
+
+// --- MAIN SYNC ---
+
+async function run() {
+    // 1. Thresholds (Ajustado para GMT-6)
+    let since = moment().utcOffset("-06:00").subtract(DAYS_BACK, 'days').startOf('day').toISOString();
+    if (args.includes("--today")) {
+        since = moment().utcOffset("-06:00").startOf('day').toISOString();
     }
-    while (true) {
-        const { data } = await supabase.from("machines").select("name").range(dbPage * 1000, (dbPage + 1) * 1000 - 1);
-        if (!data || data.length === 0) break;
-        data.forEach(m => machinesSet.add(m.name));
-        if (data.length < 1000) break;
-        dbPage++;
+    if (args.find(a => a.startsWith("--since="))) {
+        since = moment(args.find(a => a.startsWith("--since="))!.split("=")[1]).utcOffset("-06:00").startOf('day').toISOString();
     }
-    console.log(`📍 Maps cargados: ${projectMap.size} Proyectos, ${orderMap.size} Partidas, ${machinesSet.size} Máquinas.`);
 
-    // --- PHASE 1: PROJECTS ---
-    if (shouldRunProjects) {
-        console.log("\n📁 Fase 1: Proyectos (Última edición)...");
-        let hasMoreP = true;
-        let cursorP: string | undefined = undefined;
-        let batchTotal = 0;
+    let until = UNTIL_DATE ? moment(UNTIL_DATE).endOf('day').toISOString() : null;
 
-        while (hasMoreP) {
-            const pFilter = buildNotionFilter("Última edición", threshold, until);
-            const resp: any = await fetchNotionBatch(PROJECTS_DB_ID, pFilter, cursorP);
-            const batch = resp.results.map((page: any) => {
-                const code = page.properties["CODIGO PROYECTO E"]?.title?.[0]?.plain_text;
-                if (!code) {
-                    console.log(`⚠️ Saltando proyecto sin código (ID: ${page.id})`);
-                    return null;
-                }
+    console.log(`\n🚀 INICIANDO SINCRONIZACIÓN OPTIMIZADA`);
+    console.log(`📅 Rango: ${moment(since).format("L")} - ${until ? moment(until).format("L") : "Ahora"}`);
+    if (FULL_SYNC) console.log(`🔥 MODO FULL SYNC ACTIVO`);
+    if (args.includes("--today")) console.log(`✨ FILTRANDO SOLO POR HOY`);
 
-                const projectData: any = {
+    // 2. Load context
+    console.log("🔍 Cargando contexto local (esto puede tardar un poco)...");
+    const projectMap = new Map<string, string>();
+    const projectStatusMap = new Map<string, string>();
+    const orderMap = new Map<string, any>();
+    const machines = new Set<string>();
+
+    const [pjs, itm, maq] = await Promise.all([
+        fetchAll(supabase.from("projects").select("id, notion_id, status")),
+        fetchAll(supabase.from("production_orders").select("id, notion_id, genral_status, image, part_code")),
+        supabase.from("machines").select("name")
+    ]);
+
+    console.log(`🔍 [DEBUG] RAW COUNT - PJS: ${pjs.length} | ITM: ${itm.length}`);
+
+    pjs?.forEach(p => { if (p.notion_id) { projectMap.set(p.notion_id, p.id); projectStatusMap.set(p.id, p.status || 'inactive'); } });
+    itm?.forEach(i => { if (i.notion_id) orderMap.set(i.notion_id, i); });
+    maq.data?.forEach(m => machines.add(m.name.trim()));
+
+    console.log(`📍 DB Local: ${projectMap.size} PJS | ${orderMap.size} ITM | ${machines.size} MAQ.`);
+
+    let stats = { pjs: 0, itm: 0, pln: 0, skp: 0 };
+
+    // PHASE 1: PROJECTS
+    if (RUN_PJ) {
+        console.log("\n📁 Fase 1: Proyectos (Propiedad: ULTIMA EDICION)...");
+        let hasMore = true, cursor: string | undefined;
+        const filter = buildFilter(since, until, "ULTIMA EDICION");
+        const sorts = [{ property: "ULTIMA EDICION", direction: "descending" }];
+        if (filter) console.log(`   📡 Filtro:`, JSON.stringify(filter));
+
+        while (hasMore) {
+            const resp: any = await queryNotion(PROJECTS_DB_ID, filter, cursor, sorts);
+            let processedInBatch = 0;
+            const batch = resp.results.map((p: any) => {
+                const modTime = p.properties["ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
+                if (!FULL_SYNC && moment(modTime).isBefore(since)) return null;
+
+                const code = p.properties["CODIGO PROYECTO E"]?.title?.[0]?.plain_text;
+                if (!code) return null;
+                processedInBatch++;
+                const data: any = {
                     code,
-                    name: page.properties["NOMBRE DE PROYECTO"]?.rich_text?.[0]?.plain_text || null,
-                    company: page.properties["01-EMPRESA."]?.select?.name || null,
-                    requestor: page.properties["SOLICITA"]?.select?.name || null,
-                    start_date: page.properties["01-FECHA DE SOLICITUD"]?.date?.start || null,
-                    delivery_date: page.properties["01-FECHA DE ENTREGA X CLIENTE"]?.date?.start || null,
-                    notion_id: page.id,
-                    last_edited_at: page.last_edited_time
+                    name: p.properties[" NOMBRE DE PROYECTO"]?.rich_text?.[0]?.plain_text || null,
+                    company: p.properties["01-EMPRESA."]?.select?.name || null,
+                    requestor: p.properties["SOLICITA"]?.select?.name || null,
+                    start_date: p.properties["01-FECHA DE SOLICITUD"]?.date?.start || null,
+                    delivery_date: p.properties["01-FECHA DE ENTREGA X CLIENTE"]?.date?.start || null,
+                    notion_id: p.id,
+                    last_edited_at: modTime,
+                    status: 'active'
                 };
 
-                // SMART STATUS: Set 'active' if new OR if current status is missing/unknown
-                const currentSupaId = projectMap.get(page.id);
-                const currentStatus = currentSupaId ? projectStatusMap.get(currentSupaId) : null;
-
-                if (!currentSupaId || !currentStatus || currentStatus === 'unknown' || currentStatus === '') {
-                    projectData.status = 'active';
+                const existingId = projectMap.get(p.id);
+                if (existingId) {
+                    data.status = projectStatusMap.get(existingId) || 'active';
+                } else {
+                    data.status = 'active';
                 }
+                return data;
+            }).filter(Boolean);
 
-                return projectData;
-            }).filter((i: any) => i !== null);
+            if (batch.length) {
+                const { data: saved } = await supabase.from("projects").upsert(batch, { onConflict: 'notion_id' }).select("id, notion_id");
+                saved?.forEach(s => projectMap.set(s.notion_id!, s.id));
+                stats.pjs += batch.length;
+                console.log(`   ✅ Batch Proyectos: +${batch.length}`);
+            }
 
-            // Deduplicate batch by notion_id
-            const uniqueBatch = Array.from(new Map(batch.map((item: any) => [item.notion_id, item])).values());
+            if (!FULL_SYNC && processedInBatch === 0 && resp.results.length > 0) {
+                console.log("   ⏹️  Fase 1: No se hallaron más modificaciones recientes en este lote. Finalizando.");
+                hasMore = false;
+            } else {
+                hasMore = resp.has_more; cursor = resp.next_cursor;
+            }
+        }
+    }
 
-            if (uniqueBatch.length > 0) {
-                console.log(`📦 Procesando batch de ${uniqueBatch.length} proyectos...`);
-                uniqueBatch.forEach((p: any) => console.log(`   - [${p.code}] ${p.name}${!projectMap.has(p.notion_id) ? " (NUEVO)" : ""}`));
+    // PHASE 2: ITEMS (Partidas)
+    if (RUN_IT) {
+        console.log("\n📦 Fase 2: Partidas (Propiedad: ZAUX-FECHA ULTIMA EDICION)...");
+        let hasMore = true, cursor: string | undefined;
+        const filter = buildFilter(since, until, "ZAUX-FECHA ULTIMA EDICION");
+        const sorts = [{ property: "ZAUX-FECHA ULTIMA EDICION", direction: "descending" }];
+        if (filter) console.log(`   📡 Filtro:`, JSON.stringify(filter));
 
-                const { data, error } = await supabase.from("projects").upsert(uniqueBatch as any[], { onConflict: 'notion_id' }).select("id, notion_id");
+        while (hasMore) {
+            try {
+                const resp: any = await queryNotion(ITEMS_DB_ID, filter, cursor, sorts);
+                const batch = [];
+                let processedInBatch = 0;
 
-                if (error) {
-                    console.error(`❌ Error en batch de Proyectos: ${error.message} (Code: ${error.code})`);
-                    console.log("⚠️ Intentando inserción uno por uno para detectar y aislar el conflicto...");
+                if (!resp.results || resp.results.length === 0) break;
 
-                    for (const item of uniqueBatch) {
-                        const p = item as any;
-                        const { data: singleData, error: singleError } = await supabase.from("projects").upsert(p, { onConflict: 'notion_id' }).select("id, notion_id");
+                for (const p of resp.results) {
+                    const modTime = p.properties["ZAUX-FECHA ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
 
-                        if (singleError) {
-                            console.error(`   ❌ FALLÓ PROYECTO [${p.code}] "${p.name}":`);
-                            console.error(`      Error: ${singleError.message}`);
-                            console.error(`      Notion ID: ${p.notion_id}`);
-                        } else {
-                            if (singleData && singleData[0]) {
-                                projectMap.set(singleData[0].notion_id!, singleData[0].id);
-                                if (p.status) projectStatusMap.set(singleData[0].id, p.status);
-                                stats.projects++;
-                                batchTotal++;
-                                // console.log(`      ✅ Recuperado: [${p.code}]`);
+                    if (!FULL_SYNC && moment(modTime).isBefore(since)) {
+                        continue;
+                    }
+
+                    processedInBatch++;
+                    const props = p.properties;
+                    const code = props["01-CODIGO PIEZA"]?.title?.[0]?.plain_text || "S/N";
+                    const rel = props["01-BDCODIGO P E PRO"]?.relation?.[0]?.id || props["01- BDCODIGO P E PRO"]?.relation?.[0]?.id;
+
+                    if (!rel) {
+                        console.log(`   ❌ Item ${code}: Relación faltante.`);
+                        stats.skp++;
+                        continue;
+                    }
+
+                    let sPjId = projectMap.get(rel);
+                    if (!sPjId) {
+                        console.log(`   🔍 [${code}] Proyecto faltante en DB. Recuperando de Notion...`);
+                        try {
+                            const pPage: any = await getNotionPage(rel);
+                            const pCode = pPage.properties["CODIGO PROYECTO E"]?.title?.[0]?.plain_text;
+                            if (pCode) {
+                                const { data: newP } = await supabase.from("projects").upsert({
+                                    code: pCode,
+                                    name: pPage.properties["NOMBRE DE PROYECTO"]?.rich_text?.[0]?.plain_text || null,
+                                    company: pPage.properties["01-EMPRESA."]?.select?.name || null,
+                                    requestor: pPage.properties["SOLICITA"]?.select?.name || null,
+                                    start_date: pPage.properties["01-FECHA DE SOLICITUD"]?.date?.start || null,
+                                    delivery_date: pPage.properties["01-FECHA DE ENTREGA X CLIENTE"]?.date?.start || null,
+                                    notion_id: pPage.id,
+                                    last_edited_at: pPage.last_edited_time,
+                                    status: 'active'
+                                }, { onConflict: 'notion_id' }).select("id").single();
+                                if (newP) { sPjId = newP.id; projectMap.set(rel, sPjId); stats.pjs++; }
                             }
+                        } catch { console.log(`   ❌ No se pudo recuperar proyecto ${rel}`); }
+                    }
+
+                    if (!sPjId) {
+                        console.log(`   ❌ [${code}] Partida omitida: Proyecto relacionado (${rel}) no encontrado/recuperado.`);
+                        stats.skp++;
+                        continue;
+                    }
+
+                    const genStatus = props["06-ESTATUS GENERAL"]?.select?.name || "";
+                    const isDone = genStatus.startsWith("D7") || genStatus.startsWith("D8") || genStatus.includes("CANCELAD");
+
+                    // Reactive activation
+                    if (!isDone && projectStatusMap.get(sPjId) !== 'active') {
+                        await supabase.from("projects").update({ status: 'active' }).eq("id", sPjId);
+                        projectStatusMap.set(sPjId, 'active');
+                    }
+
+                    const existing = orderMap.get(p.id);
+                    const files = props["07-A MOSTRAR"]?.files;
+                    let img = existing?.image || null;
+                    if (!img && files?.length) {
+                        const url = files[0].file?.url || files[0].external?.url;
+                        if (url) {
+                            img = await syncImage(p.id, url);
+                            if (img) process.stdout.write(".");
                         }
                     }
+
+                    const data = {
+                        part_code: code,
+                        part_name: props["01-NOMBRE DE LA PIEZA"]?.rich_text?.[0]?.plain_text || null,
+                        genral_status: genStatus || null,
+                        material: props["01-MATERIAL PIEZA"]?.select?.name || null,
+                        material_confirmation: props["06-CONFIRMACION O CAMBIO DE MATERIAL"]?.select?.name || null,
+                        quantity: props["01-CANTIDAD F.*"]?.number || 0,
+                        project_id: sPjId,
+                        notion_id: p.id,
+                        last_edited_at: modTime,
+                        image: img,
+                        treatment: props["06-ESPECIFICACION DE TRATAMIENTO"]?.select?.name || null,
+                        model_url: props["07-URL 3D"]?.url || null,
+                        drawing_url: props["01-URL PLANO"]?.url || null,
+                        design_no: props["01-No. DISEÑO"]?.rich_text?.[0]?.plain_text || null
+                    };
+
+                    batch.push(data);
+                }
+
+                if (batch.length) {
+                    const { error } = await supabase.from("production_orders").upsert(batch, { onConflict: 'notion_id' });
+                    if (error) console.log(`   ❌ Error upsert partidas: ${error.message}`);
+                    else {
+                        stats.itm += batch.length;
+                        process.stdout.write(`   🚀 Batch Partidas: +${batch.length}\n`);
+                    }
+                }
+
+                if (!FULL_SYNC && processedInBatch === 0) {
+                    console.log("   ⏹️  Fase 2: No se hallaron más modificaciones recientes. Finalizando.");
+                    hasMore = false;
                 } else {
-                    data?.forEach(p => {
-                        projectMap.set(p.notion_id!, p.id);
-                        const matchedItem = uniqueBatch.find((b: any) => b.notion_id === p.notion_id) as any;
-                        if (matchedItem?.status) {
-                            projectStatusMap.set(p.id, matchedItem.status);
-                        }
+                    hasMore = resp.has_more; cursor = resp.next_cursor;
+                }
+            } catch (e: any) {
+                console.error(`   ❌ Error crítico en lote de Partidas: ${e.message}`);
+                break;
+            }
+        }
+    }
+
+    // PHASE 3: PLANNING
+    if (RUN_PL) {
+        console.log("\n📅 Fase 3: Planeación (Propiedad: FECHA ULTIMA EDICION)...");
+        let hasMore = true, cursor: string | undefined;
+        const filter = buildFilter(since, until, "FECHA ULTIMA EDICION");
+        const sorts = [{ property: "FECHA ULTIMA EDICION", direction: "descending" }];
+        if (filter) console.log(`   📡 Filtro:`, JSON.stringify(filter));
+
+        while (hasMore) {
+            try {
+                const resp: any = await queryNotion(PLANNING_DB_ID, filter, cursor, sorts);
+                const batch = [];
+                let processedInBatch = 0;
+
+                if (!resp.results || resp.results.length === 0) break;
+
+                for (const p of resp.results) {
+                    const modTime = p.properties["FECHA ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
+
+                    if (!FULL_SYNC && moment(modTime).isBefore(since)) continue;
+
+                    processedInBatch++;
+                    const props = p.properties;
+                    const rel = props["PARTIDA"]?.relation?.[0]?.id;
+                    if (!rel) { stats.skp++; continue; }
+
+                    const oId = typeof orderMap.get(rel) === 'object' ? orderMap.get(rel)?.id : orderMap.get(rel);
+                    if (!oId) { stats.skp++; continue; }
+
+                    const date = props["FECHA PLANEADA"]?.date;
+                    const machine = props["MAQUINA"]?.select?.name?.trim();
+
+                    if (machine && !machines.has(machine)) {
+                        await supabase.from("machines").upsert({ name: machine }, { onConflict: 'name' });
+                        machines.add(machine);
+                    }
+
+                    batch.push({
+                        register: props["N"]?.title?.[0]?.plain_text || null,
+                        machine: machine || null,
+                        operator: props["OPERADOR"]?.select?.name || null,
+                        planned_date: formatTime(date?.start),
+                        planned_end: formatTime(date?.end),
+                        check_in: formatTime(props["CHECK IN"]?.date?.start),
+                        check_out: formatTime(props["CHECK OUT"]?.date?.start),
+                        order_id: oId,
+                        notion_id: p.id,
+                        last_edited_at: modTime
                     });
-                    stats.projects += uniqueBatch.length;
-                    batchTotal += uniqueBatch.length;
                 }
+
+                if (batch.length) {
+                    await supabase.from("planning").upsert(batch, { onConflict: 'notion_id' });
+                    stats.pln += batch.length;
+                    console.log(`   🚀 Batch Planeación: +${batch.length}`);
+                }
+
+                if (!FULL_SYNC && processedInBatch === 0) {
+                    console.log("   ⏹️  Fase 3: No se hallaron más modificaciones recientes. Finalizando.");
+                    hasMore = false;
+                } else {
+                    hasMore = resp.has_more; cursor = resp.next_cursor;
+                }
+            } catch (e: any) {
+                console.error(`   ❌ Error crítico en lote de Planeación: ${e.message}`);
+                break;
             }
-            hasMoreP = resp.has_more; cursorP = resp.next_cursor;
         }
-        console.log(`✅ Total Proyectos procesados en esta ventana: ${batchTotal}`);
     }
 
-    // --- PHASE 2: PARTIDAS ---
-    if (shouldRunItems) {
-        console.log("\n📦 Fase 2: Partidas (ZAUX-FECHA ULTIMA EDICION)...");
-        let hasMoreI = true;
-        let cursorI: string | undefined = undefined;
-        let batchTotal = 0;
+    // PHASE 4: RECOVERY & CONSISTENCY
+    console.log("\n🔄 Fase 4: Consistencia de Estados...");
+    try {
+        const { data: active } = await supabase.from("production_orders")
+            .select("project_id")
+            .not("genral_status", "ilike", "D7%")
+            .not("genral_status", "ilike", "D8%")
+            .not("genral_status", "ilike", "%CANCELAD%");
 
-        while (hasMoreI) {
-            const iFilter = buildNotionFilter("ZAUX-FECHA ULTIMA EDICION", threshold, until);
-            const resp: any = await fetchNotionBatch(ITEMS_DB_ID, iFilter, cursorI);
-            const batch = await Promise.all(resp.results.map(async (page: any) => {
-                const props = page.properties;
-                const partCode = props["01-CODIGO PIEZA"]?.title?.[0]?.plain_text || "S/N";
-                const partName = props["01-NOMBRE DE LA PIEZA"]?.rich_text?.[0]?.plain_text || "Sin Nombre";
-
-                const rel = props["01- BDCODIGO P E PRO"]?.relation;
-                if (!rel || rel.length === 0) {
-                    console.log(`   ⚠️ [${partCode}] Saltada: No tiene relación con Proyecto en Notion.`);
-                    stats.skipped++; return null;
-                }
-
-                const sId = projectMap.get(rel[0].id);
-                if (!sId) {
-                    console.log(`   ⚠️ [${partCode}] Saltada: El proyecto relacionado (${rel[0].id}) NO existe en Supabase.`);
-                    stats.skipped++; return null;
-                }
-
-                // REACTIVE STATUS LOGIC
-                const genStatusStr = props["06-ESTATUS GENERAL"]?.select?.name || "";
-                const isFinalState = genStatusStr.toUpperCase().startsWith("D") || genStatusStr.toUpperCase().includes("CANCELAD");
-                const currentPStatus = projectStatusMap.get(sId);
-
-                if (!isFinalState && currentPStatus !== 'active') {
-                    console.log(`   🔄 [${partCode}] RE-ACTIVANDO proyecto padre motivado por esta partida pendiente.`);
-                    await supabase.from("projects").update({ status: 'active' }).eq("id", sId);
-                    projectStatusMap.set(sId, 'active'); // Update local map
-                }
-
-                const existingRecord = orderMap.get(page.id);
-
-                let finalImageUrl: string | null = existingRecord?.image || null;
-                const imageProp = props["07-A MOSTRAR"]?.files;
-                if (!finalImageUrl && imageProp && imageProp.length > 0) {
-                    const notionImgUrl = imageProp[0].file?.url || imageProp[0].external?.url;
-                    if (notionImgUrl) {
-                        finalImageUrl = await syncNotionImage(page.id, notionImgUrl);
-                        if (finalImageUrl) process.stdout.write(".");
-                    }
-                }
-
-                const notionData = {
-                    part_code: props["01-CODIGO PIEZA"]?.title?.[0]?.plain_text || "S/N",
-                    part_name: props["01-NOMBRE DE LA PIEZA"]?.rich_text?.[0]?.plain_text || null,
-                    genral_status: props["06-ESTATUS GENERAL"]?.select?.name || null,
-                    material: props["01-MATERIAL PIEZA"]?.select?.name || null,
-                    material_confirmation: props["06-CONFIRMACION O CAMBIO DE MATERIAL"]?.select?.name || null,
-                    quantity: props["01-CANTIDAD F.*"]?.number || 0,
-                    project_id: sId,
-                    notion_id: page.id,
-                    last_edited_at: page.last_edited_time,
-                    image: finalImageUrl,
-                    treatment: props["06-ESPECIFICACION DE TRATAMIENTO"]?.select?.name || null,
-                    model_url: props["07-URL 3D"]?.url || null,
-                    drawing_url: props["01-URL PLANO"]?.url || null,
-                    design_no: props["01-No. DISEÑO"]?.rich_text?.[0]?.plain_text || null
-                };
-
-                // SMART SYNC: Only update if anything changed or if fields were null
-                if (existingRecord) {
-                    const hasChanged =
-                        notionData.part_code !== existingRecord.part_code ||
-                        notionData.part_name !== existingRecord.part_name ||
-                        notionData.genral_status !== existingRecord.genral_status ||
-                        notionData.material !== existingRecord.material ||
-                        notionData.material_confirmation !== existingRecord.material_confirmation ||
-                        notionData.quantity !== existingRecord.quantity ||
-                        notionData.treatment !== existingRecord.treatment ||
-                        notionData.model_url !== existingRecord.model_url ||
-                        notionData.drawing_url !== existingRecord.drawing_url ||
-                        notionData.design_no !== existingRecord.design_no ||
-                        notionData.image !== existingRecord.image;
-
-                    if (!hasChanged) return null;
-                }
-
-                return notionData;
-            }));
-            const clean = batch.filter(i => i !== null) as any[];
-            if (clean.length > 0) {
-                // Deduplicate by notion_id
-                const uniqueBatch = Array.from(new Map(clean.map((item: any) => [item.notion_id, item])).values());
-
-                const { data, error } = await supabase.from("production_orders").upsert(uniqueBatch as any[], { onConflict: 'notion_id' }).select("id, notion_id");
-
-                if (error) {
-                    console.error(`❌ Error en batch de Partidas: ${error.message}`);
-                    console.log("⚠️ Intentando inserción uno por uno...");
-                    for (const item of uniqueBatch) {
-                        const i = item as any;
-                        const { data: sData, error: sError } = await supabase.from("production_orders").upsert(i, { onConflict: 'notion_id' }).select("id, notion_id");
-                        if (sError) {
-                            console.error(`   ❌ FALLÓ PARTIDA [${i.part_code}]: ${sError.message}`);
-                        } else if (sData && sData[0]) {
-                            orderMap.set(sData[0].notion_id!, sData[0].id);
-                            stats.items++;
-                            batchTotal++;
-                        }
-                    }
-                } else {
-                    data?.forEach(o => orderMap.set(o.notion_id!, o.id));
-                    stats.items += uniqueBatch.length;
-                    batchTotal += uniqueBatch.length;
-                    console.log(`🚀 Partidas sincronizadas en este batch: +${uniqueBatch.length}`);
-                }
-            }
-            hasMoreI = resp.has_more; cursorI = resp.next_cursor;
+        if (active?.length) {
+            const ids = Array.from(new Set(active.map(a => a.project_id).filter(Boolean))) as string[];
+            console.log(`   📋 ${ids.length} Proyectos con partidas activas hallados.`);
+            await supabase.from("projects").update({ status: 'active' }).in("id", ids).neq("status", "active");
+            process.stdout.write("   ✅ Estados de proyectos sincronizados.\n");
         }
-        console.log(`✅ Total Partidas procesadas en esta ventana: ${batchTotal}`);
-    }
-
-    // --- PHASE 3: PLANEACIÓN ---
-    if (shouldRunPlanning) {
-        console.log("\n📅 Fase 3: Planeación (FECHA ULTIMA EDICION)...");
-        let hasMorePl = true;
-        let cursorPl: string | undefined = undefined;
-        while (hasMorePl) {
-            const plFilter = buildNotionFilter("FECHA ULTIMA EDICION", threshold, until);
-            const resp: any = await fetchNotionBatch(PLANNING_DB_ID, plFilter, cursorPl);
-            const batch = resp.results.map((page: any) => {
-                const props = page.properties;
-                const rel = props["PARTIDA"]?.relation;
-                if (!rel || rel.length === 0) { stats.skipped++; return null; }
-                const oId = orderMap.get(rel[0].id);
-                if (!oId) { stats.skipped++; return null; }
-
-                const plannedDate = props["FECHA PLANEADA"]?.date;
-
-                return {
-                    register: props["N"]?.title?.[0]?.plain_text || null,
-                    machine: props["MAQUINA"]?.select?.name || null,
-                    operator: props["OPERADOR"]?.select?.name || null,
-                    planned_date: formatNotionDate(plannedDate?.start),
-                    planned_end: formatNotionDate(plannedDate?.end),
-                    check_in: formatNotionDate(props["CHECK IN"]?.date?.start),
-                    check_out: formatNotionDate(props["CHECK OUT"]?.date?.start),
-                    order_id: oId,
-                    notion_id: page.id,
-                    last_edited_at: page.last_edited_time
-                };
-            }).filter((i: any) => i !== null);
-
-            if (batch.length > 0) {
-                // Deduplicate by notion_id
-                const uniqueBatch = Array.from(new Map(batch.map((item: any) => [item.notion_id, item])).values());
-
-                const { error } = await supabase.from("planning").upsert(uniqueBatch as any[], { onConflict: 'notion_id' });
-
-                if (error) {
-                    console.error(`❌ Error en batch de Planeación: ${error.message}`);
-                    console.log("⚠️ Intentando inserción uno por uno...");
-                    for (const item of uniqueBatch) {
-                        const pl = item as any;
-                        const { error: sError } = await supabase.from("planning").upsert(pl, { onConflict: 'notion_id' });
-                        if (sError) {
-                            console.error(`   ❌ FALLÓ REGISTRO PLANEACIÓN [${pl.register || 'S/N'}]: ${sError.message}`);
-                        } else {
-                            stats.planning++;
-                        }
-                    }
-                } else {
-                    stats.planning += uniqueBatch.length;
-                    console.log(`🚀 Planeación: +${uniqueBatch.length}`);
-
-                    // Collect new machines
-                    const newMachines = uniqueBatch
-                        .map((p: any) => p.machine)
-                        .filter((m): m is string => !!m && !machinesSet.has(m));
-
-                    if (newMachines.length > 0) {
-                        const uniqueNew = Array.from(new Set(newMachines));
-                        console.log(`✨ Registrando ${uniqueNew.length} máquinas nuevas: ${uniqueNew.join(", ")}`);
-                        const { error: mError } = await supabase
-                            .from("machines")
-                            .insert(uniqueNew.map(name => ({ name })));
-
-                        if (!mError) {
-                            uniqueNew.forEach(name => machinesSet.add(name));
-                            stats.machines += uniqueNew.length;
-                        }
-                    }
-                }
-            }
-            hasMorePl = resp.has_more; cursorPl = resp.next_cursor;
-        }
+    } catch (e: any) {
+        console.error(`   ❌ Error en consistencia: ${e.message}`);
     }
 
     console.log(`\n✨ SINCRONIZACIÓN FINALIZADA`);
-    console.log(`📊 PJS: ${stats.projects} | ITM: ${stats.items} | PLN: ${stats.planning} | MAQ: ${stats.machines} | SKP: ${stats.skipped}`);
+    console.log(`📊 PJS: ${stats.pjs} | ITM: ${stats.itm} | PLN: ${stats.pln} | SKP: ${stats.skp}`);
 }
 
-runSync().catch(console.error);
+run().catch(e => {
+    console.error(`\n💀 ERROR FATAL: ${e.message}`);
+    process.exit(1);
+});

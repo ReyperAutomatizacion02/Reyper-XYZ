@@ -204,3 +204,111 @@ export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) 
     revalidatePath("/dashboard/produccion");
     revalidatePath("/dashboard/produccion/planeacion");
 }
+
+// ===== SCENARIO MANAGEMENT =====
+
+export async function fetchScenarios() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // Auto-cleanup: delete scenarios older than 7 days
+    const sevenDaysAgo = moment().subtract(7, 'days').toISOString();
+    await (supabase.from("planning_scenarios" as any) as any)
+        .delete()
+        .lt('created_at', sevenDaysAgo);
+
+    // Fetch remaining scenarios
+    const { data, error } = await (supabase.from("planning_scenarios" as any) as any)
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        logger.error("Error fetching scenarios", error);
+        throw new Error("Failed to fetch scenarios");
+    }
+
+    return data || [];
+}
+
+export async function saveScenario(scenario: {
+    name: string;
+    strategy: string;
+    config: any;
+    tasks: any[];
+    skipped: any[];
+    metrics: any;
+}) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data, error } = await (supabase.from("planning_scenarios" as any) as any)
+        .insert({
+            name: scenario.name,
+            strategy: scenario.strategy,
+            config: scenario.config,
+            tasks: scenario.tasks,
+            skipped: scenario.skipped,
+            metrics: scenario.metrics,
+            created_by: user?.id || null,
+        })
+        .select()
+        .single();
+
+    if (error) {
+        logger.error("Error saving scenario", error);
+        throw new Error("Failed to save scenario");
+    }
+
+    return data;
+}
+
+export async function deleteScenario(scenarioId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await (supabase.from("planning_scenarios" as any) as any)
+        .delete()
+        .eq('id', scenarioId);
+
+    if (error) {
+        logger.error("Error deleting scenario", error);
+        throw new Error("Failed to delete scenario");
+    }
+}
+
+export async function markScenarioApplied(scenarioId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await (supabase.from("planning_scenarios" as any) as any)
+        .update({ applied_at: new Date().toISOString() })
+        .eq("id", scenarioId);
+
+    if (error) {
+        logger.error("Error marking scenario applied", error);
+        throw new Error("Failed to mark scenario as applied");
+    }
+
+    revalidatePath("/dashboard/produccion");
+}
+
+// ===== TASK LOCKING =====
+
+export async function toggleTaskLocked(taskId: string, locked: boolean) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await (supabase.from("planning" as any) as any)
+        .update({ locked })
+        .eq("id", taskId);
+
+    if (error) {
+        logger.error("Error toggling task lock", error);
+        throw new Error("Failed to toggle task lock");
+    }
+
+    revalidatePath("/dashboard/produccion");
+}

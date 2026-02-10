@@ -15,6 +15,39 @@ export interface SchedulingResult {
         order: Order;
         reason: string;
     }[];
+    metrics: ScenarioMetrics;
+}
+
+export interface ScenarioMetrics {
+    totalOrders: number;
+    totalTasks: number;
+    totalHours: number;
+    lateOrders: number;
+    avgLeadTimeDays: number;
+    machineUtilization: Record<string, number>; // machine: hours
+}
+
+export interface SavedScenario {
+    id: string;
+    name: string;
+    strategy: string;
+    config: StrategyConfig;
+    tasks: Partial<PlanningTask>[];
+    skipped: { order: Order; reason: string }[];
+    metrics: ScenarioMetrics;
+    created_by: string | null;
+    created_at: string;
+    applied_at: string | null;
+}
+
+export type SchedulingStrategy = "DELIVERY_DATE" | "FAB_TIME" | "FAST_TRACK" | "TREATMENTS" | "CRITICAL_PATH" | "PROJECT_GROUP" | "MATERIAL_OPTIMIZATION";
+
+export interface StrategyConfig {
+    mainStrategy: SchedulingStrategy;
+    onlyWithCAD: boolean;
+    onlyWithBlueprint: boolean;
+    onlyWithMaterial: boolean;
+    requireTreatment: boolean;
 }
 
 export type PriorityLevel = "CRITICAL" | "SOON" | "NORMAL" | "PLENTY";
@@ -76,32 +109,92 @@ export function compareOrdersByPriority(a: Order, b: Order): number {
 }
 
 /**
- * Filter and sort orders for scheduling.
+ * Filter and sort orders for scheduling based on a specific strategy.
  */
-export function prepareOrdersForScheduling(orders: Order[]): Order[] {
+export function prepareOrdersForScheduling(orders: Order[], config: StrategyConfig): Order[] {
     return (orders as any[])
         .filter(order => {
             // Must have evaluation
             const evalData = order.evaluation as any;
             if (!evalData || !Array.isArray(evalData) || evalData.length === 0) {
-                // console.log(`[AutoPlan] Rejected ${order.part_code}: No evaluation`);
                 return false;
             }
-            // Accepted regardless of incomplete fields (will represent lower priority)
-            console.log(`[AutoPlan] Accepted ${order.part_code} for ranking.`);
+
+            // CAD Ready filter (3D Model)
+            if (config.onlyWithCAD) {
+                const hasCAD = !!order.drive_file_id || !!(order as any).projects?.drive_folder_id;
+                if (!hasCAD) return false;
+            }
+
+            // Blueprint Ready filter (Plano)
+            if (config.onlyWithBlueprint) {
+                // For now assuming drive_file_id exists means blueprint is linked
+                const hasBlueprint = !!order.drive_file_id;
+                if (!hasBlueprint) return false;
+            }
+
+            // Material Ready filter
+            if (config.onlyWithMaterial) {
+                if (order.genral_status !== 'A8-MATERIAL DISPONIBLE') return false;
+            }
+
+            // Requires Treatment filter
+            if (config.requireTreatment) {
+                const hasTreatment = order.treatment && order.treatment !== "" && order.treatment !== "N/A";
+                if (!hasTreatment) return false;
+            }
+
             return true;
         })
-        .sort(compareOrdersByPriority);
+        .sort((a, b) => {
+            const getHours = (o: any) => (o.evaluation as any[]).reduce((sum, s) => sum + (s.hours || 0), 0);
+
+            switch (config.mainStrategy) {
+                case "FAB_TIME":
+                    return getHours(b) - getHours(a); // Longest first
+
+                case "FAST_TRACK":
+                    return getHours(a) - getHours(b); // Shortest first
+
+                case "CRITICAL_PATH": {
+                    const hasTreatA = a.treatment && a.treatment !== "" && a.treatment !== "N/A" ? 0 : 1;
+                    const hasTreatB = b.treatment && b.treatment !== "" && b.treatment !== "N/A" ? 0 : 1;
+                    if (hasTreatA !== hasTreatB) return hasTreatA - hasTreatB;
+                    return compareOrdersByPriority(a, b);
+                }
+
+                case "PROJECT_GROUP": {
+                    const projA = a.project_id || "";
+                    const projB = b.project_id || "";
+                    if (projA !== projB) return projA.localeCompare(projB);
+                    return compareOrdersByPriority(a, b);
+                }
+
+                case "MATERIAL_OPTIMIZATION": {
+                    const matA = a.material || "";
+                    const matB = b.material || "";
+                    if (matA !== matB) return matA.localeCompare(matB);
+                    return compareOrdersByPriority(a, b);
+                }
+
+                case "TREATMENTS": {
+                    const treatA = a.treatment || "";
+                    const treatB = b.treatment || "";
+                    return treatA.localeCompare(treatB);
+                }
+
+                case "DELIVERY_DATE":
+                default:
+                    return compareOrdersByPriority(a, b);
+            }
+        });
 }
 
-/**
- * Finds the next available slot for a machine after a certain date.
- */
 /**
  * Moves a date to the next valid working minute.
  * Work Hours: Mon-Sat, 06:00 - 22:00.
  */
-function getNextValidWorkTime(date: moment.Moment): moment.Moment {
+export function getNextValidWorkTime(date: moment.Moment): moment.Moment {
     let current = moment(date);
 
     // Loop until valid
@@ -150,10 +243,17 @@ function snapToNext15Minutes(date: moment.Moment): moment.Moment {
 export function generateAutomatedPlanning(
     orders: Order[],
     existingTasks: PlanningTask[],
-    machines: string[]
+    machines: string[],
+    config: StrategyConfig = {
+        mainStrategy: "DELIVERY_DATE",
+        onlyWithCAD: false,
+        onlyWithBlueprint: false,
+        onlyWithMaterial: false,
+        requireTreatment: false
+    }
 ): SchedulingResult {
-    console.log("[AutoPlan] Starting with", orders.length, "orders and", existingTasks.length, "tasks.");
-    const preparedOrders = prepareOrdersForScheduling(orders);
+    console.log("[AutoPlan] Starting with", orders.length, "orders, strategy:", config.mainStrategy);
+    const preparedOrders = prepareOrdersForScheduling(orders, config);
     console.log("[AutoPlan] Prepared orders:", preparedOrders.length);
 
     const draftTasks: any[] = [];
@@ -181,9 +281,7 @@ export function generateAutomatedPlanning(
         let pieceSkipped = false;
 
         for (const step of evaluation) {
-            console.log(`[AutoPlan] Check Step: Order ${(order as any).part_code}, Machine ${step.machine}, Hours ${step.hours}`);
             if (!machines.includes(step.machine)) {
-                console.warn(`[AutoPlan] Unknown machine: ${step.machine}`);
                 skipped.push({ order, reason: `Máquina desconocida: ${step.machine}` });
                 pieceSkipped = true;
                 break;
@@ -202,7 +300,6 @@ export function generateAutomatedPlanning(
             }, 0);
 
             let remainingHours = step.hours - totalPlannedHours;
-            console.log(`[AutoPlan] Order: ${(order as any).part_code}, Machine: ${step.machine}, StepHours: ${step.hours}, Planned: ${totalPlannedHours}, Remaining: ${remainingHours}`);
 
             // If we have existing tasks, ensure new planning starts AFTER them
             if (relatedTasks.length > 0) {
@@ -232,7 +329,6 @@ export function generateAutomatedPlanning(
                 const shiftEnd = moment(currentSearchStart).hour(22).minute(0).second(0);
 
                 // 3. Calculate max available time in this shift
-                // If for some reason searchStart > shiftEnd (bug), getNextValidWorkTime would have moved it.
                 const hoursInShift = shiftEnd.diff(currentSearchStart, 'hours', true);
 
                 // If hardly any time left (< 15 mins), just skip to next day
@@ -294,8 +390,174 @@ export function generateAutomatedPlanning(
         }
     }
 
+    // Calculate Metrics
+    const metrics: ScenarioMetrics = {
+        totalOrders: preparedOrders.length,
+        totalTasks: draftTasks.length,
+        totalHours: draftTasks.reduce((sum, t) => {
+            const start = moment(t.planned_date);
+            const end = moment(t.planned_end);
+            return sum + end.diff(start, 'hours', true);
+        }, 0),
+        lateOrders: 0,
+        avgLeadTimeDays: 0,
+        machineUtilization: {}
+    };
+
+    // Calculate lateness and lead time
+    let totalLeadTimeMs = 0;
+    preparedOrders.forEach(order => {
+        const orderTasks = draftTasks.filter(t => t.order_id === order.id);
+        if (orderTasks.length === 0) return;
+
+        const lastTaskEnd = orderTasks.reduce((max, t) => {
+            const end = moment(t.planned_end);
+            return end.isAfter(max) ? end : max;
+        }, moment(0));
+
+        const deliveryDate = (order as any).delivery_date || (order as any).projects?.delivery_date;
+        if (deliveryDate && lastTaskEnd.isAfter(moment(deliveryDate))) {
+            metrics.lateOrders++;
+        }
+
+        const start = moment(order.created_at);
+        totalLeadTimeMs += lastTaskEnd.diff(start);
+    });
+
+    if (metrics.totalOrders > 0) {
+        metrics.avgLeadTimeDays = totalLeadTimeMs / metrics.totalOrders / (1000 * 60 * 60 * 24);
+    }
+
+    // Machine Utilization
+    machines.forEach(m => {
+        metrics.machineUtilization[m] = draftTasks
+            .filter(t => t.machine === m)
+            .reduce((sum, t) => sum + moment(t.planned_end).diff(moment(t.planned_date), 'hours', true), 0);
+    });
+
     return {
         tasks: draftTasks,
-        skipped
+        skipped,
+        metrics
     };
+}
+
+/**
+ * Shifts all tasks in a scenario by a given number of work days.
+ * Positive = forward, negative = backward.
+ * Respects work hours (Mon-Sat 06:00-22:00) and avoids collisions.
+ */
+export function shiftScenarioTasks(
+    scenarioTasks: Partial<PlanningTask>[],
+    offsetDays: number,
+    existingTasks: PlanningTask[],
+    machines: string[]
+): Partial<PlanningTask>[] {
+    if (offsetDays === 0 || scenarioTasks.length === 0) return scenarioTasks;
+
+    // Calculate the offset: find earliest task start and shift it by N work days
+    const starts = scenarioTasks
+        .filter(t => t.planned_date)
+        .map(t => moment(t.planned_date));
+
+    if (starts.length === 0) return scenarioTasks;
+
+    const earliestStart = moment.min(starts);
+
+    // Calculate the target start by adding/subtracting work days
+    let targetStart = moment(earliestStart);
+    let daysToMove = Math.abs(offsetDays);
+    const direction = offsetDays > 0 ? 1 : -1;
+
+    while (daysToMove > 0) {
+        targetStart.add(direction, 'day');
+        // Skip Sundays
+        if (targetStart.day() !== 0) {
+            daysToMove--;
+        }
+    }
+
+    // Ensure target is within work hours
+    targetStart = getNextValidWorkTime(targetStart.hour(6).minute(0).second(0));
+
+    // Calculate the offset in milliseconds
+    const offsetMs = targetStart.valueOf() - earliestStart.valueOf();
+
+    // Build collision map from existing (non-draft) tasks
+    const existingTasksMap = existingTasks
+        .filter(t => !(t as any).isDraft)
+        .map(t => ({
+            machine: t.machine,
+            startMs: moment(t.planned_date).valueOf(),
+            endMs: moment(t.planned_end).valueOf()
+        }));
+
+    // Shift each task
+    return scenarioTasks.map(task => {
+        if (!task.planned_date || !task.planned_end) return task;
+
+        let newStart = getNextValidWorkTime(moment(task.planned_date).add(offsetMs, 'ms'));
+        const duration = moment(task.planned_end).diff(moment(task.planned_date), 'minutes');
+
+        // Calculate new end respecting work hours
+        let remaining = duration;
+        let cursor = moment(newStart);
+
+        while (remaining > 0) {
+            cursor = getNextValidWorkTime(cursor);
+            const shiftEnd = moment(cursor).hour(22).minute(0).second(0);
+            const availableMinutes = shiftEnd.diff(cursor, 'minutes');
+
+            if (availableMinutes <= 0) {
+                cursor.add(1, 'day').startOf('day').hour(6);
+                continue;
+            }
+
+            const segmentMinutes = Math.min(remaining, availableMinutes);
+            remaining -= segmentMinutes;
+
+            if (remaining > 0) {
+                cursor = moment(shiftEnd);
+            } else {
+                cursor = moment(cursor).add(segmentMinutes, 'minutes');
+            }
+        }
+
+        const newEnd = cursor;
+
+        // Check for collisions and nudge forward if needed
+        const collision = existingTasksMap.find(t =>
+            t.machine === task.machine &&
+            t.startMs < newEnd.valueOf() &&
+            t.endMs > newStart.valueOf()
+        );
+
+        if (collision) {
+            // Nudge start past the collision
+            newStart = getNextValidWorkTime(moment(collision.endMs));
+            // Recalculate end from new start
+            let rem = duration;
+            let c = moment(newStart);
+            while (rem > 0) {
+                c = getNextValidWorkTime(c);
+                const se = moment(c).hour(22).minute(0).second(0);
+                const avail = se.diff(c, 'minutes');
+                if (avail <= 0) { c.add(1, 'day').startOf('day').hour(6); continue; }
+                const seg = Math.min(rem, avail);
+                rem -= seg;
+                c = rem > 0 ? moment(se) : moment(c).add(seg, 'minutes');
+            }
+            return {
+                ...task,
+                planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
+                planned_end: c.format('YYYY-MM-DDTHH:mm:ss'),
+            };
+        }
+
+        return {
+            ...task,
+            planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
+            planned_end: newEnd.format('YYYY-MM-DDTHH:mm:ss'),
+        };
+    });
 }

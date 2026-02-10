@@ -15,7 +15,7 @@ type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
     production_orders: Order | null;
 };
 
-interface GanttSVGProps {
+export interface GanttSVGProps {
     initialMachines: Machine[];
     initialOrders: Order[];
     // initialTasks: PlanningTask[]; // Removed
@@ -33,8 +33,11 @@ interface GanttSVGProps {
     readOnly?: boolean;
     onTaskDoubleClick?: (task: PlanningTask) => void;
     hideDateNavigation?: boolean;
+    hideEmptyMachines?: boolean;
     modalData?: any;
     setModalData?: (data: any) => void;
+    onToggleLock?: (taskId: string, locked: boolean) => void;
+    cascadeMode?: boolean;
 }
 
 // Helper for 15-minute snapping
@@ -75,8 +78,11 @@ export function GanttSVG({
     readOnly = false,
     onTaskDoubleClick,
     hideDateNavigation = false,
+    hideEmptyMachines = false,
     modalData: externalModalData,
-    setModalData: externalSetModalData
+    setModalData: externalSetModalData,
+    onToggleLock,
+    cascadeMode = false
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -136,7 +142,8 @@ export function GanttSVG({
         id: string,
         startX: number,
         initialX: number,
-        initialDuration: number // Added to fix duration drift
+        initialDuration: number, // Added to fix duration drift
+        cascadeIds?: string[]
     } | null>(null);
     const [resizingTask, setResizingTask] = useState<{
         id: string,
@@ -212,9 +219,30 @@ export function GanttSVG({
         if (optimisticTasks.some(t => !t.machine)) uniqueNames.add("Sin Máquina");
 
         return Array.from(uniqueNames)
-            .filter(name => selectedMachines.has(name))
+            .filter(name => {
+                const isSelected = selectedMachines.has(name);
+                if (!isSelected) return false;
+
+                if (hideEmptyMachines) {
+                    // Check if machine has tasks in the current visible window
+                    const hasTasksInWindow = optimisticTasks.some(t => {
+                        const isThisMachine = (t.machine === name) || (name === "Sin Máquina" && !t.machine);
+                        if (!isThisMachine) return false;
+
+                        // Check overlap with visible window
+                        const taskStart = moment(t.planned_date);
+                        const taskEnd = moment(t.planned_end);
+                        const windowStart = timeWindow.start;
+                        const windowEnd = timeWindow.end;
+
+                        return taskEnd.isAfter(windowStart) && taskStart.isBefore(windowEnd);
+                    });
+                    return hasTasksInWindow;
+                }
+                return true;
+            })
             .sort();
-    }, [initialMachines, optimisticTasks, selectedMachines]);
+    }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, timeWindow]);
 
     // Filter tasks by machine, search, AND visible time window
     const filteredTasks = useMemo(() => {
@@ -539,22 +567,40 @@ export function GanttSVG({
 
     const onMouseDown = (e: React.MouseEvent, task: PlanningTask) => {
         if (readOnly) return;
+        if (task.locked) return; // Locked tasks cannot be dragged
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
         // Capture Snapshot
         snapshotRef.current = optimisticTasks;
 
+        // If cascade mode, capture consecutive tasks on the same machine
+        let cascadeIds: string[] = [];
+        if (cascadeMode) {
+            const taskEnd = moment(task.planned_end);
+            const sameMachine = optimisticTasks
+                .filter(t => t.machine === task.machine && t.id !== task.id && !t.locked)
+                .sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+            // Find consecutive chain: tasks whose start >= current task end
+            for (const t of sameMachine) {
+                if (moment(t.planned_date).isSameOrAfter(taskEnd)) {
+                    cascadeIds.push(t.id);
+                }
+            }
+        }
+
         setDraggingTask({
             id: task.id,
             startX: e.clientX,
             initialX: timeToX(task.planned_date!),
-            initialDuration: moment(task.planned_end).diff(moment(task.planned_date)) // Capture duration once
+            initialDuration: moment(task.planned_end).diff(moment(task.planned_date)), // Capture duration once
+            cascadeIds
         });
     };
 
     const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
         if (readOnly) return;
+        if (task.locked) return; // Locked tasks cannot be resized
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
@@ -584,6 +630,10 @@ export function GanttSVG({
             // Snap to 15 mins
             newStartTime = roundToNearest15Minutes(newStartTime);
 
+            // Calculate the delta in milliseconds for cascade
+            const originalStart = moment(xToTime(draggingTask.initialX));
+            const deltaMs = newStartTime.diff(originalStart);
+
             setOptimisticTasks(prev => prev.map(t => {
                 if (t.id === draggingTask.id) {
                     // Use captured, constant duration to prevent drift
@@ -591,6 +641,16 @@ export function GanttSVG({
                         ...t,
                         planned_date: newStartTime.format("YYYY-MM-DDTHH:mm:ss"),
                         planned_end: newStartTime.clone().add(draggingTask.initialDuration).format("YYYY-MM-DDTHH:mm:ss")
+                    };
+                }
+                // Cascade: move consecutive tasks by the same delta
+                if (draggingTask.cascadeIds?.includes(t.id)) {
+                    const origStart = moment(snapshotRef.current.find(s => s.id === t.id)?.planned_date);
+                    const origEnd = moment(snapshotRef.current.find(s => s.id === t.id)?.planned_end);
+                    return {
+                        ...t,
+                        planned_date: origStart.clone().add(deltaMs).format("YYYY-MM-DDTHH:mm:ss"),
+                        planned_end: origEnd.clone().add(deltaMs).format("YYYY-MM-DDTHH:mm:ss")
                     };
                 }
                 return t;
@@ -1007,6 +1067,8 @@ export function GanttSVG({
                                 const isDragging = draggingTask?.id === task.id;
                                 const isResizing = resizingTask?.id === task.id;
                                 const activeTask = isDragging || isResizing;
+                                const isLocked = !!task.locked;
+                                const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
 
                                 const color = getProductionTaskColor(task);
 
@@ -1016,8 +1078,8 @@ export function GanttSVG({
                                         id={task.id}
                                         initial={{ opacity: 0 }}
                                         animate={{
-                                            opacity: activeTask ? 0.9 : 1,
-                                            cursor: isDragging ? "grabbing" : "grab"
+                                            opacity: isCascadeGhost ? 1.0 : activeTask ? 0.9 : 1,
+                                            cursor: isLocked ? "not-allowed" : isDragging ? "grabbing" : "grab"
                                         }}
                                         onMouseEnter={(e) => {
                                             if (!draggingTask && !resizingTask && !isScrollingRef.current) {
@@ -1074,21 +1136,21 @@ export function GanttSVG({
                                             height={height}
                                             rx={6}
                                             fill={color}
-                                            className={`shadow-xl transition-all duration-300 ${(task as any).isDraft ? 'opacity-70' : 'hover:opacity-100 opacity-90'}`}
+                                            className={`shadow-xl transition-all duration-300 ${isLocked ? 'opacity-75' : (task as any).isDraft ? 'opacity-70' : 'hover:opacity-100 opacity-90'}`}
                                             style={{
                                                 filter: activeTask
                                                     ? `drop-shadow(0 8px 15px ${color})`
                                                     : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))",
-                                                stroke: activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
-                                                strokeWidth: activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
-                                                strokeDasharray: (task as any).isDraft ? "4 2" : "none"
+                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
+                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
+                                                strokeDasharray: isLocked ? '6 3' : isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none"
                                             }}
                                         />
                                         {/* Interaction Shield (Underneath Resize Handle) */}
                                         <rect
                                             x={x} y={y} width={width} height={height}
                                             fill="rgba(0,0,0,0)" // Explicit transparent fill to capture events
-                                            className="cursor-grab active:cursor-grabbing"
+                                            className={isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}
                                             onMouseDown={(e) => onMouseDown(e, task)}
                                             onDoubleClick={(e) => {
                                                 e.stopPropagation();
@@ -1124,27 +1186,40 @@ export function GanttSVG({
                                             </div>
                                         </foreignObject>
 
-                                        {/* Resize Handle Left */}
-                                        <rect
-                                            x={x}
-                                            y={y}
-                                            width={12}
-                                            height={height}
-                                            fill="transparent"
-                                            className="cursor-ew-resize hover:fill-white/20 transition-colors"
-                                            onMouseDown={(e) => onResizeStart(e, task, 'left')}
-                                        />
+                                        {/* Lock Icon */}
+                                        {isLocked && width > 30 && (
+                                            <foreignObject x={x + width - 22} y={y + 2} width={18} height={18} className="pointer-events-none">
+                                                <div className="flex items-center justify-center w-full h-full">
+                                                    <span className="text-[10px] drop-shadow-md">🔒</span>
+                                                </div>
+                                            </foreignObject>
+                                        )}
 
-                                        {/* Resize Handle Right */}
-                                        <rect
-                                            x={x + width - 12}
-                                            y={y}
-                                            width={12}
-                                            height={height}
-                                            fill="transparent"
-                                            className="cursor-ew-resize hover:fill-white/20 transition-colors"
-                                            onMouseDown={(e) => onResizeStart(e, task, 'right')}
-                                        />
+                                        {/* Resize Handle Left - hidden when locked */}
+                                        {!isLocked && (
+                                            <rect
+                                                x={x}
+                                                y={y}
+                                                width={12}
+                                                height={height}
+                                                fill="transparent"
+                                                className="cursor-ew-resize hover:fill-white/20 transition-colors"
+                                                onMouseDown={(e) => onResizeStart(e, task, 'left')}
+                                            />
+                                        )}
+
+                                        {/* Resize Handle Right - hidden when locked */}
+                                        {!isLocked && (
+                                            <rect
+                                                x={x + width - 12}
+                                                y={y}
+                                                width={12}
+                                                height={height}
+                                                fill="transparent"
+                                                className="cursor-ew-resize hover:fill-white/20 transition-colors"
+                                                onMouseDown={(e) => onResizeStart(e, task, 'right')}
+                                            />
+                                        )}
                                     </motion.g>
                                 );
                             })}
@@ -1274,6 +1349,17 @@ export function GanttSVG({
                     >
                         <span>Ver Detalles</span>
                     </button>
+                    {onToggleLock && (
+                        <button
+                            onClick={() => {
+                                onToggleLock(contextMenu.task.id, !contextMenu.task.locked);
+                                setContextMenu(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
+                        >
+                            <span>{contextMenu.task.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}</span>
+                        </button>
+                    )}
                 </div>
             )}
 

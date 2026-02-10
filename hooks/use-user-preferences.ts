@@ -13,6 +13,7 @@ export interface UserPreferences {
         selectedMachines?: string[];
         zoomLevel?: number;
         showDependencies?: boolean;
+        hideEmptyMachines?: boolean;
     };
 }
 

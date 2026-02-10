@@ -34,6 +34,7 @@ export type Database = {
                     created_at: string | null
                     id: string
                     last_edited_at: string | null
+                    locked: boolean | null
                     machine: string | null
                     notion_id: string | null
                     operator: string | null
@@ -48,6 +49,7 @@ export type Database = {
                     created_at?: string | null
                     id?: string
                     last_edited_at?: string | null
+                    locked?: boolean | null
                     machine?: string | null
                     notion_id?: string | null
                     operator?: string | null
@@ -62,6 +64,7 @@ export type Database = {
                     created_at?: string | null
                     id?: string
                     last_edited_at?: string | null
+                    locked?: boolean | null
                     machine?: string | null
                     notion_id?: string | null
                     operator?: string | null
@@ -76,6 +79,53 @@ export type Database = {
                         columns: ["order_id"]
                         isOneToOne: false
                         referencedRelation: "production_orders"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            planning_scenarios: {
+                Row: {
+                    id: string
+                    name: string
+                    strategy: string
+                    config: Json
+                    tasks: Json
+                    skipped: Json
+                    metrics: Json
+                    created_by: string | null
+                    created_at: string
+                    applied_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    strategy: string
+                    config: Json
+                    tasks: Json
+                    skipped?: Json
+                    metrics: Json
+                    created_by?: string | null
+                    created_at?: string
+                    applied_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    strategy?: string
+                    config?: Json
+                    tasks?: Json
+                    skipped?: Json
+                    metrics?: Json
+                    created_by?: string | null
+                    created_at?: string
+                    applied_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "planning_scenarios_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "users"
                         referencedColumns: ["id"]
                     },
                 ]
