@@ -2,24 +2,92 @@
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
-import { Calendar, Maximize2, Minimize2, Search, ChevronDown, Filter, Save, RotateCcw, RotateCw, Settings, ZoomIn, ZoomOut, Link2, Lock, Unlock } from "lucide-react";
+import {
+    Calendar as CalendarIcon,
+    ChevronLeft,
+    ChevronRight,
+    Filter,
+    GanttChartSquare,
+    Info,
+    Layers,
+    ListFilter,
+    Lock,
+    Plus,
+    RotateCcw,
+    Save,
+    Search,
+    Settings2,
+    Sparkles,
+    Trash2,
+    Undo2,
+    Unlock,
+    User,
+    Box,
+    Clock,
+    X,
+    LayoutGrid,
+    CheckCircle2,
+    History as HistoryIcon,
+    FileText,
+    ArrowUpDown,
+    CheckSquare,
+    Wand2,
+    ClipboardList,
+    AlertTriangle,
+    XCircle,
+    ArrowUpAZ,
+    ArrowDownZA,
+    ListOrdered,
+    BarChart3,
+    ChevronDown,
+    RotateCw,
+    Settings,
+    ZoomIn,
+    ZoomOut,
+    Link2,
+    ExternalLink
+} from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import moment from "moment";
-import { updateTaskSchedule, batchSavePlanning, fetchScenarios, saveScenario, deleteScenario, markScenarioApplied, toggleTaskLocked } from "@/app/dashboard/produccion/actions";
+import "moment/locale/es";
+import {
+    updateTaskSchedule,
+    batchSavePlanning,
+    fetchScenarios,
+    saveScenario,
+    deleteScenario,
+    markScenarioApplied,
+    toggleTaskLocked,
+    clearOrderEvaluation
+} from "@/app/dashboard/produccion/actions";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
+import { cn } from "@/lib/utils";
 import { ProductionViewSkeleton } from "@/components/ui/skeleton";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { EvaluationModal } from "./evaluation-modal";
-import { Wand2, ClipboardList, AlertTriangle, XCircle, CheckCircle2, ArrowUpAZ, ArrowDownZA, ListOrdered, FileText, X, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
-import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask } from "@/lib/scheduling-utils";
+import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, shiftTasksToCurrent } from "@/lib/scheduling-utils";
 import { ScenarioComparison } from "./scenario-comparison";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 import { extractDriveFileId } from "@/lib/drive-utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AutoPlanDialog } from "./auto-plan-dialog";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
@@ -71,12 +139,47 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
     // Evaluation Search and Filters
     const [evalSearchQuery, setEvalSearchQuery] = useState("");
+    const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">("none");
+    const [evalDateValue, setEvalDateValue] = useState("");
+    const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">("after");
+
+    // Confirmation states
+    const [idToClearEval, setIdToClearEval] = useState<string | null>(null);
+    const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
+    const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+    const filterPanelRef = useRef<HTMLDivElement>(null);
+
+    const clearEvaluation = async (orderId: string) => {
+        setIdToClearEval(orderId);
+    };
+
+
     const [clientFilter, setClientFilter] = useState<string[]>([]);
     const [treatmentFilter, setTreatmentFilter] = useState("all");
     const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">("asc");
     const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">("auto");
     const [showEvaluated, setShowEvaluated] = useState(false);
     const [isAutoPlanDialogOpen, setIsAutoPlanDialogOpen] = useState(false);
+
+    const clearAllFilters = () => {
+        setEvalSearchQuery("");
+        setClientFilter([]);
+        setTreatmentFilter("all");
+        setEvalFilterType("none");
+        setEvalDateValue("");
+        setEvalDateOperator("after");
+        setEvalSortBy("auto");
+        setEvalSortDirection("asc");
+    };
+
+    const activeFiltersCount = useMemo(() => {
+        let count = 0;
+        if (evalSearchQuery) count++;
+        if (clientFilter.length > 0) count++;
+        if (treatmentFilter !== "all") count++;
+        if (evalFilterType !== "none") count++;
+        return count;
+    }, [evalSearchQuery, clientFilter, treatmentFilter, evalFilterType]);
 
     // Filter orders that need evaluation
     const ordersPendingEvaluation = useMemo(() => {
@@ -111,6 +214,25 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 if (!hasEvaluation) return false;
             } else {
                 if (hasEvaluation) return false;
+            }
+
+            // Date filtering
+            if (evalFilterType !== "none" && evalDateValue) {
+                const targetDate = moment(evalDateValue);
+                let orderDate;
+                if (evalFilterType === "request") {
+                    orderDate = moment(o.projects?.start_date || o.created_at);
+                } else {
+                    orderDate = moment(o.projects?.delivery_date || o.created_at);
+                }
+
+                if (evalDateOperator === "before") {
+                    // Inclusive: On or Before
+                    if (!orderDate.isSameOrBefore(targetDate, 'day')) return false;
+                } else {
+                    // Inclusive: On or After
+                    if (!orderDate.isSameOrAfter(targetDate, 'day')) return false;
+                }
             }
 
             return true;
@@ -152,7 +274,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         });
 
         return filtered;
-    }, [orders, evalSearchQuery, clientFilter, treatmentFilter, evalSortDirection, evalSortBy, showEvaluated]);
+    }, [orders, evalSearchQuery, clientFilter, treatmentFilter, evalSortDirection, evalSortBy, showEvaluated, evalFilterType, evalDateValue, evalDateOperator]);
 
     // Get unique clients for the filter
     const uniqueClients = useMemo(() => {
@@ -222,14 +344,15 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 name: data.name,
                 strategy: data.strategy,
                 config: data.config,
-                tasks: data.result.tasks,
+                tasks: data.result.tasks as any[],
                 skipped: data.result.skipped,
                 metrics: data.result.metrics,
             });
             toast.success(`Escenario "${data.name}" guardado`, { id: "save-scenario" });
+
             // Refresh scenarios list
             const updated = await fetchScenarios();
-            setSavedScenarios(updated.map((s: any) => ({
+            const mappedScenarios: SavedScenario[] = updated.map((s: any) => ({
                 id: s.id,
                 name: s.name,
                 strategy: s.strategy,
@@ -240,7 +363,19 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 created_by: s.created_by,
                 created_at: s.created_at,
                 applied_at: s.applied_at,
-            })));
+            }));
+            setSavedScenarios(mappedScenarios);
+
+            // AUTO-PREVIEW: Find the scenario we just saved (the one with the newest created_at)
+            // or we could match by name if unique, but newest is safer.
+            const newScenario = [...mappedScenarios].sort((a, b) =>
+                moment(b.created_at).valueOf() - moment(a.created_at).valueOf()
+            )[0];
+
+            if (newScenario) {
+                handlePreviewScenario(newScenario);
+            }
+
         } catch (err) {
             toast.error("Error al guardar escenario", { id: "save-scenario" });
             throw err;
@@ -255,9 +390,29 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             setDraftTasks([]);
             return;
         }
+
+        // REPOSITIONING: Shift scenario tasks to start from "Now"
+        const existingRealTasks = optimisticTasks;
+        const machinesList = machines.map(m => m.name);
+
+        // Shift the preview tasks to the current time
+        // Snap current time to nearest 15 mins for better alignment
+        const now = moment();
+        const minutes = now.minute();
+        // Snap current time to NEXT 15 mins for better alignment (always forward)
+        const roundedMinutes = Math.ceil(minutes / 15) * 15;
+        const snappedNow = now.clone().minute(0).add(roundedMinutes, 'minutes').second(0).millisecond(0);
+
+        const shiftedTasks = shiftTasksToCurrent(
+            scenario.tasks as any[],
+            snappedNow, // targetTime: Now snapped to 15m
+            existingRealTasks,
+            machinesList
+        );
+
         setActivePreviewId(scenario.id);
-        setDraftTasks(scenario.tasks as any);
-        toast.info(`Preview: "${scenario.name}" — ${scenario.tasks.length} tareas en borrador.`);
+        setDraftTasks(shiftedTasks as any);
+        toast.info(`Preview: "${scenario.name}" — Ajustado al tiempo actual.`);
     };
 
     // Scenario: Apply (save tasks to DB permanently)
@@ -303,14 +458,38 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         }
     };
 
+    const confirmClearEvaluation = async (orderId: string) => {
+        try {
+            await clearOrderEvaluation(orderId);
+            toast.success("Evaluación limpiada exitosamente");
+            router.refresh();
+            setIdToClearEval(null);
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al limpiar evaluación");
+        }
+    };
+
     // Scenario: Cycle between saved scenario previews
     const handleCyclePreview = (direction: -1 | 1) => {
         if (savedScenarios.length < 2) return;
         const currentIdx = savedScenarios.findIndex(s => s.id === activePreviewId);
         const nextIdx = (currentIdx + direction + savedScenarios.length) % savedScenarios.length;
         const nextScenario = savedScenarios[nextIdx];
+
+        // Shift tasks to current time (same as handlePreviewScenario)
+        const now = moment();
+        const roundedMinutes = Math.ceil(now.minute() / 15) * 15;
+        const snappedNow = now.clone().minute(0).add(roundedMinutes, 'minutes').second(0).millisecond(0);
+        const shiftedTasks = shiftTasksToCurrent(
+            nextScenario.tasks as any[],
+            snappedNow,
+            optimisticTasks,
+            machines.map(m => m.name)
+        );
+
         setActivePreviewId(nextScenario.id);
-        setDraftTasks(nextScenario.tasks as any);
+        setDraftTasks(shiftedTasks as any);
         toast.info(`Preview: ${nextScenario.name}`);
     };
 
@@ -348,11 +527,10 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         });
     };
 
-    // Close settings on click outside
+    // Close settings dropdown on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            // Close settings
-            if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+            if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
                 setIsSettingsOpen(false);
             }
         };
@@ -449,11 +627,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         handleTasksChange(nextState); // Use wrapper to split real/draft
     };
 
-    // Sync props to state
-    React.useEffect(() => {
-        setSavedTasks(tasks);
-        setOptimisticTasks(tasks);
-    }, [tasks]);
 
     // Detect Changes logic (Moved up for dependencies)
     const changedTasks = useMemo(() => {
@@ -471,6 +644,16 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             return currentStart !== originalStart || currentEnd !== originalEnd;
         });
     }, [optimisticTasks, savedTasks]);
+
+    // Sync props to state
+    React.useEffect(() => {
+        setSavedTasks(tasks);
+        // Only reset optimistic state if we don't have pending changes
+        // This prevents losing work on accidental re-renders
+        if (changedTasks.length === 0) {
+            setOptimisticTasks(tasks);
+        }
+    }, [tasks, changedTasks.length]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -513,10 +696,14 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     };
 
     const handleDiscard = () => {
-        if (confirm("¿Estás seguro de descartar los cambios no guardados?")) {
-            setOptimisticTasks(savedTasks);
-            setHistory([]); // Clear history on discard
-        }
+        setIsDiscardConfirmOpen(true);
+    };
+
+    const confirmDiscard = () => {
+        handleDiscardDrafts(); // Clear Auto-Plan drafts ONLY on confirmation
+        setOptimisticTasks(savedTasks);
+        setHistory([]); // Clear history on discard
+        setIsDiscardConfirmOpen(false);
     };
 
     // Derive unique machine names from both machines table and tasks
@@ -714,16 +901,31 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
     }, []);
 
-    // Close dropdown when clicking outside
+    // Close dropdowns (Machine Filter + Filter Panel) on click outside
     React.useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (isMachineFilterOpen && !(e.target as Element).closest('.machine-filter-dropdown')) {
+            const target = e.target as Element;
+
+            // Machine Filter
+            if (isMachineFilterOpen && !target.closest('.machine-filter-dropdown')) {
                 setIsMachineFilterOpen(false);
             }
+
+            // Floating Filter Panel (Exclude clicks inside the panel AND inside Popovers/Dialogs (Portals))
+            if (isFilterPanelOpen && filterPanelRef.current && !filterPanelRef.current.contains(target)) {
+                // Check if click is inside a Popover/Dialog content (radix-ui portals)
+                const isInsidePortal = target.closest('[data-radix-popper-content-wrapper]') ||
+                    target.closest('[role="dialog"]') ||
+                    target.closest('.p-DayPicker'); // Calendar specific
+
+                if (!isInsidePortal) {
+                    setIsFilterPanelOpen(false);
+                }
+            }
         };
-        document.addEventListener("click", handleClickOutside);
-        return () => document.removeEventListener("click", handleClickOutside);
-    }, [isMachineFilterOpen]);
+        document.addEventListener("mousedown", handleClickOutside); // mousedown handles interaction better than click for some UI
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [isMachineFilterOpen, isFilterPanelOpen]);
 
     // Show skeleton while preferences are loading
     if (!prefsInitialized) {
@@ -740,284 +942,118 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     <DashboardHeader
                         title="Planeación de Producción"
                         description="Planificador de maquinados con vista Gantt interactiva"
-                        icon={<Calendar className="w-8 h-8" />}
-                        backUrl="/dashboard/produccion"
+                        icon={<CalendarIcon className="w-8 h-8" />}
                         colorClass="text-red-500"
                         bgClass="bg-red-500/10"
+                        backUrl="/dashboard/produccion"
                         onHelp={handleStartTour}
                     />
                 </div>
             )}
             {/* Compact Header */}
             <div className="flex-none px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm z-10 flex flex-wrap items-center gap-3">
-                {/* View Mode Buttons */}
-                <div className="flex bg-muted rounded-lg p-0.5" id="planning-view-modes">
-                    <button
-                        onClick={() => handleViewModeChange("hour")}
-                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "hour" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                        Hora
-                    </button>
-                    <button
-                        onClick={() => handleViewModeChange("day")}
-                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "day" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                        Día
-                    </button>
-                    <button
-                        onClick={() => handleViewModeChange("week")}
-                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${viewMode === "week" ? "bg-background shadow-md text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                        Semana
-                    </button>
-                </div>
-
-                {/* Machine Filter Dropdown */}
-                <div className="relative machine-filter-dropdown" id="planning-machine-filter">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsMachineFilterOpen(!isMachineFilterOpen);
-                        }}
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-sm"
-                        title={`Filtrar Máquinas (${selectedMachines.size}/${allMachineNames.length})`}
-                    >
-                        <Filter className="w-4 h-4" />
-                        <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isMachineFilterOpen && (
-                        <div className="absolute top-full left-0 mt-1 w-64 bg-background border border-border rounded-lg shadow-xl z-[9999] overflow-hidden">
-                            <div className="p-2 border-b border-border space-y-2">
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={selectAllMachines}
-                                        className="flex-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded transition-colors"
-                                    >
-                                        Todas
-                                    </button>
-                                    <button
-                                        onClick={clearAllMachines}
-                                        className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-                                    >
-                                        Ninguna
-                                    </button>
-                                </div>
-                                <label className="flex items-center justify-between px-2 py-1.5 hover:bg-muted rounded cursor-pointer transition-colors border-t border-border mt-1 pt-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ocultar vacías</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={hideEmptyMachines}
-                                        onChange={(e) => {
-                                            const val = e.target.checked;
-                                            setHideEmptyMachines(val);
-                                            updateGanttPref({ hideEmptyMachines: val });
-                                        }}
-                                        className="w-3.5 h-3.5 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
-                                    />
-                                </label>
-                            </div>
-                            <div className="max-h-60 overflow-y-auto p-2 space-y-1">
-                                {allMachineNames.map(machineName => (
-                                    <label
-                                        key={machineName}
-                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer transition-colors"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedMachines.has(machineName)}
-                                            onChange={() => toggleMachine(machineName)}
-                                            className="w-4 h-4 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
-                                        />
-                                        <span className="text-sm">{machineName}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Search */}
-                <div className="flex-1 min-w-[150px] max-w-xs relative group" id="planning-search">
-                    <Search className="absolute left-2.5 top-1.5 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Buscar pieza..."
-                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
+                {/* View Mode Buttons - Moved to Gantt Header */}
 
 
-
-                {/* Settings Menu */}
-                <div className="relative" ref={settingsRef} id="planning-settings">
-                    <button
-                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                        className={`p-1.5 rounded-lg border border-border transition-colors ${isSettingsOpen ? 'bg-primary/10 text-primary border-primary/30' : 'bg-background hover:bg-muted text-muted-foreground'}`}
-                        title="Ajustes de Visualización"
-                    >
-                        <Settings className="w-4 h-4" />
-                    </button>
-
-                    {isSettingsOpen && (
-                        <div className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Visualización</div>
-
-                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                                <span className="text-sm">Lineas de Dependencia</span>
-                                <input
-                                    type="checkbox"
-                                    checked={showDependencies}
-                                    onChange={(e) => handleShowDependenciesChange(e.target.checked)}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
-                                />
-                            </label>
-
-                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                                <span className="text-sm">Arrastre en Cascada</span>
-                                <input
-                                    type="checkbox"
-                                    checked={cascadeMode}
-                                    onChange={(e) => setCascadeMode(e.target.checked)}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
-                                />
-                            </label>
-
-                            {/* More settings can go here */}
-                        </div>
-                    )}
-                </div>
 
                 {/* Automation & Evaluation Buttons */}
-                <div className="flex items-center gap-2" id="planning-automation">
+                <div className="flex items-center gap-1.5" id="planning-automation">
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setIsEvalListOpen(!isEvalListOpen)}
-                        className={`h-9 font-bold text-xs gap-2 px-4 transition-all active:scale-95 shadow-sm ${showEvaluated
-                            ? "border-blue-500/50 bg-blue-500/5 text-blue-600 hover:bg-blue-500/10"
+                        className={`h-9 font-bold text-xs gap-2 px-3 transition-all active:scale-95 shadow-sm ${showEvaluated
+                            ? "border-blue-500/50 bg-blue-500/5 text-blue-600"
                             : ordersPendingEvaluation.length > 0
-                                ? "border-amber-500/50 bg-amber-500/5 text-amber-600 hover:bg-amber-500/10"
+                                ? "border-amber-500/50 bg-amber-500/5 text-amber-600"
                                 : "border-border text-muted-foreground"
                             }`}
                     >
                         <ClipboardList className={`w-4 h-4 ${showEvaluated ? "text-blue-500" : ordersPendingEvaluation.length > 0 ? "text-amber-500" : ""}`} />
-                        <span>
-                            {showEvaluated
-                                ? `Ver evaluadas (${ordersPendingEvaluation.length})`
-                                : ordersPendingEvaluation.length > 0
-                                    ? `Evaluar ${ordersPendingEvaluation.length} piezas`
-                                    : "Sin pendientes"}
+                        <span className="hidden sm:inline">
+                            {showEvaluated ? `Evaluadas` : `Evaluar`}
                         </span>
+                        {ordersPendingEvaluation.length > 0 && (
+                            <span className={cn(
+                                "text-[10px] font-black rounded-full px-1.5 py-0.5 min-w-[18px] text-center",
+                                showEvaluated ? "bg-blue-500/10 text-blue-600" : "bg-amber-500/10 text-amber-600"
+                            )}>
+                                {ordersPendingEvaluation.length}
+                            </span>
+                        )}
                     </Button>
 
                     <Button
                         size="sm"
-                        className="h-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs gap-2 shadow-md shadow-blue-500/20"
+                        className="h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs gap-2 shadow-md"
                         onClick={handleAutoPlan}
-                        id="auto-plan-btn"
                     >
                         <Wand2 className="w-4 h-4" />
-                        <span>Auto-Plan</span>
+                        <span className="hidden md:inline">Auto-Plan</span>
                     </Button>
 
-                    {/* Compare Scenarios */}
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setIsComparisonOpen(true)}
-                        className={`h-8 font-bold text-xs gap-2 transition-all ${savedScenarios.length > 0 ? "border-primary/30 text-primary hover:bg-primary/10" : "border-border text-muted-foreground"}`}
+                        className={`h-9 font-bold text-xs gap-2 transition-all ${savedScenarios.length > 0 ? "border-primary/30 text-primary" : "text-muted-foreground"}`}
                     >
                         <BarChart3 className="w-4 h-4" />
-                        <span className="hidden lg:inline">Comparar</span>
+                        <span className="hidden lg:inline">Escenarios</span>
                         {savedScenarios.length > 0 && (
-                            <span className="text-[10px] font-black bg-primary/10 text-primary rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                            <span className="text-[10px] bg-primary/10 text-primary rounded-full px-1.5 py-0.5">
                                 {savedScenarios.length}
                             </span>
                         )}
                     </Button>
 
-                    {/* Cycle Preview Scenario Controls */}
-                    {activePreviewId && savedScenarios.length > 1 && (
-                        <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-4 duration-200">
-                            <div className="h-5 w-px bg-border mx-1" />
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCyclePreview(-1)}
-                                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-primary"
-                                title="Escenario anterior"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
+                    {activePreviewId && (
+                        <div className="flex items-center bg-muted/30 rounded-lg border border-border/50 px-1 py-0.5 gap-1 shrink-0">
+                            <Button variant="ghost" size="sm" onClick={() => handleCyclePreview(-1)} className="h-6 w-6 p-0 rounded-md">
+                                <ChevronLeft className="w-3.5 h-3.5" />
                             </Button>
-                            <span className="text-[10px] font-bold text-primary/80 uppercase max-w-[100px] truncate" title={savedScenarios.find(s => s.id === activePreviewId)?.name}>
-                                {savedScenarios.find(s => s.id === activePreviewId)?.name || "Preview"}
+                            <span className="text-[9px] font-bold text-primary/80 uppercase max-w-[60px] truncate hidden sm:inline">
+                                {savedScenarios.find(s => s.id === activePreviewId)?.name}
                             </span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCyclePreview(1)}
-                                className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-primary"
-                                title="Escenario siguiente"
-                            >
-                                <ChevronRight className="w-4 h-4" />
+                            <Button variant="ghost" size="sm" onClick={() => handleCyclePreview(1)} className="h-6 w-6 p-0 rounded-md">
+                                <ChevronRight className="w-3.5 h-3.5" />
                             </Button>
                         </div>
                     )}
                 </div>
 
-                {/* Save Controls - Only visible when there are changes */}
+                {/* Save Controls */}
                 {(changedTasks.length > 0 || draftTasks.length > 0) && (
-                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
-                        <span className="text-xs text-muted-foreground mr-1 hidden lg:inline-block">
-                            {changedTasks.length + draftTasks.length} cambios
-                        </span>
-
+                    <div className="flex items-center gap-1.5 border-l border-border pl-2 ml-1">
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 text-xs font-bold gap-2 text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                                handleDiscardDrafts();
-                                handleDiscard();
-                            }}
+                            className="h-8 px-2 text-[10px] font-bold gap-1 text-muted-foreground hover:text-red-500"
+                            onClick={handleDiscard}
                         >
-                            <XCircle className="w-4 h-4" />
-                            <span>Descartar</span>
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span className="hidden lg:inline">Descartar</span>
                         </Button>
                         <Button
                             size="sm"
-                            className="h-8 bg-black hover:bg-black/90 text-white font-black text-xs gap-2 shadow-lg shadow-black/20"
+                            className="h-9 bg-black hover:bg-black/90 text-white font-black text-xs gap-2 shadow-lg shadow-black/20"
                             onClick={handleSaveAllPlanning}
                         >
                             <CheckCircle2 className="w-4 h-4" />
-                            <span>Guardar Todo</span>
+                            <span className="hidden sm:inline">Guardar</span>
+                            {changedTasks.length + draftTasks.length > 0 && (
+                                <span className="bg-white/20 px-1.5 rounded-full text-[10px]">
+                                    {changedTasks.length + draftTasks.length}
+                                </span>
+                            )}
                         </Button>
                     </div>
                 )}
 
-                {/* Spacer */}
-                <div className="flex-1" />
-
-                {/* Fullscreen Button */}
-                <button
-                    id="planning-fullscreen"
-                    onClick={toggleFullscreen}
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-all font-semibold text-xs"
-                    title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
-                >
-                    {isFullscreen ? (
-                        <Minimize2 className="w-4 h-4" />
-                    ) : (
-                        <Maximize2 className="w-4 h-4" />
-                    )}
-                </button>
-            </div>
+            </div >
 
             {/* Bottom Content - Timeline with margins */}
-            <div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area">
+            < div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area" >
                 <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">
                     <GanttSVG
                         initialMachines={machines}
@@ -1028,6 +1064,144 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         setOptimisticTasks={handleTasksChange}
                         onHistorySnapshot={handleHistorySnapshot}
                         hideEmptyMachines={hideEmptyMachines}
+                        startControls={
+                            <div className="flex bg-muted/50 p-0.5 rounded-lg border border-border/50">
+                                <button
+                                    onClick={() => handleViewModeChange("hour")}
+                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "hour" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                                >
+                                    Hora
+                                </button>
+                                <button
+                                    onClick={() => handleViewModeChange("day")}
+                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "day" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                                >
+                                    Día
+                                </button>
+                                <button
+                                    onClick={() => handleViewModeChange("week")}
+                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "week" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                                >
+                                    Semana
+                                </button>
+                            </div>
+                        }
+                        endControls={
+                            <div className="flex items-center gap-3">
+                                {/* Search */}
+                                <div className="w-[150px] relative group">
+                                    <Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar..."
+                                        className="w-full pl-7 pr-2 py-1 rounded-md border border-border bg-background/50 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary transition-all h-8"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                {/* Machine Filter Dropdown */}
+                                <div className="relative machine-filter-dropdown">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsMachineFilterOpen(!isMachineFilterOpen);
+                                        }}
+                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-xs"
+                                        title={`Filtrar Máquinas (${selectedMachines.size}/${allMachineNames.length})`}
+                                    >
+                                        <Filter className="w-3.5 h-3.5" />
+                                        <span className="hidden xl:inline">Máquinas</span>
+                                        <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isMachineFilterOpen && (
+                                        <div className="absolute top-full left-0 mt-1 w-64 bg-background border border-border rounded-lg shadow-xl z-[9999] overflow-hidden">
+                                            <div className="p-2 border-b border-border space-y-2">
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={selectAllMachines}
+                                                        className="flex-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded transition-colors"
+                                                    >
+                                                        Todas
+                                                    </button>
+                                                    <button
+                                                        onClick={clearAllMachines}
+                                                        className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
+                                                    >
+                                                        Ninguna
+                                                    </button>
+                                                </div>
+                                                <label className="flex items-center justify-between px-2 py-1.5 hover:bg-muted rounded cursor-pointer transition-colors border-t border-border mt-1 pt-2">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ocultar vacías</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={hideEmptyMachines}
+                                                        onChange={(e) => {
+                                                            const val = e.target.checked;
+                                                            setHideEmptyMachines(val);
+                                                            updateGanttPref({ hideEmptyMachines: val });
+                                                        }}
+                                                        className="w-3.5 h-3.5 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
+                                                    />
+                                                </label>
+                                            </div>
+                                            <div className="max-h-60 overflow-y-auto p-2 space-y-1">
+                                                {allMachineNames.map(machineName => (
+                                                    <label
+                                                        key={machineName}
+                                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer transition-colors"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedMachines.has(machineName)}
+                                                            onChange={() => toggleMachine(machineName)}
+                                                            className="w-4 h-4 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
+                                                        />
+                                                        <span className="text-sm">{machineName}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Settings Menu */}
+                                <div className="relative" ref={settingsRef}>
+                                    <button
+                                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                        className={`p-1.5 rounded-lg border border-border transition-colors ${isSettingsOpen ? 'bg-primary/10 text-primary border-primary/30' : 'bg-background hover:bg-muted text-muted-foreground'}`}
+                                        title="Ajustes de Visualización"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                    </button>
+
+                                    {isSettingsOpen && (
+                                        <div className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-xl z-[9999] p-2 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Visualización</div>
+
+                                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
+                                                <span className="text-sm">Lineas de Dependencia</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={showDependencies}
+                                                    onChange={(e) => handleShowDependenciesChange(e.target.checked)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
+                                                />
+                                            </label>
+
+                                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
+                                                <span className="text-sm">Arrastre en Cascada</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={cascadeMode}
+                                                    onChange={(e) => setCascadeMode(e.target.checked)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        }
                         searchQuery={searchQuery}
                         viewMode={viewMode}
                         isFullscreen={isFullscreen}
@@ -1040,240 +1214,353 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         setModalData={setModalData}
                         onToggleLock={handleToggleLock}
                         cascadeMode={cascadeMode}
+                        container={containerRef.current}
+                        onToggleFullscreen={toggleFullscreen}
                     />
                 </div>
-            </div>
+            </div >
 
             {/* Evaluation List Sidebar (Simple) */}
-            {isEvalListOpen && (
-                <div
-                    className="fixed top-[64px] right-0 bottom-0 w-[450px] bg-background/95 backdrop-blur-md border-l border-border shadow-2xl z-[1000] flex flex-col animate-in slide-in-from-right-8 duration-300"
-                >
-                    <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
-                        <h3 className="font-bold text-sm flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-[#EC1C21]" />
-                            Piezas por Evaluar
-                        </h3>
-                        <Button variant="ghost" size="icon" onClick={() => setIsEvalListOpen(false)} className="h-8 w-8 rounded-full hover:bg-muted">
-                            <XCircle className="w-4 h-4" />
-                        </Button>
-                    </div>
-
-                    {/* Tabs Segmentado */}
-                    <div className="px-3 pt-3">
-                        <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
-                            <button
-                                onClick={() => setShowEvaluated(false)}
-                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${!showEvaluated
-                                    ? "bg-background text-primary shadow-sm ring-1 ring-border"
-                                    : "text-muted-foreground hover:text-foreground"
-                                    }`}
-                            >
-                                Por Evaluar
-                            </button>
-                            <button
-                                onClick={() => setShowEvaluated(true)}
-                                className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${showEvaluated
-                                    ? "bg-background text-primary shadow-sm ring-1 ring-border"
-                                    : "text-muted-foreground hover:text-foreground"
-                                    }`}
-                            >
-                                Evaluadas
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Search and Filters */}
-                    <div className="p-3 border-b border-border space-y-3 bg-muted/10">
-                        {/* Search */}
-                        <div className="relative group">
-                            <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="Buscar código o nombre..."
-                                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                value={evalSearchQuery}
-                                onChange={(e) => setEvalSearchQuery(e.target.value)}
-                            />
+            {
+                isEvalListOpen && (
+                    <div
+                        className={cn(
+                            "fixed right-0 bottom-0 w-[450px] bg-background/95 backdrop-blur-md border-l border-border shadow-2xl z-[1000] flex flex-col animate-in slide-in-from-right-8 duration-300",
+                            isFullscreen ? "top-0" : "top-[64px]"
+                        )}
+                    >
+                        <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
+                            <h3 className="font-bold text-sm flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-[#EC1C21]" />
+                                Piezas por Evaluar
+                            </h3>
+                            <Button variant="ghost" size="icon" onClick={() => setIsEvalListOpen(false)} className="h-8 w-8 rounded-full hover:bg-muted">
+                                <XCircle className="w-4 h-4" />
+                            </Button>
                         </div>
 
-                        {/* Sections Row */}
-                        <div className="space-y-3">
-                            {/* Filtros Section */}
-                            <div className="space-y-1.5">
-                                <div className="flex items-center gap-1 px-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                    <Filter className="w-3 h-3" />
-                                    <span>Filtrar por</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    {/* Client Filter */}
-                                    <div className="flex-1 min-w-0">
-                                        <CustomDropdown
-                                            options={uniqueClients.map(c => ({ label: c, value: c }))}
-                                            value={clientFilter}
-                                            onChange={setClientFilter}
-                                            className="w-full"
-                                            searchable={true}
-                                            multiple={true}
-                                            placeholder="Clientes"
-                                        />
-                                    </div>
-
-                                    {/* Treatment Filter */}
-                                    <div className="shrink-0 w-32">
-                                        <CustomDropdown
-                                            options={[
-                                                { label: "Todo Trat.", value: "all" },
-                                                { label: "Con Tratamiento", value: "yes" },
-                                                { label: "Sin Tratamiento", value: "no" }
-                                            ]}
-                                            value={treatmentFilter}
-                                            onChange={setTreatmentFilter}
-                                            className="w-full"
-                                        />
-                                    </div>
-                                </div>
+                        {/* Tabs Segmentado */}
+                        <div className="px-3 pt-3">
+                            <div className="flex bg-muted/50 p-1 rounded-lg border border-border/50">
+                                <button
+                                    onClick={() => setShowEvaluated(false)}
+                                    className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${!showEvaluated
+                                        ? "bg-background text-primary shadow-sm ring-1 ring-border"
+                                        : "text-muted-foreground hover:text-foreground"
+                                        }`}
+                                >
+                                    Por Evaluar
+                                </button>
+                                <button
+                                    onClick={() => setShowEvaluated(true)}
+                                    className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-md transition-all ${showEvaluated
+                                        ? "bg-background text-primary shadow-sm ring-1 ring-border"
+                                        : "text-muted-foreground hover:text-foreground"
+                                        }`}
+                                >
+                                    Evaluadas
+                                </button>
                             </div>
+                        </div>
 
-                            {/* Orden Section */}
-                            <div className="space-y-1.5">
-                                <div className="flex items-center gap-1 px-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                    <ListOrdered className="w-3 h-3" />
-                                    <span>Ordenar por</span>
+                        {/* Search and Floating Filter Panel Toggle */}
+                        <div className="p-4 border-b border-border space-y-3 bg-muted/5">
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1 group">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar..."
+                                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                                        value={evalSearchQuery}
+                                        onChange={(e) => setEvalSearchQuery(e.target.value)}
+                                    />
                                 </div>
-                                <div className="flex gap-2">
-                                    <div className="flex-1">
-                                        <CustomDropdown
-                                            options={[
-                                                { label: "Prioridad (Auto)", value: "auto" },
-                                                { label: "Fecha de Entrega", value: "date" },
-                                                { label: "Código de Pieza", value: "code" },
-                                                { label: "Fecha + Código", value: "both" }
-                                            ]}
-                                            value={evalSortBy}
-                                            onChange={setEvalSortBy}
-                                            className="w-full"
-                                        />
-                                    </div>
+                                <div className="relative" ref={filterPanelRef}>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 px-3 border-border/60 hover:border-primary/50 hover:bg-primary/5 transition-all shrink-0 flex gap-2 items-center"
-                                        onClick={() => setEvalSortDirection(prev => prev === "asc" ? "desc" : "asc")}
-                                        title={evalSortDirection === "asc" ? "Orden Ascendente" : "Orden Descendente"}
+                                        className={cn(
+                                            "h-9 px-3 gap-2 font-bold text-[10px] uppercase transition-all shadow-sm",
+                                            isFilterPanelOpen ? "bg-primary text-white border-primary" : "bg-background"
+                                        )}
+                                        onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
                                     >
-                                        {evalSortDirection === "asc" ? (
-                                            <>
-                                                <ArrowUpAZ className="w-4 h-4 text-primary" />
-                                                <span className="text-[10px] font-bold uppercase">Asc</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ArrowDownZA className="w-4 h-4 text-primary" />
-                                                <span className="text-[10px] font-bold uppercase">Desc</span>
-                                            </>
+                                        <ListFilter className="w-3.5 h-3.5" />
+                                        <span>Opciones</span>
+                                        {activeFiltersCount > 0 && (
+                                            <span className="flex items-center justify-center min-w-[16px] h-4 rounded-full bg-white text-primary text-[9px] font-black px-1 shadow-sm">
+                                                {activeFiltersCount}
+                                            </span>
                                         )}
                                     </Button>
+
+                                    {/* Floating Filter Panel */}
+                                    {isFilterPanelOpen && (
+                                        <div className="absolute top-0 right-full mr-2 w-72 bg-popover border border-border rounded-2xl shadow-2xl z-[1500] p-4 animate-in fade-in slide-in-from-right-4 duration-200">
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between border-b border-border pb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Filter className="w-3.5 h-3.5 text-primary" />
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider">Filtros Avanzados</span>
+                                                    </div>
+                                                    {activeFiltersCount > 0 && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-[10px] font-bold text-red-500 hover:bg-red-500/10"
+                                                            onClick={clearAllFilters}
+                                                        >
+                                                            Limpiar
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                {/* Client Filter */}
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[9px] font-bold text-muted-foreground uppercase">Cliente</label>
+                                                    <CustomDropdown
+                                                        options={uniqueClients.map(c => ({ label: c, value: c }))}
+                                                        value={clientFilter}
+                                                        onChange={setClientFilter}
+                                                        className="w-full h-8"
+                                                        searchable={true}
+                                                        multiple={true}
+                                                        placeholder="Todos"
+                                                    />
+                                                </div>
+
+                                                {/* Treatment Filter */}
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[9px] font-bold text-muted-foreground uppercase">Tratamiento</label>
+                                                    <CustomDropdown
+                                                        options={[
+                                                            { label: "Todos", value: "all" },
+                                                            { label: "Con Tratamiento", value: "yes" },
+                                                            { label: "Sin Tratamiento", value: "no" }
+                                                        ]}
+                                                        value={treatmentFilter}
+                                                        onChange={setTreatmentFilter}
+                                                        className="w-full h-8"
+                                                    />
+                                                </div>
+
+                                                {/* Date Filter */}
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[9px] font-bold text-muted-foreground uppercase">Fecha</label>
+                                                    <div className="flex gap-1.5">
+                                                        <CustomDropdown
+                                                            options={[
+                                                                { label: "Sin Fecha", value: "none" },
+                                                                { label: "Solicitud", value: "request" },
+                                                                { label: "Entrega", value: "delivery" }
+                                                            ]}
+                                                            value={evalFilterType}
+                                                            onChange={(val: any) => setEvalFilterType(val)}
+                                                            className="flex-1 h-8 text-[10px]"
+                                                        />
+                                                        {evalFilterType !== "none" && (
+                                                            <CustomDropdown
+                                                                options={[
+                                                                    { label: "Antes", value: "before" },
+                                                                    { label: "Después", value: "after" }
+                                                                ]}
+                                                                value={evalDateOperator}
+                                                                onChange={(val: any) => setEvalDateOperator(val)}
+                                                                className="w-20 h-8 text-[10px]"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    {evalFilterType !== "none" && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        "w-full justify-start text-left font-normal h-8 text-[10px]",
+                                                                        !evalDateValue && "text-muted-foreground"
+                                                                    )}
+                                                                >
+                                                                    <CalendarIcon className="mr-2 h-3 w-3" />
+                                                                    {evalDateValue ? (
+                                                                        moment(evalDateValue).format("DD [de] MMMM, YYYY")
+                                                                    ) : (
+                                                                        <span>Seleccionar fecha</span>
+                                                                    )}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0 z-[2000]" align="start">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={evalDateValue ? moment(evalDateValue).toDate() : undefined}
+                                                                    onSelect={(date) => setEvalDateValue(date ? moment(date).format("YYYY-MM-DD") : "")}
+                                                                    initialFocus
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
+
+                                                {/* Sort Section */}
+                                                <div className="space-y-1.5 pt-2 border-t border-border">
+                                                    <label className="text-[9px] font-bold text-muted-foreground uppercase">Orden</label>
+                                                    <div className="flex gap-1.5">
+                                                        <CustomDropdown
+                                                            options={[
+                                                                { label: "Prioridad", value: "auto" },
+                                                                { label: "Fecha", value: "date" },
+                                                                { label: "Código", value: "code" },
+                                                                { label: "Mixto", value: "both" }
+                                                            ]}
+                                                            value={evalSortBy}
+                                                            onChange={setEvalSortBy}
+                                                            className="flex-1 h-8 text-[10px]"
+                                                        />
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0 border-border/60 hover:bg-primary/5"
+                                                            onClick={() => setEvalSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                                                        >
+                                                            {evalSortDirection === "asc" ? <ArrowUpAZ className="w-3.5 h-3.5" /> : <ArrowDownZA className="w-3.5 h-3.5" />}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                        {ordersPendingEvaluation.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center p-12 text-center bg-muted/5 rounded-3xl border border-dashed border-border/60 mx-2 mt-4">
-                                <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center shadow-sm mb-4 border border-border/40">
-                                    <ClipboardList className="w-8 h-8 text-muted-foreground opacity-40" />
-                                </div>
-                                <h4 className="text-sm font-bold text-foreground">¡Todo al día!</h4>
-                                <p className="text-[11px] text-muted-foreground mt-1 max-w-[180px]">
-                                    {showEvaluated
-                                        ? "No se han encontrado piezas evaluadas con los filtros actuales."
-                                        : "No hay piezas pendientes de evaluación por ahora."}
-                                </p>
-                            </div>
-                        ) : (
-                            ordersPendingEvaluation.map(order => {
-                                const deliveryDate = (order as any).projects?.delivery_date;
-                                const companyName = (order as any).projects?.company;
-                                const blueprintUrl = (order as any).drawing_url;
-
-                                return (
-                                    <div
-                                        key={order.id}
-                                        className="p-3 rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all group relative overflow-hidden"
-                                    >
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div
-                                                className="cursor-pointer flex-1"
-                                                onClick={() => {
-                                                    const idx = ordersPendingEvaluation.findIndex(o => o.id === order.id);
-                                                    setEvalNavigationList([...ordersPendingEvaluation]);
-                                                    setSelectedEvalIndex(idx);
-                                                    setSelectedOrderForEval(order);
-                                                    setIsEvalModalOpen(true);
-                                                }}
-                                            >
-                                                <div className="text-xs font-black uppercase text-primary mb-0.5 tracking-tight">
-                                                    {order.part_code}
-                                                </div>
-                                                <div className="text-[11px] font-bold text-foreground leading-tight line-clamp-2 pr-6">
-                                                    {order.part_name}
-                                                </div>
-                                            </div>
-
-                                            {/* Action Buttons & Date in one line */}
-                                            <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                {blueprintUrl && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 rounded-md bg-primary/5 text-primary hover:bg-primary hover:text-white transition-colors border border-primary/20"
-                                                        title="Ver Plano"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const fileId = extractDriveFileId(blueprintUrl);
-                                                            if (fileId) {
-                                                                setPreviewFileId(fileId);
-                                                            } else {
-                                                                window.open(blueprintUrl, '_blank');
-                                                            }
-                                                        }}
-                                                    >
-                                                        <FileText className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                )}
-                                                {deliveryDate && (
-                                                    <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded border border-border/50">
-                                                        {moment(deliveryDate).format("DD MMM")}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
-                                            <div className="text-[10px] text-muted-foreground font-medium truncate max-w-[180px]">
-                                                {companyName || "Sin Empresa"}
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-6 px-2 text-[9px] font-black uppercase text-primary/70 hover:text-primary hover:bg-primary/5 rounded-md"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSelectedOrderForEval(order);
-                                                    setIsEvalModalOpen(true);
-                                                }}
-                                            >
-                                                Evaluar
-                                            </Button>
-                                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                            {ordersPendingEvaluation.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center p-12 text-center bg-muted/5 rounded-3xl border border-dashed border-border/60 mx-2 mt-4">
+                                    <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center shadow-sm mb-4 border border-border/40">
+                                        <ClipboardList className="w-8 h-8 text-muted-foreground opacity-40" />
                                     </div>
-                                );
-                            })
-                        )}
+                                    <h4 className="text-sm font-bold text-foreground">¡Todo al día!</h4>
+                                    <p className="text-[11px] text-muted-foreground mt-1 max-w-[180px]">
+                                        {showEvaluated
+                                            ? "No se han encontrado piezas evaluadas con los filtros actuales."
+                                            : "No hay piezas pendientes de evaluación por ahora."}
+                                    </p>
+                                </div>
+                            ) : (
+                                ordersPendingEvaluation.map(order => {
+                                    const deliveryDate = (order as any).projects?.delivery_date;
+                                    const companyName = (order as any).projects?.company;
+                                    const blueprintUrl = (order as any).drawing_url;
+
+                                    return (
+                                        <div
+                                            key={order.id}
+                                            className="p-3 rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all group relative overflow-hidden"
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div
+                                                    className="cursor-pointer flex-1"
+                                                    onClick={() => {
+                                                        const idx = ordersPendingEvaluation.findIndex(o => o.id === order.id);
+                                                        setEvalNavigationList([...ordersPendingEvaluation]);
+                                                        setSelectedEvalIndex(idx);
+                                                        setSelectedOrderForEval(order);
+                                                        setIsEvalModalOpen(true);
+                                                    }}
+                                                >
+                                                    <div className="text-xs font-black uppercase text-primary mb-0.5 tracking-tight">
+                                                        {order.part_code}
+                                                    </div>
+                                                    <div className="text-[11px] font-bold text-foreground leading-tight line-clamp-2 pr-6">
+                                                        {order.part_name}
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Buttons & Date in one line */}
+                                                <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                    {blueprintUrl && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 rounded-md bg-primary/5 text-primary hover:bg-primary hover:text-white transition-colors border border-primary/20"
+                                                            title="Ver Plano"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const fileId = extractDriveFileId(blueprintUrl);
+                                                                if (fileId) {
+                                                                    setPreviewFileId(fileId);
+                                                                } else {
+                                                                    window.open(blueprintUrl, '_blank');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <FileText className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    )}
+                                                    {deliveryDate && (
+                                                        <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded border border-border/50">
+                                                            {moment(deliveryDate).format("DD MMM")}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
+                                                <div className="text-[10px] text-muted-foreground font-medium truncate max-w-[180px]">
+                                                    {companyName || "Sin Empresa"}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {showEvaluated && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                                                            title="Limpiar Evaluación"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIdToClearEval(order.id);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    )}
+                                                    {!showEvaluated && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-[9px] font-black uppercase text-primary/70 hover:text-primary hover:bg-primary/5 rounded-md"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedOrderForEval(order);
+                                                                setIsEvalModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Evaluar
+                                                        </Button>
+                                                    )}
+                                                    {showEvaluated && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-[9px] font-black uppercase text-primary/70 hover:text-primary hover:bg-primary/5 rounded-md"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedOrderForEval(order);
+                                                                setIsEvalModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Ver/Editar
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Evaluation Modal */}
             <EvaluationModal
@@ -1295,25 +1582,40 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 onPrevious={handlePrevEval}
                 hasNext={selectedEvalIndex < evalNavigationList.length - 1}
                 hasPrevious={selectedEvalIndex > 0}
+                container={containerRef.current}
             />
 
             {/* PDF/Drive Preview Modal */}
             <Dialog open={!!previewFileId} onOpenChange={(open) => !open && setPreviewFileId(null)}>
-                <DialogContent className="max-w-5xl h-[90vh] p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10002]">
+                <DialogContent
+                    container={containerRef.current}
+                    className="max-w-5xl h-[90vh] p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10002]"
+                >
                     <div className="relative w-full h-full flex flex-col">
                         <div className="p-4 bg-muted/10 border-b border-border flex items-center justify-between">
                             <DialogTitle className="text-sm font-bold flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-primary" />
                                 Vista Previa de Plano
                             </DialogTitle>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full"
-                                onClick={() => setPreviewFileId(null)}
-                            >
-                                <X className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                                    onClick={() => window.open(`https://drive.google.com/file/d/${previewFileId}/view`, '_blank')}
+                                    title="Abrir en pestaña nueva"
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full"
+                                    onClick={() => setPreviewFileId(null)}
+                                >
+                                    <X className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
                         <div className="flex-1 bg-muted/5">
                             {previewFileId && (
@@ -1328,6 +1630,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     </div>
                 </DialogContent>
             </Dialog>
+
             {/* Auto-Plan Configuration Dialog */}
             <AutoPlanDialog
                 isOpen={isAutoPlanDialogOpen}
@@ -1337,6 +1640,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 machines={machines.map(m => m.name)}
                 onSaveScenario={handleSaveScenario}
                 scenarioCount={savedScenarios.length}
+                container={containerRef.current}
             />
 
             {/* Scenario Comparison Panel */}
@@ -1348,7 +1652,56 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 onApply={handleApplyScenario}
                 onDelete={handleDeleteScenario}
                 activePreviewId={activePreviewId}
+                container={containerRef.current}
             />
-        </div>
+
+            {/* Clear Evaluation Confirmation */}
+            <AlertDialog open={!!idToClearEval} onOpenChange={(open) => !open && setIdToClearEval(null)}>
+                <AlertDialogContent container={containerRef.current} className="z-[10003]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-amber-500" />
+                            Limpiar Evaluación
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que deseas limpiar la evaluación de esta pieza? Volverá a aparecer en la lista de 'Por Evaluar' y se quitará de la planeación actual.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => idToClearEval && confirmClearEvaluation(idToClearEval)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            Limpiar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Discard Changes Confirmation */}
+            <AlertDialog open={isDiscardConfirmOpen} onOpenChange={setIsDiscardConfirmOpen}>
+                <AlertDialogContent container={containerRef.current} className="z-[10003]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <RotateCcw className="w-5 h-5 text-primary" />
+                            Descartar Cambios
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que deseas descartar todos los cambios no guardados? Esta acción revertirá el Gantt a su último estado guardado y no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Continuar Editando</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDiscard}
+                            className="bg-primary hover:bg-primary/90 text-white"
+                        >
+                            Descartar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div >
     );
 }

@@ -17,6 +17,16 @@ import {
     TrendingUp,
     ArrowRight,
 } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SavedScenario, ScenarioMetrics } from "@/lib/scheduling-utils";
 
 interface ScenarioComparisonProps {
@@ -27,6 +37,7 @@ interface ScenarioComparisonProps {
     onApply: (scenario: SavedScenario) => Promise<void>;
     onDelete: (scenarioId: string) => Promise<void>;
     activePreviewId: string | null;
+    container?: HTMLElement | null;
 }
 
 function getBestMetric(scenarios: SavedScenario[], key: keyof ScenarioMetrics, lower = true): string | null {
@@ -60,9 +71,11 @@ export function ScenarioComparison({
     onApply,
     onDelete,
     activePreviewId,
+    container
 }: ScenarioComparisonProps) {
     const [applyingId, setApplyingId] = useState<string | null>(null);
-    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [deletingScenario, setDeletingScenario] = useState<{ id: string; name: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const bestTasks = getBestMetric(scenarios, "totalTasks", false);
     const bestHours = getBestMetric(scenarios, "totalHours", false);
@@ -78,12 +91,14 @@ export function ScenarioComparison({
         }
     };
 
-    const handleDelete = async (id: string) => {
-        setDeletingId(id);
+    const handleDelete = async () => {
+        if (!deletingScenario) return;
+        setIsDeleting(true);
         try {
-            await onDelete(id);
+            await onDelete(deletingScenario.id);
+            setDeletingScenario(null);
         } finally {
-            setDeletingId(null);
+            setIsDeleting(false);
         }
     };
 
@@ -94,15 +109,15 @@ export function ScenarioComparison({
 
     return (
         <DialogPrimitive.Root open={isOpen} onOpenChange={onClose}>
-            <DialogPrimitive.Portal>
+            <DialogPrimitive.Portal container={container}>
                 <DialogPrimitive.Overlay className="fixed inset-0 z-[10000] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
                 <DialogPrimitive.Content
-                    className="fixed z-[10001] inset-0 flex items-center justify-center pointer-events-none"
+                    className="fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 outline-none p-4"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <div
-                        className="pointer-events-auto bg-background rounded-3xl shadow-2xl overflow-hidden border-none"
+                        className="bg-background rounded-3xl shadow-2xl overflow-hidden border-none flex flex-col relative"
                         style={{
                             width: "min(95vw, 1200px)",
                             height: "min(85vh, 800px)",
@@ -115,14 +130,10 @@ export function ScenarioComparison({
                             Compara las métricas de cada escenario generado.
                         </DialogPrimitive.Description>
 
-                        <DialogPrimitive.Close className="absolute right-4 top-4 z-50 rounded-full p-1.5 opacity-70 hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm">
-                            <X className="h-4 w-4" />
-                            <span className="sr-only">Close</span>
-                        </DialogPrimitive.Close>
 
                         <div className="h-full flex flex-col">
                             {/* Header */}
-                            <div className="shrink-0 p-6 pb-4 border-b border-border/50">
+                            <div className="shrink-0 p-6 pb-4 border-b border-border/50 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-primary/10 rounded-xl">
                                         <BarChart3 className="w-5 h-5 text-primary" />
@@ -134,6 +145,10 @@ export function ScenarioComparison({
                                         </p>
                                     </div>
                                 </div>
+                                <DialogPrimitive.Close className="rounded-full p-1.5 opacity-70 hover:opacity-100 transition-opacity hover:bg-muted">
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">Close</span>
+                                </DialogPrimitive.Close>
                             </div>
 
                             {/* Content */}
@@ -258,12 +273,12 @@ export function ScenarioComparison({
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="sm"
-                                                                        onClick={() => handleDelete(s.id)}
-                                                                        disabled={deletingId === s.id}
+                                                                        onClick={() => setDeletingScenario({ id: s.id, name: s.name })}
+                                                                        disabled={isDeleting}
                                                                         className="h-8 w-8 p-0 rounded-xl text-red-500 hover:bg-red-500/10"
                                                                         title="Eliminar escenario"
                                                                     >
-                                                                        {deletingId === s.id ? (
+                                                                        {isDeleting && deletingScenario?.id === s.id ? (
                                                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                                                         ) : (
                                                                             <Trash2 className="w-3.5 h-3.5" />
@@ -306,6 +321,37 @@ export function ScenarioComparison({
                     </div>
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
+
+            {/* Premium Delete Confirmation */}
+            <AlertDialog open={!!deletingScenario} onOpenChange={(open) => !open && setDeletingScenario(null)}>
+                <AlertDialogContent container={container} className="rounded-3xl border-none shadow-2xl max-w-[400px]">
+                    <AlertDialogHeader className="items-center text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-2">
+                            <Trash2 className="w-8 h-8 text-[#EC1C21]" />
+                        </div>
+                        <AlertDialogTitle className="text-xl font-black uppercase tracking-tight">¿Eliminar Escenario?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm font-medium">
+                            Vas a eliminar <span className="text-foreground font-bold">"{deletingScenario?.name}"</span>.
+                            Esta acción es permanente y no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="sm:justify-center gap-3 mt-4">
+                        <AlertDialogCancel className="rounded-xl border-none bg-muted hover:bg-muted/80 font-bold px-6">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handleDelete();
+                            }}
+                            className="rounded-xl bg-[#EC1C21] hover:bg-[#EC1C21]/90 text-white font-black px-6 shadow-lg shadow-red-500/20"
+                        >
+                            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Sí, Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </DialogPrimitive.Root>
     );
 }

@@ -312,3 +312,26 @@ export async function toggleTaskLocked(taskId: string, locked: boolean) {
 
     revalidatePath("/dashboard/produccion");
 }
+
+export async function clearOrderEvaluation(orderId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await supabase
+        .from("production_orders")
+        .update({
+            genral_status: "A0-NUEVO PROYECTO",
+            evaluation: null,
+        })
+        .eq("id", orderId);
+
+    if (error) {
+        logger.error("Error clearing order evaluation", error);
+        // Create a detailed error message
+        const errorMessage = `Failed to clear evaluation: ${error.message} (${error.details || 'No details'})`;
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+    }
+
+    revalidatePath("/dashboard/produccion");
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Calendar as CalendarIcon, Clock, User, Box, Save, Trash2, ChevronDown, ChevronUp, Sparkles, Edit } from "lucide-react";
 import { createPlanningTask, updateTaskDetails } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
@@ -33,6 +34,7 @@ interface TaskModalProps {
     orders: Order[];
     operators: string[];
     onSuccess: () => void;
+    container?: HTMLElement | null;
 }
 
 // Custom Date Selector Component - EXACT COPY from project-form.tsx
@@ -204,7 +206,7 @@ function CustomTimePicker({ value, onChange, className }: { value: string, onCha
     );
 }
 
-export function TaskModal({ isOpen, onClose, initialData, orders, operators, onSuccess }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, initialData, orders, operators, onSuccess, container }: TaskModalProps) {
 
     // Main Component
 
@@ -412,7 +414,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
         return new Date(y, m - 1, d);
     };
 
-    return (
+    const modalContent = (
         <div
             className={cn(
                 "fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm",
@@ -449,27 +451,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6"> {/* Changed overflow-y-auto to visible if possible, or we need to handle scroll vs popover. 
-                Wait, if I make this visible, I lose scroll. But DateSelector needs overwrite.
-                Actually, DateSelector in Modal: The popup should use Portal (Shadcn default) OR Fixed positioning.
-                My DateSelector uses ABSOLUTE positioning. 
-                If container clips, it fails.
-                ProjectForm uses absolute.
-                Ideally, inside a modal with scroll, we should use a PORTAL.
-                The user insisted on "como en Nuevo Proyecto" (which uses Manual Absolute).
-                But Nuevo Proyecto is a full page form (likely). This is a modal.
-                If I use absolute inside a scrolling modal, it clips.
-                I will TRY keeping overflow visible. If content fits, great.
-                CreateTaskModal was short. TaskModal seems longer.
-                If I must use Scroll, I SHOULD use Shadcn Popover (Portal).
-                BUT the user wanted "EXACT LIKE PROJECT FORM".
-                I'll stick to absolute. I'll make the modal allow overflow if it fits roughly.
-                Or, I'll rely on the fact that the form isn't THAT long.
-                Actually, `overflow-y-auto` + `absolute` child = Clipped.
-                I will remove `overflow-y-auto` and let the modal grow. If it's too tall for screen, then we have a problem.
-                The form has 3 main blocks. It should fit. 
-                I removed `overflow-y-auto` from form and `overflow-hidden` from main div.
-                */}
+                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
                         {error && (
                             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg text-sm animate-pulse">
                                 {error}
@@ -572,4 +554,6 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
             </div>
         </div>
     );
+
+    return createPortal(modalContent, container || document.body);
 }

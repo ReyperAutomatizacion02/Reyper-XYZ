@@ -4,7 +4,7 @@ import React, { useMemo, useState, useRef, useEffect } from "react";
 // import { useRouter } from "next/navigation"; // Removed
 import moment from "moment";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut } from "lucide-react"; // Removed Save, RotateCcw, X, AlertCircle
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2 } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
 import { getProductionTaskColor } from "@/utils/production-colors";
@@ -13,6 +13,7 @@ type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
     production_orders: Order | null;
+    isDraft?: boolean;
 };
 
 export interface GanttSVGProps {
@@ -38,9 +39,12 @@ export interface GanttSVGProps {
     setModalData?: (data: any) => void;
     onToggleLock?: (taskId: string, locked: boolean) => void;
     cascadeMode?: boolean;
+    container?: HTMLElement | null;
+    startControls?: React.ReactNode;
+    endControls?: React.ReactNode;
+    onToggleFullscreen?: () => void;
 }
 
-// Helper for 15-minute snapping
 // Helper for 15-minute snapping
 const roundToNearest15Minutes = (date: moment.Moment) => {
     const minutes = date.minute();
@@ -69,6 +73,7 @@ export function GanttSVG({
     setOptimisticTasks,
     searchQuery,
     viewMode,
+    isFullscreen,
     selectedMachines,
     operators,
     showDependencies,
@@ -82,7 +87,11 @@ export function GanttSVG({
     modalData: externalModalData,
     setModalData: externalSetModalData,
     onToggleLock,
-    cascadeMode = false
+    cascadeMode = false,
+    container,
+    startControls,
+    endControls,
+    onToggleFullscreen
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -159,7 +168,7 @@ export function GanttSVG({
 
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
     const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number, mode: 'above' | 'below' }>({ x: 0, y: 0, mode: 'below' });
-    const [currentTime, setCurrentTime] = useState<Date | null>(null);
+    const [currentTime, setCurrentTime] = useState<moment.Moment>(() => moment());
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Scroll suppression refs
@@ -168,8 +177,8 @@ export function GanttSVG({
 
     // Initialize current time on client and update every minute
     useEffect(() => {
-        setCurrentTime(new Date());
-        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        setCurrentTime(moment());
+        const timer = setInterval(() => setCurrentTime(moment()), 60000);
         return () => clearInterval(timer);
     }, []);
 
@@ -566,8 +575,12 @@ export function GanttSVG({
     };
 
     const onMouseDown = (e: React.MouseEvent, task: PlanningTask) => {
+        const now = currentTime || moment();
+        const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(now);
+        const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
+
         if (readOnly) return;
-        if (task.locked) return; // Locked tasks cannot be dragged
+        if (isLocked) return; // Locked tasks cannot be dragged
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
@@ -599,8 +612,12 @@ export function GanttSVG({
     };
 
     const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
+        const now = currentTime || moment();
+        const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(now);
+        const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
+
         if (readOnly) return;
-        if (task.locked) return; // Locked tasks cannot be resized
+        if (isLocked) return; // Locked tasks cannot be resized
         e.stopPropagation();
         setHoveredTask(null); // Hide tooltip immediately
 
@@ -828,33 +845,71 @@ export function GanttSVG({
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden select-none bg-background relative">
-            {/* Date Navigation Bar */}
-            <div className="flex-none h-10 border-b border-border bg-muted/30 flex items-center justify-between px-4 z-[50]">
-                {!hideDateNavigation ? (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => navigateDate('prev')}
-                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                            title="Anterior"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => navigateDate('today')}
-                            className="px-3 py-1 text-xs font-semibold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1"
-                        >
-                            <Calendar className="w-3 h-3" />
-                            Hoy
-                        </button>
-                        <button
-                            onClick={() => navigateDate('next')}
-                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                            title="Siguiente"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
-                ) : (
+            {/* Gantt Header Bar */}
+            <div className="flex-none h-10 border-b border-border bg-muted/30 flex items-center px-4 z-[50] gap-2">
+                {/* Start Controls (View Mode Buttons) */}
+                {startControls}
+
+                {/* Date Navigation - right of view buttons */}
+                {!hideDateNavigation && (
+                    <>
+                        <div className="w-px h-6 bg-border" />
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => navigateDate('prev')}
+                                className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                title="Anterior"
+                            >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                onClick={() => navigateDate('today')}
+                                className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1"
+                            >
+                                <Calendar className="w-3 h-3" />
+                                Hoy
+                            </button>
+                            <button
+                                onClick={() => navigateDate('next')}
+                                className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                title="Siguiente"
+                            >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        {/* Date Inputs - compact styled */}
+                        <div className="w-px h-6 bg-border" />
+                        <div className="flex items-center gap-1.5">
+                            {viewMode === 'hour' ? (
+                                <input
+                                    type="date"
+                                    value={selectedDate.format('YYYY-MM-DD')}
+                                    onChange={(e) => setSelectedDate(moment(e.target.value))}
+                                    className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
+                                />
+                            ) : (
+                                <>
+                                    <input
+                                        type="date"
+                                        value={dateRangeStart.format('YYYY-MM-DD')}
+                                        onChange={(e) => setDateRangeStart(moment(e.target.value))}
+                                        className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground font-bold">→</span>
+                                    <input
+                                        type="date"
+                                        value={dateRangeEnd.format('YYYY-MM-DD')}
+                                        onChange={(e) => setDateRangeEnd(moment(e.target.value))}
+                                        className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
+                                    />
+                                </>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {!hideDateNavigation && !startControls && (
                     <div className="flex items-center gap-2 px-2">
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary bg-primary/10 px-3 py-1 rounded-md">
                             {selectedDate.format('DD MMMM YYYY')}
@@ -862,10 +917,14 @@ export function GanttSVG({
                     </div>
                 )}
 
-                {/* Vertical Divider */}
-                <div className="w-px h-6 bg-border mx-2" />
+                {/* Spacer to push remaining items right */}
+                <div className="flex-1" />
+
+                {/* End Controls (Search, Filters, Settings) */}
+                {endControls}
 
                 {/* Zoom Controls */}
+                {endControls && <div className="w-px h-6 bg-border" />}
                 <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-lg border border-border/50">
                     <button
                         onClick={() => setZoomLevel(prev => Math.max(viewMode === 'week' ? 0.8 : 0.5, prev - 0.25))}
@@ -875,7 +934,7 @@ export function GanttSVG({
                         <ZoomOut className="w-3.5 h-3.5" />
                     </button>
                     <div
-                        className="w-16 px-2 flex justify-center cursor-pointer select-none"
+                        className="w-14 px-1 flex justify-center cursor-pointer select-none"
                         title="Doble click para restablecer (100%)"
                         onDoubleClick={() => setZoomLevel(1)}
                     >
@@ -892,37 +951,23 @@ export function GanttSVG({
                     </button>
                 </div>
 
-                {/* Vertical Divider */}
-                <div className="w-px h-6 bg-border mx-2" />
-
-                {/* View-specific date display */}
-                {!hideDateNavigation && (
-                    <div className="flex items-center gap-2">
-                        {viewMode === 'hour' ? (
-                            <input
-                                type="date"
-                                value={selectedDate.format('YYYY-MM-DD')}
-                                onChange={(e) => setSelectedDate(moment(e.target.value))}
-                                className="px-2 py-1 text-xs rounded-md border border-border bg-background"
-                            />
-                        ) : (
-                            <>
-                                <input
-                                    type="date"
-                                    value={dateRangeStart.format('YYYY-MM-DD')}
-                                    onChange={(e) => setDateRangeStart(moment(e.target.value))}
-                                    className="px-2 py-1 text-xs rounded-md border border-border bg-background"
-                                />
-                                <span className="text-xs text-foreground/40">-</span>
-                                <input
-                                    type="date"
-                                    value={dateRangeEnd.format('YYYY-MM-DD')}
-                                    onChange={(e) => setDateRangeEnd(moment(e.target.value))}
-                                    className="px-2 py-1 text-xs rounded-md border border-border bg-background"
-                                />
-                            </>
-                        )}
-                    </div>
+                {/* Fullscreen Button - far right */}
+                {onToggleFullscreen && (
+                    <>
+                        <div className="w-px h-6 bg-border" />
+                        <button
+                            id="planning-fullscreen"
+                            onClick={onToggleFullscreen}
+                            className="p-1.5 rounded-lg border border-border bg-background hover:bg-primary/10 hover:border-primary/30 text-muted-foreground hover:text-primary transition-all"
+                            title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
+                        >
+                            {isFullscreen ? (
+                                <Minimize2 className="w-3.5 h-3.5" />
+                            ) : (
+                                <Maximize2 className="w-3.5 h-3.5" />
+                            )}
+                        </button>
+                    </>
                 )}
             </div>
 
@@ -1067,7 +1112,10 @@ export function GanttSVG({
                                 const isDragging = draggingTask?.id === task.id;
                                 const isResizing = resizingTask?.id === task.id;
                                 const activeTask = isDragging || isResizing;
-                                const isLocked = !!task.locked;
+                                const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(currentTime);
+                                const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
+
+
                                 const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
 
                                 const color = getProductionTaskColor(task);
@@ -1088,6 +1136,13 @@ export function GanttSVG({
                                             // Don't set position here, rely on mouse move
                                         }}
                                         onMouseLeave={() => setHoveredTask(null)}
+                                        onClick={(e) => {
+                                            if (readOnly) return;
+                                            // For touch devices, show tooltip on tap
+                                            if (!draggingTask && !resizingTask) {
+                                                setHoveredTask(task);
+                                            }
+                                        }}
                                         onMouseMove={(e) => {
                                             if (hoveredTask?.id === task.id || !hoveredTask) {
                                                 const TOOLTIP_WIDTH = 320;
@@ -1143,7 +1198,7 @@ export function GanttSVG({
                                                     : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))",
                                                 stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
                                                 strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
-                                                strokeDasharray: isLocked ? '6 3' : isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none"
+                                                strokeDasharray: isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none"
                                             }}
                                         />
                                         {/* Interaction Shield (Underneath Resize Handle) */}
@@ -1175,9 +1230,13 @@ export function GanttSVG({
                                             <div
                                                 className="h-full flex flex-col justify-center text-white px-2 overflow-hidden"
                                             >
-                                                <div className="text-[10px] font-black truncate uppercase leading-none drop-shadow-sm">
-                                                    {task.production_orders?.part_code || "S/N"}
+                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                    {isLocked && <Lock className="w-2.5 h-2.5 flex-shrink-0" />}
+                                                    <div className="text-[10px] font-black truncate uppercase leading-none drop-shadow-sm">
+                                                        {task.production_orders?.part_code || "S/N"}
+                                                    </div>
                                                 </div>
+
                                                 {width > 100 && (
                                                     <div className="text-[8px] font-bold opacity-90 mt-1 whitespace-nowrap bg-black/10 px-1 py-0.5 rounded-sm self-start">
                                                         {moment(task.planned_date).format("HH:mm")} - {moment(task.planned_end).format("HH:mm")}
@@ -1186,14 +1245,6 @@ export function GanttSVG({
                                             </div>
                                         </foreignObject>
 
-                                        {/* Lock Icon */}
-                                        {isLocked && width > 30 && (
-                                            <foreignObject x={x + width - 22} y={y + 2} width={18} height={18} className="pointer-events-none">
-                                                <div className="flex items-center justify-center w-full h-full">
-                                                    <span className="text-[10px] drop-shadow-md">🔒</span>
-                                                </div>
-                                            </foreignObject>
-                                        )}
 
                                         {/* Resize Handle Left - hidden when locked */}
                                         {!isLocked && (
@@ -1257,6 +1308,7 @@ export function GanttSVG({
                     window.location.reload(); // Temporary fallback or just leave it closed.
                     // Better: just remove router.refresh() as the component doesn't have router.
                 }}
+                container={container}
             />
 
             {/* Floating Save Bar REMOVED - Moved to Header */}
@@ -1349,15 +1401,19 @@ export function GanttSVG({
                     >
                         <span>Ver Detalles</span>
                     </button>
-                    {onToggleLock && (
+                    {onToggleLock && !contextMenu.task.isDraft && (
                         <button
                             onClick={() => {
-                                onToggleLock(contextMenu.task.id, !contextMenu.task.locked);
+                                const now = currentTime || moment();
+                                const isFinishedOrRunning = !!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(now);
+                                const currentIsLocked = contextMenu.task.locked === true || (contextMenu.task.locked !== false && isFinishedOrRunning);
+                                onToggleLock(contextMenu.task.id, !currentIsLocked);
                                 setContextMenu(null);
                             }}
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
                         >
-                            <span>{contextMenu.task.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}</span>
+                            {(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(currentTime || moment())))) ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                            <span>{(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(currentTime || moment())))) ? 'Desbloquear' : 'Bloquear'}</span>
                         </button>
                     )}
                 </div>

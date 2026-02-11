@@ -29,6 +29,9 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // Transpile packages that might have issues with resolution or ESM
+  transpilePackages: ['driver.js'],
+
   // Optimizaciones experimentales
   experimental: {
     // Optimizar imports de paquetes grandes

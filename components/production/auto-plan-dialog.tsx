@@ -38,6 +38,7 @@ interface AutoPlanDialogProps {
     machines: string[];
     onSaveScenario: (data: { name: string; strategy: string; config: any; result: SchedulingResult }) => Promise<void>;
     scenarioCount: number;
+    container?: HTMLElement | null;
 }
 
 const STRATEGIES: { id: SchedulingStrategy; label: string; icon: any; description: string }[] = [
@@ -121,7 +122,7 @@ function FilterToggle({
 }
 
 /* ── Main Component ───────────────────────────────────────────── */
-export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSaveScenario, scenarioCount }: AutoPlanDialogProps) {
+export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSaveScenario, scenarioCount, container }: AutoPlanDialogProps) {
     const [mainStrategy, setMainStrategy] = useState<SchedulingStrategy>("DELIVERY_DATE");
     const [onlyWithCAD, setOnlyWithCAD] = useState(false);
     const [onlyWithBlueprint, setOnlyWithBlueprint] = useState(false);
@@ -171,18 +172,18 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
 
     return (
         <DialogPrimitive.Root open={isOpen} onOpenChange={onClose}>
-            <DialogPrimitive.Portal>
+            <DialogPrimitive.Portal container={container}>
                 {/* Overlay */}
                 <DialogPrimitive.Overlay className="fixed inset-0 z-[10000] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
                 {/* Content – using FIXED dimensions so nothing shifts */}
                 <DialogPrimitive.Content
-                    className="fixed z-[10001] inset-0 flex items-center justify-center pointer-events-none"
+                    className="fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 outline-none p-4"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     {/* The actual dialog box */}
                     <div
-                        className="pointer-events-auto bg-background rounded-3xl shadow-2xl overflow-hidden border-none data-[state=open]:animate-in data-[state=closed]:animate-out"
+                        className="bg-background rounded-3xl shadow-2xl overflow-hidden border-none data-[state=open]:animate-in data-[state=closed]:animate-out flex flex-col relative"
                         style={{
                             width: "min(90vw, 1100px)",
                             height: "min(85vh, 850px)",
@@ -197,10 +198,6 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                         </DialogPrimitive.Description>
 
                         {/* Close button */}
-                        <DialogPrimitive.Close className="absolute right-4 top-4 z-50 rounded-full p-1.5 opacity-70 hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm">
-                            <X className="h-4 w-4" />
-                            <span className="sr-only">Close</span>
-                        </DialogPrimitive.Close>
 
                         {/* Two-panel layout with CSS Grid – height is fixed by parent */}
                         <div className="h-full grid grid-cols-1 md:grid-cols-[2fr_3fr]">
@@ -208,18 +205,21 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                             {/* ─── LEFT PANEL: Configuration ─── */}
                             <div className="bg-muted/30 border-r border-border flex flex-col h-full overflow-hidden">
                                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-                                    {/* Header */}
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
                                             <div className="p-2 bg-primary/10 rounded-xl">
                                                 <Wand2 className="w-5 h-5 text-primary" />
                                             </div>
                                             <h2 className="text-lg font-black tracking-tight uppercase">Configuración</h2>
                                         </div>
-                                        <p className="text-[10px] text-muted-foreground font-medium">
-                                            Define las reglas de oro para este escenario de planeación.
-                                        </p>
+                                        <DialogPrimitive.Close className="rounded-full p-1.5 opacity-70 hover:opacity-100 transition-opacity hover:bg-muted">
+                                            <X className="h-4 w-4" />
+                                            <span className="sr-only">Close</span>
+                                        </DialogPrimitive.Close>
                                     </div>
+                                    <p className="text-[10px] text-muted-foreground font-medium mb-5">
+                                        Define las reglas de oro para este escenario de planeación.
+                                    </p>
 
                                     {/* Strategies */}
                                     <div className="space-y-2">

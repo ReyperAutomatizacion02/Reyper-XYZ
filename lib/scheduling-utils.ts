@@ -561,3 +561,96 @@ export function shiftScenarioTasks(
         };
     });
 }
+
+/**
+ * Shifts a set of tasks so that the earliest one starts at or after the targetTime,
+ * respecting work hours and avoiding collisions.
+ */
+export function shiftTasksToCurrent(
+    tasks: Partial<PlanningTask>[],
+    targetTime: moment.Moment,
+    existingTasks: PlanningTask[],
+    machines: string[]
+): Partial<PlanningTask>[] {
+    if (tasks.length === 0) return tasks;
+
+    // 1. Find the earliest start in the task set
+    const starts = tasks
+        .filter(t => t.planned_date)
+        .map(t => moment(t.planned_date));
+    
+    if (starts.length === 0) return tasks;
+    const earliestOriginal = moment.min(starts);
+
+    // 2. Ensure target start is valid (Mon-Sat 6-22)
+    const newGlobalStart = getNextValidWorkTime(targetTime);
+
+    // 3. Calculate the standard offset
+    const offsetMs = newGlobalStart.valueOf() - earliestOriginal.valueOf();
+
+    // 4. Map back using existing shiftScenarioTasks logic but based on MS offset
+    // (Actually, let's just make shiftScenarioTasks more generic or reuse its core logic)
+    
+    // Build collision map from existing (non-draft) tasks
+    const existingTasksMap = existingTasks
+        .filter(t => !(t as any).isDraft)
+        .map(t => ({
+            machine: t.machine,
+            startMs: moment(t.planned_date).valueOf(),
+            endMs: moment(t.planned_end).valueOf()
+        }));
+
+    return tasks.map(task => {
+        if (!task.planned_date || !task.planned_end) return task;
+
+        let newStart = getNextValidWorkTime(moment(task.planned_date).add(offsetMs, 'ms'));
+        const duration = moment(task.planned_end).diff(moment(task.planned_date), 'minutes');
+
+        // End must respect work hours
+        let rem = duration;
+        let cur = moment(newStart);
+        while (rem > 0) {
+            cur = getNextValidWorkTime(cur);
+            const se = moment(cur).hour(22).minute(0).second(0);
+            const av = se.diff(cur, 'minutes');
+            if (av <= 0) { cur.add(1, 'day').startOf('day').hour(6); continue; }
+            const seg = Math.min(rem, av);
+            rem -= seg;
+            cur = rem > 0 ? moment(se) : moment(cur).add(seg, 'minutes');
+        }
+        let newEnd = cur;
+
+        // Check collisions & nudge
+        const collision = existingTasksMap.find(t =>
+            t.machine === task.machine &&
+            t.startMs < newEnd.valueOf() &&
+            t.endMs > newStart.valueOf()
+        );
+
+        if (collision) {
+            newStart = getNextValidWorkTime(moment(collision.endMs));
+            let r = duration;
+            let c = moment(newStart);
+            while (r > 0) {
+                c = getNextValidWorkTime(c);
+                const se = moment(c).hour(22).minute(0).second(0);
+                const av = se.diff(c, 'minutes');
+                if (av <= 0) { c.add(1, 'day').startOf('day').hour(6); continue; }
+                const seg = Math.min(r, av);
+                r -= seg;
+                c = r > 0 ? moment(se) : moment(c).add(seg, 'minutes');
+            }
+            return {
+                ...task,
+                planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
+                planned_end: c.format('YYYY-MM-DDTHH:mm:ss'),
+            };
+        }
+
+        return {
+            ...task,
+            planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
+            planned_end: newEnd.format('YYYY-MM-DDTHH:mm:ss'),
+        };
+    });
+}

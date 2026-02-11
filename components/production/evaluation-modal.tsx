@@ -5,6 +5,7 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
+    DialogClose,
 } from "@/components/ui/dialog";
 // Assuming these exist, if not I'll adjust
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ interface EvaluationModalProps {
     onPrevious?: () => void;
     hasNext?: boolean;
     hasPrevious?: boolean;
+    container?: HTMLElement | null;
 }
 
 export function EvaluationModal({
@@ -55,7 +57,8 @@ export function EvaluationModal({
     onNext,
     onPrevious,
     hasNext,
-    hasPrevious
+    hasPrevious,
+    container
 }: EvaluationModalProps) {
     const [steps, setSteps] = useState<EvaluationStep[]>(
         order?.evaluation || [{ machine: "", hours: 0 }]
@@ -172,6 +175,8 @@ export function EvaluationModal({
             toast.success("Evaluación guardada correctamente");
             onSuccess(validSteps);
 
+            // If we have a next item, we just update the order in the parent. 
+            // The modal stays open because isOpen is still true.
             if (hasNext && onNext) {
                 onNext();
             } else {
@@ -190,13 +195,17 @@ export function EvaluationModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className={`${hasDrawing ? 'sm:max-w-[95vw] lg:max-w-[7xl]' : 'sm:max-w-[600px]'} p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10001] h-[95vh] flex flex-col [&>button]:hidden`}>
+            <DialogContent
+                container={container}
+                className={`${hasDrawing ? 'sm:max-w-[95vw] lg:max-w-7xl' : 'sm:max-w-[600px]'} p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10001] h-[95vh] flex flex-col [&>button]:hidden`}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+            >
                 <div className={`flex flex-1 overflow-hidden ${hasDrawing ? 'flex-row' : 'flex-col'}`}>
 
                     {/* Left Panel: Blueprint Viewer (Only if exists) */}
                     {hasDrawing && (
-                        <div className="flex-1 bg-muted/5 flex flex-col border-r border-border min-w-0">
-                            <div className="p-4 bg-muted/30 border-b border-border flex items-center justify-between">
+                        <div className="flex-1 bg-muted/5 flex flex-col border-r border-border min-w-0 h-full">
+                            <div className="p-4 bg-muted/30 border-b border-border flex items-center justify-between shrink-0">
                                 <h3 className="text-sm font-bold flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-primary" />
                                     Plano de Fabricación
@@ -212,26 +221,24 @@ export function EvaluationModal({
                                     </Button>
                                 )}
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 relative bg-[#1a1a1a] flex items-center justify-center overflow-hidden h-full w-full">
                                 {fileId ? (
                                     <iframe
                                         src={`https://drive.google.com/file/d/${fileId}/preview`}
-                                        className="w-full h-full border-none"
+                                        className="w-full h-full border-none block"
                                         allow="autoplay"
                                         title="Blueprint Preview"
                                     ></iframe>
                                 ) : (
-                                    <div className="flex items-center justify-center h-full bg-muted/10">
-                                        <div className="max-w-[280px] p-8 rounded-3xl border border-dashed border-border flex flex-col items-center text-center gap-4 bg-background/50 shadow-inner">
-                                            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-sm">
-                                                <FileText className="w-8 h-8 text-amber-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h4 className="font-bold text-sm">Vista Previa No Disponible</h4>
-                                                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                                    Este archivo no se puede visualizar directamente. Usa el botón de arriba para abrirlo en una pestaña nueva.
-                                                </p>
-                                            </div>
+                                    <div className="flex flex-col items-center justify-center p-8 text-center gap-4 bg-background/50 m-4 rounded-3xl border border-dashed border-border shadow-inner max-w-sm">
+                                        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-sm">
+                                            <FileText className="w-8 h-8 text-amber-500" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h4 className="font-bold text-sm">Vista Previa No Disponible</h4>
+                                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                                Este archivo no se puede visualizar directamente. Usa el botón de arriba para abrirlo en una pestaña nueva.
+                                            </p>
                                         </div>
                                     </div>
                                 )}
@@ -281,9 +288,11 @@ export function EvaluationModal({
                                         )}
                                         {/* Removed duplicated X here, relying on Dialog's default Close button or could keep this one if Dialog close is disabled */}
                                         {/* Note: I'll keep one but ensure it's the "only" one visually if possible, or use Radix close */}
-                                        <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20 h-7 w-7 ml-2">
-                                            <X className="w-4 h-4" />
-                                        </Button>
+                                        <DialogClose asChild>
+                                            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-7 w-7 ml-2">
+                                                <X className="w-4 h-4" />
+                                            </Button>
+                                        </DialogClose>
                                     </div>
                                 </div>
                             </DialogHeader>
@@ -355,9 +364,11 @@ export function EvaluationModal({
                                 >
                                     {isSaving ? "GUARDANDO..." : "GUARDAR EVALUACIÓN"}
                                 </Button>
-                                <Button variant="ghost" onClick={onClose} disabled={isSaving} className="w-full h-9 text-xs font-bold">
-                                    CANCELAR
-                                </Button>
+                                <DialogClose asChild>
+                                    <Button variant="ghost" disabled={isSaving} className="w-full h-9 text-xs font-bold">
+                                        CANCELAR
+                                    </Button>
+                                </DialogClose>
                             </div>
                         </div>
                     </div>
