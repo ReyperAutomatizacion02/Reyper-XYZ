@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     Calendar as CalendarIcon,
     ChevronLeft,
@@ -74,6 +75,7 @@ import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { EvaluationModal } from "./evaluation-modal";
 import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, SchedulingStrategy, shiftTasksToCurrent, getNextValidWorkTime, snapToNext15Minutes } from "@/lib/scheduling-utils";
+import { getProductionTaskColor } from "@/utils/production-colors";
 import { ScenarioComparison } from "./scenario-comparison";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 import { extractDriveFileId } from "@/lib/drive-utils";
@@ -109,6 +111,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const router = useRouter();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
 
     // User preferences
     const { getGanttPrefs, updateGanttPref, isLoading: prefsLoading } = useUserPreferences();
@@ -120,6 +123,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [zoomLevel, setZoomLevel] = useState(1);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [hideEmptyMachines, setHideEmptyMachines] = useState(true);
+    const [cascadeMode, setCascadeMode] = useState(false);
     const [prefsInitialized, setPrefsInitialized] = useState(false);
     const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +152,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">("none");
     const [evalDateValue, setEvalDateValue] = useState("");
     const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">("after");
+
 
     // Confirmation states
     const [idToClearEval, setIdToClearEval] = useState<string | null>(null);
@@ -404,7 +409,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     };
     const [future, setFuture] = useState<PlanningTask[][]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [cascadeMode, setCascadeMode] = useState(false);
 
     // Lock/Unlock handler
     const handleToggleLock = async (taskId: string, locked: boolean) => {
@@ -497,6 +501,97 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         const visibleReal = optimisticTasks.filter(t => !new Set(draftTasks.map(d => d.order_id)).has(t.order_id));
         return [...visibleReal, ...draftTasks];
     }, [optimisticTasks, draftTasks, activeStrategy, liveDraftResult]);
+
+    // Planning Alerts Computation
+    const planningAlerts = useMemo(() => {
+        const alerts: { type: 'OVERLAP' | 'MISSING_OPERATOR', task: PlanningTask, details: string }[] = [];
+        const now = moment();
+        const startOfToday = moment().startOf('day');
+        const flaggedTaskIds = new Set<string>();
+
+        // Group by machine for overlap detection
+        const machineGroups: Record<string, PlanningTask[]> = {};
+        allTasks.forEach(task => {
+            const mName = task.machine;
+            if (!mName) return;
+
+            // REQUIRE both start and end dates for any alerts
+            if (!task.planned_date || !task.planned_end) return;
+
+            // Exclude past tasks (ones that ended before now)
+            if (moment(task.planned_end).isBefore(now)) return;
+
+            if (!machineGroups[mName]) machineGroups[mName] = [];
+            machineGroups[mName].push(task);
+
+            // Missing Operator Detection (Only for tasks scheduled TODAY)
+            if (!task.operator || task.operator.trim() === "") {
+                const isToday = moment(task.planned_date).isSame(startOfToday, 'day');
+                if (isToday) {
+                    alerts.push({
+                        type: 'MISSING_OPERATOR',
+                        task,
+                        details: `Sin operador asignado para hoy`
+                    });
+                }
+            }
+        });
+
+        // Overlap Detection - Robust pairwise intersection check per machine
+        Object.values(machineGroups).forEach(group => {
+            // Sort by start date to optimize
+            const sorted = [...group].sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+
+            for (let i = 0; i < sorted.length; i++) {
+                for (let j = i + 1; j < sorted.length; j++) {
+                    const t1 = sorted[i];
+                    const t2 = sorted[j];
+
+                    // Double check dates just in case
+                    if (!t1.planned_date || !t1.planned_end || !t2.planned_date || !t2.planned_end) continue;
+
+                    const start1 = moment(t1.planned_date);
+                    const end1 = moment(t1.planned_end);
+                    const start2 = moment(t2.planned_date);
+                    const end2 = moment(t2.planned_end);
+
+                    // Standard overlap condition: (StartA < EndB) && (EndA > StartB)
+                    if (start1.isBefore(end2) && end1.isAfter(start2)) {
+                        // Deduplicate: If t2 or t1 is already flagged, we still might want to flag the OTHER if not flagged
+                        // However, usually we want to see which PIECES are problematic.
+                        // User requested: "Registros que esten solapando con mas de un registro solo tiene que aparecer una vez"
+                        if (!flaggedTaskIds.has(t2.id)) {
+                            alerts.push({
+                                type: 'OVERLAP',
+                                task: t2,
+                                details: `Solapamiento detectado en ${t2.machine}`
+                            });
+                            flaggedTaskIds.add(t2.id);
+                        }
+
+                        // Also check t1 if it wasn't the "base" of an overlap before
+                        if (!flaggedTaskIds.has(t1.id)) {
+                            alerts.push({
+                                type: 'OVERLAP',
+                                task: t1,
+                                details: `Solapamiento detectado en ${t1.machine}`
+                            });
+                            flaggedTaskIds.add(t1.id);
+                        }
+                    }
+                }
+            }
+        });
+
+        return alerts;
+    }, [allTasks]);
+
+    // Locate Task Logic
+    const locateTask = (taskId: string) => {
+        setFocusTaskId(taskId);
+        // Clear focus after 3 seconds to stop pulsing
+        setTimeout(() => setFocusTaskId(null), 3000);
+    };
 
     // Wrapper for setOptimisticTasks - Handles both real and draft tasks
     const handleTasksChange = (newTasks: React.SetStateAction<PlanningTask[]>) => {
@@ -845,7 +940,10 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     return (
         <div
             ref={containerRef}
-            className="h-[calc(100vh-64px)] w-full flex flex-col bg-background"
+            className={cn(
+                "w-full flex flex-col bg-background transition-all duration-500",
+                isFullscreen ? "h-screen fixed inset-0 z-[9999] pt-4" : "h-[calc(100vh-64px)]"
+            )}
         >
             {!isFullscreen && (
                 <div className="px-6 pt-6 -mb-2">
@@ -861,46 +959,170 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </div>
             )}
 
-            {/* LIVE STRATEGY TOOLBAR (NEW) */}
+            {/* LIVE STRATEGY TOOLBAR */}
             <div className="flex flex-col gap-3 px-6 pb-4 bg-background">
                 <div className="flex items-center justify-between p-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm">
-                    <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 md:pb-0">
-                        <div className="flex items-center gap-1.5 px-3 border-r border-border mr-2 shrink-0">
-                            <Sparkles className="w-4 h-4 text-primary" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estrategia:</span>
+                    <div className="flex items-center gap-6 overflow-x-auto custom-scrollbar pb-1 md:pb-0 px-2 shrink-0">
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-1.5 px-1">
+                                <Sparkles className="w-3 h-3 text-primary" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/80">Estrategia</span>
+                            </div>
+
+                            <div
+                                className="flex items-center bg-muted/50 rounded-xl border border-border/50 p-0.5 shadow-inner min-w-[200px] group select-none"
+                            >
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 rounded-lg hover:bg-background shadow-none shrink-0"
+                                    onClick={() => {
+                                        const strategies = ["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
+                                        const idx = strategies.indexOf(activeStrategy);
+                                        const prev = strategies[(idx - 1 + strategies.length) % strategies.length];
+                                        setActiveStrategy(prev as any);
+                                    }}
+                                >
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                </Button>
+
+                                <div
+                                    className="flex-1 flex flex-col items-center justify-center cursor-pointer px-3 py-0.5 transition-all active:scale-95"
+                                    onDoubleClick={() => setActiveStrategy("NONE")}
+                                    title="Doble clic para volver a Manual"
+                                >
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={activeStrategy}
+                                            initial={{ opacity: 0, scale: 0.95, y: 2 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: -2 }}
+                                            transition={{ duration: 0.15, ease: "easeOut" }}
+                                            className={cn(
+                                                "text-[10px] font-black uppercase tracking-tight text-center",
+                                                activeStrategy === "NONE" ? "text-muted-foreground" : "text-primary"
+                                            )}
+                                        >
+                                            {(({
+                                                NONE: "Manual",
+                                                DELIVERY_DATE: "Entrega",
+                                                CRITICAL_PATH: "Ruta Crítica",
+                                                PROJECT_GROUP: "Proyecto",
+                                                FAB_TIME: "Carga",
+                                                FAST_TRACK: "Express",
+                                                TREATMENTS: "Tratamientos",
+                                                MATERIAL_OPTIMIZATION: "Material"
+                                            } as Record<string, string>)[activeStrategy] || "Manual")}
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </div>
+
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 rounded-lg hover:bg-background shadow-none shrink-0"
+                                    onClick={() => {
+                                        const strategies = ["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
+                                        const idx = strategies.indexOf(activeStrategy);
+                                        const next = strategies[(idx + 1) % strategies.length];
+                                        setActiveStrategy(next as any);
+                                    }}
+                                >
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
                         </div>
 
-                        {(["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "MATERIAL_OPTIMIZATION"] as const).map((s) => {
-                            const labels: Record<string, string> = {
-                                NONE: "Manual",
-                                DELIVERY_DATE: "Entrega",
-                                CRITICAL_PATH: "Ruta Crítica",
-                                PROJECT_GROUP: "Proyecto",
-                                FAB_TIME: "Carga",
-                                FAST_TRACK: "Express",
-                                MATERIAL_OPTIMIZATION: "Material"
-                            };
-                            const isActive = activeStrategy === s;
-                            return (
+                        {/* Planning Alerts Icon */}
+                        <div className="h-10 border-l border-border/50 mx-1" />
+
+                        <Popover>
+                            <PopoverTrigger asChild>
                                 <Button
-                                    key={s}
-                                    variant={isActive ? "default" : "ghost"}
-                                    size="sm"
-                                    onClick={() => setActiveStrategy(s as any)}
+                                    variant="ghost"
+                                    size="icon"
                                     className={cn(
-                                        "h-8 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight transition-all",
-                                        isActive ? "shadow-lg shadow-primary/20 bg-primary" : "text-muted-foreground hover:bg-muted"
+                                        "h-9 w-9 rounded-xl transition-all duration-300 relative",
+                                        planningAlerts.length > 0
+                                            ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 shadow-[0_0_15px_-5px_rgba(245,158,11,0.4)]"
+                                            : "text-muted-foreground opacity-40 hover:opacity-100"
                                     )}
                                 >
-                                    {labels[s]}
+                                    <AlertTriangle className={cn("w-5 h-5", planningAlerts.length > 0 && "animate-pulse")} />
+                                    {planningAlerts.length > 0 && (
+                                        <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-white ring-2 ring-background shadow-md">
+                                            {planningAlerts.length}
+                                        </span>
+                                    )}
                                 </Button>
-                            );
-                        })}
+                            </PopoverTrigger>
+                            <PopoverContent container={containerRef.current} className="w-80 p-0 overflow-hidden z-[10001]" align="start">
+                                <div className="p-3 border-b border-border bg-muted/30">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider">Alertas de Planeación</h4>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                        Se detectaron {planningAlerts.length} posibles inconvenientes en el cronograma actual.
+                                    </p>
+                                </div>
+                                <div className="max-h-[300px] overflow-y-auto overflow-x-hidden p-2 flex flex-col gap-1 custom-scrollbar">
+                                    {planningAlerts.length === 0 ? (
+                                        <div className="py-8 text-center flex flex-col items-center gap-2 opacity-50">
+                                            <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                                            <p className="text-[10px] uppercase font-bold tracking-widest">Sin alertas detectadas</p>
+                                        </div>
+                                    ) : (
+                                        planningAlerts.map((alert, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex flex-col p-2 rounded-lg border border-border/50 bg-background hover:bg-muted/30 transition-colors group cursor-default"
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className={cn(
+                                                        "text-[9px] font-black uppercase px-1.5 py-0.5 rounded border leading-none shrink-0",
+                                                        alert.type === 'OVERLAP'
+                                                            ? "bg-red-500/10 text-red-500 border-red-500/20"
+                                                            : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                                    )}>
+                                                        {alert.type === 'OVERLAP' ? 'Solapamiento' : 'Carga'}
+                                                    </span>
+                                                    <span className="text-[9px] font-black text-muted-foreground uppercase truncate">
+                                                        {alert.task.machine}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <div
+                                                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                                                        style={{ backgroundColor: getProductionTaskColor(alert.task) }}
+                                                    />
+                                                    <span className="text-[11px] font-bold truncate">
+                                                        {alert.task.production_orders?.part_code} - {alert.task.production_orders?.part_name}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                                                    {alert.details}
+                                                </p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 w-full mt-2 text-[9px] font-black uppercase tracking-widest gap-1.5 hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                                                    onClick={() => locateTask(alert.task.id)}
+                                                >
+                                                    <Search className="w-3 h-3" />
+                                                    Localizar
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                     </div>
 
-                    <div className="flex items-center gap-4 px-4 border-l border-border ml-2">
+                    <div className="flex items-center gap-4 px-4 border-l border-border ml-2 flex-wrap justify-end">
                         {liveDraftResult && activeStrategy !== "NONE" && (
-                            <>
+                            <div className="flex items-center gap-4 shrink-0">
                                 <div className="flex flex-col items-end min-w-[70px]">
                                     <span className="text-[9px] font-black text-muted-foreground uppercase leading-none">A tiempo</span>
                                     <span className={cn(
@@ -924,11 +1146,10 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                 >
                                     Aplicar
                                 </Button>
-                            </>
+                            </div>
                         )}
 
-                        {/* Relocated Evaluation Button */}
-                        <div className="flex items-center px-4 border-l border-border ml-2">
+                        <div className="flex items-center px-4 border-l border-border ml-2 gap-3 shrink-0">
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -949,188 +1170,242 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                     </span>
                                 )}
                             </Button>
-                        </div>
 
-                        {activeStrategy === "NONE" && (changedTasks.length > 0 || draftTasks.length > 0) && (
-                            <Button
-                                size="sm"
-                                onClick={handleSaveAllPlanning}
-                                className="h-8 bg-black hover:bg-black/90 text-white rounded-xl text-[10px] font-black uppercase tracking-tight shadow-lg shadow-black/10"
-                            >
-                                <Save className="w-3.5 h-3.5 mr-1.5" />
-                                Guardar
-                            </Button>
-                        )}
+                            {activeStrategy === "NONE" && (changedTasks.length > 0 || draftTasks.length > 0) && (
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveAllPlanning}
+                                    className="h-8 bg-black hover:bg-black/90 text-white rounded-xl text-[10px] font-black uppercase tracking-tight shadow-lg shadow-black/10"
+                                >
+                                    <Save className="w-3.5 h-3.5 mr-1.5" />
+                                    Guardar
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Bottom Content - Timeline with margins */}
-            < div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area" >
-                <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">
-                    <GanttSVG
-                        initialMachines={machines}
-                        initialOrders={orders}
-                        // Tasks are now managed by parent
-                        // We merge real tasks with draft tasks for visual preview
-                        optimisticTasks={allTasks}
-                        setOptimisticTasks={handleTasksChange}
-                        onHistorySnapshot={handleHistorySnapshot}
-                        hideEmptyMachines={hideEmptyMachines}
-                        startControls={
-                            <div className="flex bg-muted/50 p-0.5 rounded-lg border border-border/50">
+            {/* Restored Controls */}
+            {
+                (() => {
+                    const startControls = (
+                        <div id="planning-view-modes" className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-lg border border-border/50">
+                            {(["hour", "day", "week"] as const).map((mode) => (
                                 <button
-                                    onClick={() => handleViewModeChange("hour")}
-                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "hour" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                                    key={mode}
+                                    onClick={() => handleViewModeChange(mode)}
+                                    className={cn(
+                                        "px-3 py-1 text-[10px] font-bold rounded-md transition-all uppercase tracking-wider",
+                                        viewMode === mode
+                                            ? "bg-background text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                    )}
                                 >
-                                    Hora
+                                    {mode === "hour" ? "Hora" : mode === "day" ? "Día" : "Semana"}
                                 </button>
-                                <button
-                                    onClick={() => handleViewModeChange("day")}
-                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "day" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
-                                >
-                                    Día
-                                </button>
-                                <button
-                                    onClick={() => handleViewModeChange("week")}
-                                    className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all", viewMode === "week" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
-                                >
-                                    Semana
-                                </button>
-                            </div>
-                        }
-                        endControls={
-                            <div className="flex items-center gap-3">
-                                {/* Search */}
-                                <div className="w-[300px] relative group">
-                                    <Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar..."
-                                        className="w-full pl-7 pr-2 py-1 rounded-md border border-border bg-background/50 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 focus:border-primary transition-all h-8"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
-                                {/* Machine Filter Dropdown */}
-                                <div className="relative machine-filter-dropdown">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsMachineFilterOpen(!isMachineFilterOpen);
-                                        }}
-                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-xs"
-                                        title={`Filtrar Máquinas (${selectedMachines.size}/${allMachineNames.length})`}
-                                    >
-                                        <Filter className="w-3.5 h-3.5" />
-                                        <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
-                                    </button>
+                            ))}
+                        </div>
+                    );
 
+                    const endControls = (
+                        <div className="flex items-center gap-2">
+                            {/* Search */}
+                            <div id="planning-search" className="relative group">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Buscar pieza..."
+                                    className="h-8 w-32 md:w-48 pl-8 pr-3 text-[10px] bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                />
+                            </div>
+
+                            <div className="w-px h-6 bg-border mx-1" />
+
+                            {/* Machine Filter */}
+                            <div id="planning-machine-filter" className="relative machine-filter-dropdown">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsMachineFilterOpen(!isMachineFilterOpen)}
+                                    className={cn(
+                                        "h-8 text-[10px] font-bold uppercase gap-2 px-3 rounded-xl border-border/60",
+                                        selectedMachines.size < allMachineNames.length && "border-primary/50 bg-primary/5 text-primary"
+                                    )}
+                                >
+                                    <Filter className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Máquinas</span>
+                                    {selectedMachines.size < allMachineNames.length && (
+                                        <span className="bg-primary text-white text-[9px] px-1 rounded-full min-w-[14px]">
+                                            {selectedMachines.size}
+                                        </span>
+                                    )}
+                                </Button>
+
+                                <AnimatePresence>
                                     {isMachineFilterOpen && (
-                                        <div className="absolute top-full left-0 mt-1 w-64 bg-background border border-border rounded-lg shadow-xl z-[9999] overflow-hidden">
-                                            <div className="p-2 border-b border-border space-y-2">
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-2xl shadow-2xl z-[100] p-3 backdrop-blur-md"
+                                        >
+                                            <div className="flex items-center justify-between mb-3 px-1">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filtrar Máquinas</span>
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        onClick={selectAllMachines}
-                                                        className="flex-1 px-2 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded transition-colors"
-                                                    >
-                                                        Todas
-                                                    </button>
-                                                    <button
-                                                        onClick={clearAllMachines}
-                                                        className="flex-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-                                                    >
-                                                        Ninguna
-                                                    </button>
+                                                    <button onClick={selectAllMachines} className="text-[9px] font-bold text-primary hover:underline">Todas</button>
+                                                    <button onClick={clearAllMachines} className="text-[9px] font-bold text-muted-foreground hover:underline">Ninguna</button>
                                                 </div>
-                                                <label className="flex items-center justify-between px-2 py-1.5 hover:bg-muted rounded cursor-pointer transition-colors border-t border-border mt-1 pt-2">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ocultar vacías</span>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={hideEmptyMachines}
-                                                        onChange={(e) => {
-                                                            const val = e.target.checked;
-                                                            setHideEmptyMachines(val);
-                                                            updateGanttPref({ hideEmptyMachines: val });
-                                                        }}
-                                                        className="w-3.5 h-3.5 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
-                                                    />
-                                                </label>
                                             </div>
-                                            <div className="max-h-60 overflow-y-auto p-2 space-y-1">
-                                                {allMachineNames.map(machineName => (
+                                            <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                                                {allMachineNames.map(name => (
                                                     <label
-                                                        key={machineName}
-                                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer transition-colors"
+                                                        key={name}
+                                                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
                                                     >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedMachines.has(machineName)}
-                                                            onChange={() => toggleMachine(machineName)}
-                                                            className="w-4 h-4 rounded border-border text-[#EC1C21] focus:ring-[#EC1C21]/20 accent-[#EC1C21]"
-                                                        />
-                                                        <span className="text-sm">{machineName}</span>
+                                                        <div className="relative flex items-center justify-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedMachines.has(name)}
+                                                                onChange={() => toggleMachine(name)}
+                                                                className="peer h-4 w-4 appearance-none rounded border border-border checked:bg-primary checked:border-primary transition-all cursor-pointer"
+                                                            />
+                                                            <CheckCircle2 className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                                                        </div>
+                                                        <span className="text-[11px] font-medium group-hover:text-foreground transition-colors">{name}</span>
                                                     </label>
                                                 ))}
                                             </div>
-                                        </div>
+                                        </motion.div>
                                     )}
-                                </div>
-                                {/* Settings Menu */}
-                                <div className="relative" ref={settingsRef}>
-                                    <button
-                                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                        className={`p-1.5 rounded-lg border border-border transition-colors ${isSettingsOpen ? 'bg-primary/10 text-primary border-primary/30' : 'bg-background hover:bg-muted text-muted-foreground'}`}
-                                        title="Ajustes de Visualización"
-                                    >
-                                        <Settings className="w-4 h-4" />
-                                    </button>
-
-                                    {isSettingsOpen && (
-                                        <div className="absolute top-full right-0 mt-2 w-56 bg-popover border border-border rounded-xl shadow-xl z-[9999] p-2 animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Visualización</div>
-
-                                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                                                <span className="text-sm">Lineas de Dependencia</span>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={showDependencies}
-                                                    onChange={(e) => handleShowDependenciesChange(e.target.checked)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
-                                                />
-                                            </label>
-
-                                            <label className="flex items-center justify-between p-2 hover:bg-muted rounded-lg cursor-pointer transition-colors">
-                                                <span className="text-sm">Arrastre en Cascada</span>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={cascadeMode}
-                                                    onChange={(e) => setCascadeMode(e.target.checked)}
-                                                    className="w-4 h-4 rounded border-gray-300 text-[#EC1C21] focus:ring-[#EC1C21] accent-[#EC1C21]"
-                                                />
-                                            </label>
-                                        </div>
-                                    )}
-                                </div>
+                                </AnimatePresence>
                             </div>
-                        }
-                        searchQuery={searchQuery}
-                        viewMode={viewMode}
-                        isFullscreen={isFullscreen}
-                        selectedMachines={selectedMachines}
-                        operators={operators}
-                        showDependencies={showDependencies}
-                        zoomLevel={zoomLevel} // Pass zoom level
-                        setZoomLevel={handleZoomChange} // Pass setter for zoom controls
-                        modalData={modalData}
-                        setModalData={setModalData}
-                        onToggleLock={handleToggleLock}
-                        cascadeMode={cascadeMode}
-                        container={containerRef.current}
-                        onToggleFullscreen={toggleFullscreen}
-                    />
-                </div>
-            </div >
+
+                            {/* Settings Dropdown */}
+                            <div id="planning-settings" className="relative" ref={settingsRef}>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                    className="h-8 w-8 p-0 rounded-xl border-border/60 shadow-sm"
+                                >
+                                    <Settings2 className="w-3.5 h-3.5" />
+                                </Button>
+
+                                <AnimatePresence>
+                                    {isSettingsOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute right-0 mt-2 w-64 bg-card border border-border rounded-2xl shadow-2xl z-[100] p-4 backdrop-blur-md"
+                                        >
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4 block px-1">Configuración de Vista</span>
+
+                                            <div className="space-y-4">
+                                                <label className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Dependencias</span>
+                                                        <span className="text-[9px] text-muted-foreground leading-none">Mostrar líneas de conexión</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => handleShowDependenciesChange(!showDependencies)}
+                                                        className={cn(
+                                                            "w-9 h-5 rounded-full relative transition-all duration-300",
+                                                            showDependencies ? "bg-primary" : "bg-muted"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
+                                                            showDependencies ? "left-5" : "left-1"
+                                                        )} />
+                                                    </div>
+                                                </label>
+
+                                                <label className="flex items-center justify-between cursor-pointer group">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Máquinas Vacías</span>
+                                                        <span className="text-[9px] text-muted-foreground leading-none">Ocultar si no tienen tareas</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            setHideEmptyMachines(!hideEmptyMachines);
+                                                            updateGanttPref({ hideEmptyMachines: !hideEmptyMachines });
+                                                        }}
+                                                        className={cn(
+                                                            "w-9 h-5 rounded-full relative transition-all duration-300",
+                                                            hideEmptyMachines ? "bg-primary" : "bg-muted"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
+                                                            hideEmptyMachines ? "left-5" : "left-1"
+                                                        )} />
+                                                    </div>
+                                                </label>
+                                                <label className="flex items-center justify-between cursor-pointer group border-t border-border/50 pt-4">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Modo Cascada</span>
+                                                        <span className="text-[9px] text-muted-foreground leading-none">Mover tareas consecutivas</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => setCascadeMode(!cascadeMode)}
+                                                        className={cn(
+                                                            "w-9 h-5 rounded-full relative transition-all duration-300",
+                                                            cascadeMode ? "bg-primary" : "bg-muted"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
+                                                            cascadeMode ? "left-5" : "left-1"
+                                                        )} />
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    );
+
+                    return (
+                        <div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area">
+                            <div className="flex-1 w-full rounded-lg border border-border bg-card flex flex-col overflow-hidden">
+                                <GanttSVG
+                                    initialMachines={machines}
+                                    initialOrders={orders}
+                                    optimisticTasks={allTasks}
+                                    setOptimisticTasks={handleTasksChange}
+                                    onHistorySnapshot={handleHistorySnapshot}
+                                    hideEmptyMachines={hideEmptyMachines}
+                                    searchQuery={searchQuery}
+                                    viewMode={viewMode}
+                                    isFullscreen={isFullscreen}
+                                    selectedMachines={selectedMachines}
+                                    operators={operators}
+                                    showDependencies={showDependencies}
+                                    zoomLevel={zoomLevel}
+                                    setZoomLevel={handleZoomChange}
+                                    onTaskDoubleClick={(task) => {
+                                        setSelectedOrderForEval(task.production_orders);
+                                        setIsEvalModalOpen(true);
+                                    }}
+                                    onToggleFullscreen={toggleFullscreen}
+                                    focusTaskId={focusTaskId}
+                                    startControls={startControls}
+                                    endControls={endControls}
+                                    onToggleLock={handleToggleLock}
+                                    cascadeMode={cascadeMode}
+                                    container={containerRef.current}
+                                />
+                            </div>
+                        </div>
+                    );
+                })()
+            }
 
             {/* Evaluation List Sidebar (Simple) */}
             {

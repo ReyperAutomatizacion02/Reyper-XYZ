@@ -4,7 +4,7 @@ import React, { useMemo, useState, useRef, useEffect } from "react";
 // import { useRouter } from "next/navigation"; // Removed
 import moment from "moment";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, FileText } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
 import { getProductionTaskColor } from "@/utils/production-colors";
@@ -49,6 +49,7 @@ export interface GanttSVGProps {
     startControls?: React.ReactNode;
     endControls?: React.ReactNode;
     onToggleFullscreen?: () => void;
+    focusTaskId?: string | null;
 }
 
 // Helper for 15-minute snapping
@@ -97,7 +98,8 @@ export function GanttSVG({
     container,
     startControls,
     endControls,
-    onToggleFullscreen
+    onToggleFullscreen,
+    focusTaskId
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -856,6 +858,30 @@ export function GanttSVG({
         });
     };
 
+    // Scroll to and highlight focused task
+    useEffect(() => {
+        if (!focusTaskId || !scrollContainerRef.current) return;
+
+        const task = optimisticTasks.find(t => t.id === focusTaskId);
+        if (!task || !task.planned_date) return;
+
+        const x = timeToX(task.planned_date);
+        const machine = task.machine || "Sin Máquina";
+        const yOffset = machineYOffsets.get(machine) || 0;
+        const lane = taskLanes.get(task.id) || 0;
+        const y = yOffset + (lane * 40) + 10; // 10 is padding in g group
+
+        const container = scrollContainerRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+
+        container.scrollTo({
+            left: Math.max(0, x - containerWidth / 3),
+            top: Math.max(0, y - containerHeight / 2),
+            behavior: 'smooth'
+        });
+    }, [focusTaskId, optimisticTasks, timeToX, machineYOffsets, taskLanes]);
+
     return (
         <div className="flex-1 flex flex-col overflow-hidden select-none bg-background relative">
             {/* Gantt Header Bar */}
@@ -877,10 +903,11 @@ export function GanttSVG({
                             </button>
                             <button
                                 onClick={() => navigateDate('today')}
-                                className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center gap-1"
+                                className="px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center justify-center h-7 gap-1.5"
+                                title="Volver a hoy"
                             >
-                                <Calendar className="w-3 h-3" />
-                                Hoy
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-black uppercase tracking-tight">Hoy</span>
                             </button>
                             <button
                                 onClick={() => navigateDate('next')}
@@ -895,23 +922,22 @@ export function GanttSVG({
                             {viewMode === 'hour' ? (
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[110px] justify-start shadow-sm"
+                                        <button
+                                            className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground text-[10px] font-black uppercase tracking-tight flex items-center gap-1.5"
+                                            title="Seleccionar fecha"
                                         >
-                                            <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
-                                            <span className="capitalize">
-                                                {selectedDate.format("dddd DD/MM/YYYY")}
-                                            </span>
-                                        </Button>
+                                            {moment(selectedDate).locale('es').format('dddd - DD/MMMM/YYYY').toUpperCase()}
+                                            <ChevronRight className="w-3 h-3 rotate-90 opacity-40" />
+                                        </button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                                    <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start" side="bottom" sideOffset={10}>
                                         <CalendarUI
                                             mode="single"
                                             selected={selectedDate.toDate()}
                                             onSelect={(date) => date && setSelectedDate(moment(date))}
                                             initialFocus
                                             locale={es}
+                                            className="rounded-xl border-border shadow-2xl bg-background/95 backdrop-blur-md"
                                         />
                                     </PopoverContent>
                                 </Popover>
@@ -929,7 +955,7 @@ export function GanttSVG({
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                                        <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start">
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeStart.toDate()}
@@ -952,7 +978,7 @@ export function GanttSVG({
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0 z-[100]" align="end">
+                                        <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="end">
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeEnd.toDate()}
@@ -968,13 +994,7 @@ export function GanttSVG({
                     </>
                 )}
 
-                {!hideDateNavigation && !startControls && (
-                    <div className="flex items-center gap-2 px-2">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary bg-primary/10 px-3 py-1 rounded-md">
-                            {selectedDate.format('DD MMMM YYYY')}
-                        </span>
-                    </div>
-                )}
+
 
                 {/* Spacer to push remaining items right */}
                 <div className="flex-1" />
@@ -1183,6 +1203,7 @@ export function GanttSVG({
                                 const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
 
                                 const color = getProductionTaskColor(task);
+                                const isFocused = focusTaskId === task.id;
 
                                 return (
                                     <motion.g
@@ -1248,24 +1269,65 @@ export function GanttSVG({
                                             }
                                         }}
                                     >
-                                        <rect
+                                        {/* Task Pulse Animation Layer (Focus or Active) */}
+                                        {(activeTask || isFocused) && (
+                                            <motion.rect
+                                                x={x}
+                                                y={y}
+                                                width={width}
+                                                height={height}
+                                                rx={8}
+                                                initial={{ scale: 1, opacity: 0.8 }}
+                                                animate={{
+                                                    scale: [1, 1.25, 1],
+                                                    opacity: [0.6, 0, 0.6],
+                                                    strokeWidth: isFocused ? [4, 20, 4] : [2, 12, 2]
+                                                }}
+                                                transition={{
+                                                    duration: isFocused ? 0.8 : 1.2,
+                                                    repeat: Infinity,
+                                                    ease: "easeOut"
+                                                }}
+                                                style={{
+                                                    fill: "none",
+                                                    stroke: isFocused ? "#EC1C21" : "#fff",
+                                                    transformOrigin: "center",
+                                                    transformBox: "fill-box",
+                                                    filter: isFocused ? "drop-shadow(0 0 20px #EC1C21)" : "drop-shadow(0 0 15px #fff)"
+                                                }}
+                                            />
+                                        )}
+
+                                        <motion.rect
                                             x={x}
                                             y={y}
                                             width={width}
                                             height={height}
-                                            rx={6}
-                                            fill={color}
-                                            className={cn(
-                                                "shadow-xl transition-all duration-300",
-                                                isLocked ? "opacity-75" : (task as any).isDraft ? "opacity-60" : "hover:opacity-100 opacity-90"
-                                            )}
+                                            rx={8}
+                                            stroke={activeTask ? "white" : "none"}
+                                            strokeWidth={activeTask ? 3 : 0}
+                                            animate={activeTask ? {
+                                                scale: [1, 1.08, 1],
+                                                filter: [
+                                                    `brightness(1.2) drop-shadow(0 0 15px ${color})`,
+                                                    `brightness(1.5) drop-shadow(0 0 35px ${color})`,
+                                                    `brightness(1.2) drop-shadow(0 0 15px ${color})`
+                                                ]
+                                            } : {}}
+                                            transition={activeTask ? {
+                                                duration: 1.2,
+                                                repeat: Infinity,
+                                                ease: "easeInOut"
+                                            } : {}}
                                             style={{
-                                                filter: activeTask
-                                                    ? `drop-shadow(0 8px 15px ${color})`
-                                                    : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))",
-                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? color : "rgba(255,255,255,0.2)"),
-                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 3 : 1),
-                                                strokeDasharray: isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none"
+                                                fill: color,
+                                                fillOpacity: (task as any).isDraft ? 0.85 : 1, // Slight transparency to show pattern but keep it solid
+                                                filter: !activeTask ? "drop-shadow(0 4px 6px rgba(0,0,0,0.15))" : undefined,
+                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
+                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
+                                                strokeDasharray: isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none",
+                                                transformOrigin: "center",
+                                                transformBox: "fill-box"
                                             }}
                                         />
                                         {/* Draft Pattern Overlay */}
@@ -1481,6 +1543,7 @@ export function GanttSVG({
                         }}
                         className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
                     >
+                        <FileText className="w-3.5 h-3.5" />
                         <span>Ver Detalles</span>
                     </button>
                     {onToggleLock && !contextMenu.task.isDraft && (
