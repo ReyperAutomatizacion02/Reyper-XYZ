@@ -27,14 +27,25 @@ export const PROJECT_COLORS = [
  * Consistently returns a color for a task based on its production order ID.
  */
 export function getProductionTaskColor(task: PlanningTask): string {
-    const id = task.order_id || task.production_orders?.id || task.id;
+    // Priority: real order id > production_orders id > raw task id
+    let id = task.order_id || task.production_orders?.id || task.id;
 
-    // Simple hash to index the colors
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    // If it's a draft ID like "draft-order-uuid...", extract the core ID to keep colors consistent
+    if (id.startsWith('draft-')) {
+        const parts = id.split('-');
+        if (parts.length > 1) {
+            // Usually draft-{order_id}-{machine}...
+            id = parts[1];
+        }
     }
 
-    const index = Math.abs(hash) % PROJECT_COLORS.length;
+    // Improved 32-bit FNV-1a like hash for better distribution
+    let hash = 2166136261;
+    for (let i = 0; i < id.length; i++) {
+        hash ^= id.charCodeAt(i);
+        hash = (hash * 16777619) >>> 0;
+    }
+
+    const index = hash % PROJECT_COLORS.length;
     return PROJECT_COLORS[index];
 }

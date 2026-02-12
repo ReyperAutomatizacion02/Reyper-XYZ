@@ -73,7 +73,7 @@ import { es } from "date-fns/locale";
 import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { EvaluationModal } from "./evaluation-modal";
-import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, shiftTasksToCurrent } from "@/lib/scheduling-utils";
+import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, SchedulingStrategy, shiftTasksToCurrent, getNextValidWorkTime, snapToNext15Minutes } from "@/lib/scheduling-utils";
 import { ScenarioComparison } from "./scenario-comparison";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 import { extractDriveFileId } from "@/lib/drive-utils";
@@ -88,12 +88,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AutoPlanDialog } from "./auto-plan-dialog";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
     production_orders: Order | null;
+    isDraft?: boolean;
+    startMs?: number;
+    endMs?: number;
 };
 
 interface ProductionViewProps {
@@ -132,10 +134,14 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Draft Tasks for Auto-Plan Preview
     const [draftTasks, setDraftTasks] = useState<PlanningTask[]>([]);
 
-    // Scenario Management
-    const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
-    const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
-    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+    // Live Strategy States
+    const [activeStrategy, setActiveStrategy] = useState<SchedulingStrategy | "NONE">("NONE");
+    const [strategyFilters, setStrategyFilters] = useState({
+        onlyWithCAD: false,
+        onlyWithBlueprint: false,
+        onlyWithMaterial: false,
+        requireTreatment: false
+    });
 
     // Evaluation Search and Filters
     const [evalSearchQuery, setEvalSearchQuery] = useState("");
@@ -159,7 +165,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">("asc");
     const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">("auto");
     const [showEvaluated, setShowEvaluated] = useState(false);
-    const [isAutoPlanDialogOpen, setIsAutoPlanDialogOpen] = useState(false);
 
     const clearAllFilters = () => {
         setEvalSearchQuery("");
@@ -298,25 +303,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         }
     }, [prefsLoading, prefsInitialized, ganttPrefs]);
 
-    // Load saved scenarios on mount
-    useEffect(() => {
-        fetchScenarios().then((data: any[]) => {
-            setSavedScenarios(data.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                strategy: s.strategy,
-                config: s.config,
-                tasks: s.tasks || [],
-                skipped: s.skipped || [],
-                metrics: s.metrics || {},
-                created_by: s.created_by,
-                created_at: s.created_at,
-                applied_at: s.applied_at,
-            })));
-        }).catch(err => {
-            console.error("Failed to load scenarios:", err);
-        });
-    }, []);
 
     // Save viewMode preference
     const handleViewModeChange = (newMode: "hour" | "day" | "week") => {
@@ -331,131 +317,8 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         updateGanttPref({ showDependencies: value });
     };
 
-    // Auto-Plan logic (Triggering the Dialog)
     const handleAutoPlan = () => {
-        setIsAutoPlanDialogOpen(true);
-    };
-
-    // Scenario: Save
-    const handleSaveScenario = async (data: { name: string; strategy: string; config: any; result: SchedulingResult }) => {
-        toast.loading("Guardando escenario...", { id: "save-scenario" });
-        try {
-            await saveScenario({
-                name: data.name,
-                strategy: data.strategy,
-                config: data.config,
-                tasks: data.result.tasks as any[],
-                skipped: data.result.skipped,
-                metrics: data.result.metrics,
-            });
-            toast.success(`Escenario "${data.name}" guardado`, { id: "save-scenario" });
-
-            // Refresh scenarios list
-            const updated = await fetchScenarios();
-            const mappedScenarios: SavedScenario[] = updated.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                strategy: s.strategy,
-                config: s.config,
-                tasks: s.tasks || [],
-                skipped: s.skipped || [],
-                metrics: s.metrics || {},
-                created_by: s.created_by,
-                created_at: s.created_at,
-                applied_at: s.applied_at,
-            }));
-            setSavedScenarios(mappedScenarios);
-
-            // AUTO-PREVIEW: Find the scenario we just saved (the one with the newest created_at)
-            // or we could match by name if unique, but newest is safer.
-            const newScenario = [...mappedScenarios].sort((a, b) =>
-                moment(b.created_at).valueOf() - moment(a.created_at).valueOf()
-            )[0];
-
-            if (newScenario) {
-                handlePreviewScenario(newScenario);
-            }
-
-        } catch (err) {
-            toast.error("Error al guardar escenario", { id: "save-scenario" });
-            throw err;
-        }
-    };
-
-    // Scenario: Preview on Gantt
-    const handlePreviewScenario = (scenario: SavedScenario) => {
-        if (activePreviewId === scenario.id) {
-            // Toggle off
-            setActivePreviewId(null);
-            setDraftTasks([]);
-            return;
-        }
-
-        // REPOSITIONING: Shift scenario tasks to start from "Now"
-        const existingRealTasks = optimisticTasks;
-        const machinesList = machines.map(m => m.name);
-
-        // Shift the preview tasks to the current time
-        // Snap current time to nearest 15 mins for better alignment
-        const now = moment();
-        const minutes = now.minute();
-        // Snap current time to NEXT 15 mins for better alignment (always forward)
-        const roundedMinutes = Math.ceil(minutes / 15) * 15;
-        const snappedNow = now.clone().minute(0).add(roundedMinutes, 'minutes').second(0).millisecond(0);
-
-        const shiftedTasks = shiftTasksToCurrent(
-            scenario.tasks as any[],
-            snappedNow, // targetTime: Now snapped to 15m
-            existingRealTasks,
-            machinesList
-        );
-
-        setActivePreviewId(scenario.id);
-        setDraftTasks(shiftedTasks as any);
-        toast.info(`Preview: "${scenario.name}" — Ajustado al tiempo actual.`);
-    };
-
-    // Scenario: Apply (save tasks to DB permanently)
-    const handleApplyScenario = async (scenario: SavedScenario) => {
-        if (scenario.tasks.length === 0) {
-            toast.warning("Este escenario no tiene tareas.");
-            return;
-        }
-        toast.loading("Aplicando escenario...", { id: "apply-scenario" });
-        try {
-            await batchSavePlanning(scenario.tasks as any[], []);
-            await markScenarioApplied(scenario.id);
-            toast.success(`Escenario "${scenario.name}" aplicado permanentemente`, { id: "apply-scenario" });
-            setDraftTasks([]);
-            setActivePreviewId(null);
-            // Refresh scenarios to update applied_at
-            const updated = await fetchScenarios();
-            setSavedScenarios(updated.map((s: any) => ({
-                id: s.id, name: s.name, strategy: s.strategy, config: s.config,
-                tasks: s.tasks || [], skipped: s.skipped || [],
-                metrics: s.metrics || {}, created_by: s.created_by,
-                created_at: s.created_at, applied_at: s.applied_at,
-            })));
-            router.refresh();
-        } catch (err) {
-            toast.error("Error al aplicar escenario", { id: "apply-scenario" });
-        }
-    };
-
-    // Scenario: Delete
-    const handleDeleteScenario = async (scenarioId: string) => {
-        toast.loading("Eliminando...", { id: "delete-scenario" });
-        try {
-            await deleteScenario(scenarioId);
-            setSavedScenarios(prev => prev.filter(s => s.id !== scenarioId));
-            if (activePreviewId === scenarioId) {
-                setActivePreviewId(null);
-                setDraftTasks([]);
-            }
-            toast.success("Escenario eliminado", { id: "delete-scenario" });
-        } catch (err) {
-            toast.error("Error al eliminar", { id: "delete-scenario" });
-        }
+        setActiveStrategy("DELIVERY_DATE"); // Default to Delivery Date instead of opening legacy dialog
     };
 
     const confirmClearEvaluation = async (orderId: string) => {
@@ -470,32 +333,8 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         }
     };
 
-    // Scenario: Cycle between saved scenario previews
-    const handleCyclePreview = (direction: -1 | 1) => {
-        if (savedScenarios.length < 2) return;
-        const currentIdx = savedScenarios.findIndex(s => s.id === activePreviewId);
-        const nextIdx = (currentIdx + direction + savedScenarios.length) % savedScenarios.length;
-        const nextScenario = savedScenarios[nextIdx];
-
-        // Shift tasks to current time (same as handlePreviewScenario)
-        const now = moment();
-        const roundedMinutes = Math.ceil(now.minute() / 15) * 15;
-        const snappedNow = now.clone().minute(0).add(roundedMinutes, 'minutes').second(0).millisecond(0);
-        const shiftedTasks = shiftTasksToCurrent(
-            nextScenario.tasks as any[],
-            snappedNow,
-            optimisticTasks,
-            machines.map(m => m.name)
-        );
-
-        setActivePreviewId(nextScenario.id);
-        setDraftTasks(shiftedTasks as any);
-        toast.info(`Preview: ${nextScenario.name}`);
-    };
-
     const handleDiscardDrafts = () => {
         setDraftTasks([]);
-        setActivePreviewId(null);
         toast.info("Planeación automática descartada");
     };
 
@@ -584,8 +423,80 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         }
     };
 
+    // Live Strategy Draft Computation
+    const liveDraftResult = useMemo(() => {
+        if (activeStrategy === "NONE") return null;
+
+        const result = generateAutomatedPlanning(orders, optimisticTasks, machines.map(m => m.name), {
+            mainStrategy: activeStrategy,
+            ...strategyFilters
+        });
+
+        // Apply shiftTasksToCurrent to ensure it starts "Now"
+        // We reuse the shifting logic to prevent overlaps and ensure chronological order
+        const nowSnapped = snapToNext15Minutes(moment());
+        const globalStart = getNextValidWorkTime(nowSnapped);
+
+        const shifted = shiftTasksToCurrent(
+            result.tasks,
+            globalStart,
+            optimisticTasks as SchedulingPlanningTask[],
+            machines.map(m => m.name)
+        );
+        return { ...result, tasks: shifted };
+    }, [activeStrategy, strategyFilters, orders, optimisticTasks, machines]);
+
     // List of all tasks (real + draft) for the Gantt chart
-    const allTasks = useMemo(() => [...optimisticTasks, ...draftTasks], [optimisticTasks, draftTasks]);
+    const allTasks = useMemo(() => {
+        // If we have an active strategy, merge draft tasks surgically
+        if (activeStrategy !== "NONE" && liveDraftResult) {
+            // Priority:
+            // 1. Manually tweaked draft tasks (in draftTasks state)
+            // 2. Automatically generated draft tasks (in liveDraftResult)
+
+            const generatedDrafts = liveDraftResult.tasks.map(t => ({ ...t, isDraft: true } as PlanningTask));
+
+            // Reconcile: If a piece has manual edits in draftTasks, use those instead of generated ones
+            const manuallyTweakedPieceIds = new Set(draftTasks.map(d => d.order_id));
+            const reconciledDrafts = [
+                ...draftTasks.filter(d => d.isDraft), // All manual drafts
+                ...generatedDrafts.filter(g => !manuallyTweakedPieceIds.has(g.order_id)) // Generated drafts for pieces not manual
+            ];
+
+            // Fixed tasks: locked, checked-in, or in the past (non-flexible)
+            const nowSnapped = snapToNext15Minutes(moment());
+            const globalStart = getNextValidWorkTime(nowSnapped);
+
+            const fixedTasks = optimisticTasks.filter(t => {
+                const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+                const isLocked = t.locked === true;
+                const hasStarted = !!t.check_in;
+                return isLocked || hasStarted || !isFuture;
+            });
+
+            const flexibleTasks = optimisticTasks.filter(t => {
+                const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+                const isLocked = t.locked === true;
+                const hasStarted = !!t.check_in;
+                return !isLocked && !hasStarted && isFuture;
+            });
+
+            // We hide flexible tasks for pieces that now have draft segments
+            const activePieceIds = new Set(reconciledDrafts.map(t => t.order_id));
+            const filteredFlexible = flexibleTasks.filter(t => !activePieceIds.has(t.order_id));
+
+            // Final set: All Fixed + Unaffected Flexible + All Drafts
+            return [
+                ...fixedTasks,
+                ...filteredFlexible,
+                ...reconciledDrafts
+            ];
+        }
+
+        // Otherwise just show drafts (manually added) + optimistic
+        const visibleReal = optimisticTasks.filter(t => !new Set(draftTasks.map(d => d.order_id)).has(t.order_id));
+        return [...visibleReal, ...draftTasks];
+    }, [optimisticTasks, draftTasks, activeStrategy, liveDraftResult]);
 
     // Wrapper for setOptimisticTasks - Handles both real and draft tasks
     const handleTasksChange = (newTasks: React.SetStateAction<PlanningTask[]>) => {
@@ -594,7 +505,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             : newTasks;
 
         // Separate real tasks from draft tasks to keep their states independent
-        // This is important because draft tasks aren't in the database yet
         const real = resolvedTasks.filter((t: any) => !t.isDraft);
         const drafts = resolvedTasks.filter((t: any) => t.isDraft);
 
@@ -642,7 +552,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             const originalEnd = moment(original.planned_end).format(format);
 
             return currentStart !== originalStart || currentEnd !== originalEnd;
-        });
+        }) as PlanningTask[];
     }, [optimisticTasks, savedTasks]);
 
     // Sync props to state
@@ -950,107 +860,110 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     />
                 </div>
             )}
-            {/* Compact Header */}
-            <div className="flex-none px-4 py-3 border-b border-border bg-background/50 backdrop-blur-sm z-10 flex flex-wrap items-center gap-3">
-                {/* View Mode Buttons - Moved to Gantt Header */}
 
+            {/* LIVE STRATEGY TOOLBAR (NEW) */}
+            <div className="flex flex-col gap-3 px-6 pb-4 bg-background">
+                <div className="flex items-center justify-between p-2 bg-muted/30 rounded-2xl border border-border/50 shadow-sm backdrop-blur-sm">
+                    <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 md:pb-0">
+                        <div className="flex items-center gap-1.5 px-3 border-r border-border mr-2 shrink-0">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estrategia:</span>
+                        </div>
 
+                        {(["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "MATERIAL_OPTIMIZATION"] as const).map((s) => {
+                            const labels: Record<string, string> = {
+                                NONE: "Manual",
+                                DELIVERY_DATE: "Entrega",
+                                CRITICAL_PATH: "Ruta Crítica",
+                                PROJECT_GROUP: "Proyecto",
+                                FAB_TIME: "Carga",
+                                FAST_TRACK: "Express",
+                                MATERIAL_OPTIMIZATION: "Material"
+                            };
+                            const isActive = activeStrategy === s;
+                            return (
+                                <Button
+                                    key={s}
+                                    variant={isActive ? "default" : "ghost"}
+                                    size="sm"
+                                    onClick={() => setActiveStrategy(s as any)}
+                                    className={cn(
+                                        "h-8 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight transition-all",
+                                        isActive ? "shadow-lg shadow-primary/20 bg-primary" : "text-muted-foreground hover:bg-muted"
+                                    )}
+                                >
+                                    {labels[s]}
+                                </Button>
+                            );
+                        })}
+                    </div>
 
-                {/* Automation & Evaluation Buttons */}
-                <div className="flex items-center gap-1.5" id="planning-automation">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsEvalListOpen(!isEvalListOpen)}
-                        className={`h-9 font-bold text-xs gap-2 px-3 transition-all active:scale-95 shadow-sm ${showEvaluated
-                            ? "border-blue-500/50 bg-blue-500/5 text-blue-600"
-                            : ordersPendingEvaluation.length > 0
-                                ? "border-amber-500/50 bg-amber-500/5 text-amber-600"
-                                : "border-border text-muted-foreground"
-                            }`}
-                    >
-                        <ClipboardList className={`w-4 h-4 ${showEvaluated ? "text-blue-500" : ordersPendingEvaluation.length > 0 ? "text-amber-500" : ""}`} />
-                        <span className="hidden sm:inline">
-                            {showEvaluated ? `Evaluadas` : `Evaluar`}
-                        </span>
-                        {ordersPendingEvaluation.length > 0 && (
-                            <span className={cn(
-                                "text-[10px] font-black rounded-full px-1.5 py-0.5 min-w-[18px] text-center",
-                                showEvaluated ? "bg-blue-500/10 text-blue-600" : "bg-amber-500/10 text-amber-600"
-                            )}>
-                                {ordersPendingEvaluation.length}
-                            </span>
+                    <div className="flex items-center gap-4 px-4 border-l border-border ml-2">
+                        {liveDraftResult && activeStrategy !== "NONE" && (
+                            <>
+                                <div className="flex flex-col items-end min-w-[70px]">
+                                    <span className="text-[9px] font-black text-muted-foreground uppercase leading-none">A tiempo</span>
+                                    <span className={cn(
+                                        "text-xs font-black leading-tight",
+                                        liveDraftResult.metrics.lateOrders > 0 ? "text-red-500" : "text-green-500"
+                                    )}>
+                                        {liveDraftResult.metrics.totalOrders - liveDraftResult.metrics.lateOrders}/{liveDraftResult.metrics.totalOrders}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-end min-w-[60px]">
+                                    <span className="text-[9px] font-black text-muted-foreground uppercase leading-none">Carga</span>
+                                    <span className="text-xs font-black leading-tight text-primary">
+                                        {liveDraftResult.metrics.totalHours.toFixed(0)}h
+                                    </span>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveAllPlanning}
+                                    disabled={liveDraftResult.tasks.length === 0}
+                                    className="h-8 bg-[#EC1C21] hover:bg-[#EC1C21]/90 text-white rounded-xl text-[10px] font-black uppercase tracking-tight ml-2 shadow-lg shadow-[#EC1C21]/20 transition-all hover:scale-[1.05] active:scale-95"
+                                >
+                                    Aplicar
+                                </Button>
+                            </>
                         )}
-                    </Button>
 
-                    <Button
-                        size="sm"
-                        className="h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs gap-2 shadow-md"
-                        onClick={handleAutoPlan}
-                    >
-                        <Wand2 className="w-4 h-4" />
-                        <span className="hidden md:inline">Auto-Plan</span>
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsComparisonOpen(true)}
-                        className={`h-9 font-bold text-xs gap-2 transition-all ${savedScenarios.length > 0 ? "border-primary/30 text-primary" : "text-muted-foreground"}`}
-                    >
-                        <BarChart3 className="w-4 h-4" />
-                        <span className="hidden lg:inline">Escenarios</span>
-                        {savedScenarios.length > 0 && (
-                            <span className="text-[10px] bg-primary/10 text-primary rounded-full px-1.5 py-0.5">
-                                {savedScenarios.length}
-                            </span>
-                        )}
-                    </Button>
-
-                    {activePreviewId && (
-                        <div className="flex items-center bg-muted/30 rounded-lg border border-border/50 px-1 py-0.5 gap-1 shrink-0">
-                            <Button variant="ghost" size="sm" onClick={() => handleCyclePreview(-1)} className="h-6 w-6 p-0 rounded-md">
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                            </Button>
-                            <span className="text-[9px] font-bold text-primary/80 uppercase max-w-[60px] truncate hidden sm:inline">
-                                {savedScenarios.find(s => s.id === activePreviewId)?.name}
-                            </span>
-                            <Button variant="ghost" size="sm" onClick={() => handleCyclePreview(1)} className="h-6 w-6 p-0 rounded-md">
-                                <ChevronRight className="w-3.5 h-3.5" />
+                        {/* Relocated Evaluation Button */}
+                        <div className="flex items-center px-4 border-l border-border ml-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsEvalListOpen(!isEvalListOpen)}
+                                className={cn(
+                                    "h-8 font-black text-[10px] uppercase gap-2 px-4 transition-all rounded-xl shadow-sm border-border/60",
+                                    isEvalListOpen ? "bg-[#EC1C21] text-white border-[#EC1C21]" : "hover:bg-muted"
+                                )}
+                            >
+                                <ClipboardList className="w-3.5 h-3.5" />
+                                <span>Por Evaluar</span>
+                                {ordersPendingEvaluation.length > 0 && (
+                                    <span className={cn(
+                                        "text-white text-[9px] font-black rounded-full h-4 min-w-[16px] flex items-center justify-center px-1 animate-in zoom-in duration-300",
+                                        isEvalListOpen ? "bg-white text-[#EC1C21]" : "bg-[#EC1C21]"
+                                    )}>
+                                        {ordersPendingEvaluation.length}
+                                    </span>
+                                )}
                             </Button>
                         </div>
-                    )}
-                </div>
 
-                {/* Save Controls */}
-                {(changedTasks.length > 0 || draftTasks.length > 0) && (
-                    <div className="flex items-center gap-1.5 border-l border-border pl-2 ml-1">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-[10px] font-bold gap-1 text-muted-foreground hover:text-red-500"
-                            onClick={handleDiscard}
-                        >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span className="hidden lg:inline">Descartar</span>
-                        </Button>
-                        <Button
-                            size="sm"
-                            className="h-9 bg-black hover:bg-black/90 text-white font-black text-xs gap-2 shadow-lg shadow-black/20"
-                            onClick={handleSaveAllPlanning}
-                        >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span className="hidden sm:inline">Guardar</span>
-                            {changedTasks.length + draftTasks.length > 0 && (
-                                <span className="bg-white/20 px-1.5 rounded-full text-[10px]">
-                                    {changedTasks.length + draftTasks.length}
-                                </span>
-                            )}
-                        </Button>
+                        {activeStrategy === "NONE" && (changedTasks.length > 0 || draftTasks.length > 0) && (
+                            <Button
+                                size="sm"
+                                onClick={handleSaveAllPlanning}
+                                className="h-8 bg-black hover:bg-black/90 text-white rounded-xl text-[10px] font-black uppercase tracking-tight shadow-lg shadow-black/10"
+                            >
+                                <Save className="w-3.5 h-3.5 mr-1.5" />
+                                Guardar
+                            </Button>
+                        )}
                     </div>
-                )}
-
-            </div >
+                </div>
+            </div>
 
             {/* Bottom Content - Timeline with margins */}
             < div className="flex-1 overflow-hidden relative p-4 flex flex-col" id="planning-gantt-area" >
@@ -1089,7 +1002,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                         endControls={
                             <div className="flex items-center gap-3">
                                 {/* Search */}
-                                <div className="w-[150px] relative group">
+                                <div className="w-[300px] relative group">
                                     <Search className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
@@ -1110,7 +1023,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                         title={`Filtrar Máquinas (${selectedMachines.size}/${allMachineNames.length})`}
                                     >
                                         <Filter className="w-3.5 h-3.5" />
-                                        <span className="hidden xl:inline">Máquinas</span>
                                         <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isMachineFilterOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
@@ -1631,29 +1543,6 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 </DialogContent>
             </Dialog>
 
-            {/* Auto-Plan Configuration Dialog */}
-            <AutoPlanDialog
-                isOpen={isAutoPlanDialogOpen}
-                onClose={() => setIsAutoPlanDialogOpen(false)}
-                orders={orders}
-                tasks={[...tasks]}
-                machines={machines.map(m => m.name)}
-                onSaveScenario={handleSaveScenario}
-                scenarioCount={savedScenarios.length}
-                container={containerRef.current}
-            />
-
-            {/* Scenario Comparison Panel */}
-            <ScenarioComparison
-                isOpen={isComparisonOpen}
-                onClose={() => setIsComparisonOpen(false)}
-                scenarios={savedScenarios}
-                onPreview={handlePreviewScenario}
-                onApply={handleApplyScenario}
-                onDelete={handleDeleteScenario}
-                activePreviewId={activePreviewId}
-                container={containerRef.current}
-            />
 
             {/* Clear Evaluation Confirmation */}
             <AlertDialog open={!!idToClearEval} onOpenChange={(open) => !open && setIdToClearEval(null)}>

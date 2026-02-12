@@ -228,12 +228,21 @@ export function getNextValidWorkTime(date: moment.Moment): moment.Moment {
 
 /**
  * Snaps a date to the next 15-minute interval (ceiling).
- * e.g. 14:04 -> 14:15. 14:15:01 -> 14:30.
+ * If already at a 15-minute mark (and 0 seconds), stays there.
+ * e.g. 14:04 -> 14:15. 14:15:00 -> 14:15.
  */
-function snapToNext15Minutes(date: moment.Moment): moment.Moment {
+export function snapToNext15Minutes(date: moment.Moment): moment.Moment {
     const current = moment(date);
-    const remainder = 15 - (current.minute() % 15);
-    // Always move forward to next slot
+    const minutes = current.minutes();
+    const seconds = current.seconds();
+    const ms = current.milliseconds();
+
+    // If already at a 15-min mark exactly, return it
+    if (minutes % 15 === 0 && seconds === 0 && ms === 0) {
+        return current;
+    }
+
+    const remainder = 15 - (minutes % 15);
     return current.add(remainder, "minutes").startOf("minute").seconds(0).milliseconds(0);
 }
 
@@ -259,130 +268,132 @@ export function generateAutomatedPlanning(
     const draftTasks: any[] = [];
     const skipped: { order: Order; reason: string }[] = [];
 
-    // Virtual timelines to keep track of newly added draft tasks
-    // Sort tasks by start time for faster collision checks
-    const allKnownTasks = [...existingTasks].map(t => ({
-        ...t,
-        startMs: moment(t.planned_date).valueOf(),
-        endMs: moment(t.planned_end).valueOf()
-    }));
-
     // Start scheduling from "Next valid slot" relative to Now
     // 1. Snap Now to next 15m
     const nowSnapped = snapToNext15Minutes(moment());
     // 2. Ensure that snapped time is within working hours
     const globalStart = getNextValidWorkTime(nowSnapped);
 
+    // Initial tasks to consider for collisions and current state
+    // We filter out "flexible" tasks: future, not locked, and not started.
+    // This allows them to be re-planned from scratch.
+    const allKnownTasks = [...existingTasks]
+        .filter(t => {
+            const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+            const isLocked = t.locked === true;
+            const hasStarted = !!t.check_in;
+            const isFixed = isLocked || hasStarted || !isFuture;
+            return isFixed;
+        })
+        .map(t => ({
+            ...t,
+            startMs: moment(t.planned_date).valueOf(),
+            endMs: moment(t.planned_end).valueOf()
+        }));
+
     for (const order of preparedOrders) {
         const evaluation = (order as any).evaluation as any as EvaluationStep[];
-        let dependencyEndTime = moment(globalStart);
+        let pieceDependencyEndTime = moment(globalStart);
 
         const pieceTasks: any[] = [];
         let pieceSkipped = false;
 
-        for (const step of evaluation) {
+        // Get all fixed tasks for THIS specific order, sorted by time
+        const pieceFixedTasks = allKnownTasks
+            .filter(t => t.order_id === order.id)
+            .sort((a, b) => a.startMs - b.startMs);
+
+        // Track which fixed tasks we've "consumed" during matching
+        let fixedTaskIdx = 0;
+
+        for (let i = 0; i < evaluation.length; i++) {
+            const step = evaluation[i];
+            const register = (i + 1).toString();
+
             if (!machines.includes(step.machine)) {
                 skipped.push({ order, reason: `Máquina desconocida: ${step.machine}` });
                 pieceSkipped = true;
                 break;
             }
 
-            // Deduplication & Partial Planning:
-            const relatedTasks = allKnownTasks.filter(t =>
-                t.order_id === order.id &&
-                t.machine === step.machine
-            );
-
-            const totalPlannedHours = relatedTasks.reduce((sum, t) => {
-                const start = moment(t.planned_date);
-                const end = moment(t.planned_end);
-                return sum + end.diff(start, 'hours', true);
-            }, 0);
-
-            let remainingHours = step.hours - totalPlannedHours;
-
-            // If we have existing tasks, ensure new planning starts AFTER them
-            if (relatedTasks.length > 0) {
-                const latestEnd = relatedTasks.reduce((max, t) => {
-                    const end = moment(t.planned_end);
-                    return end.isAfter(max) ? end : max;
-                }, moment(dependencyEndTime));
-
-                // If fully planned (tolerance 0.1 hours)
-                if (remainingHours < 0.1) {
-                    dependencyEndTime = latestEnd;
-                    continue;
+            // SEQUENCE MATCHING: Try to find if this evaluation step is already covered by a "fixed" task.
+            // We look for the next available fixed task that matches the machine.
+            let matchedTask: any = null;
+            while (fixedTaskIdx < pieceFixedTasks.length) {
+                const potentialMatch = pieceFixedTasks[fixedTaskIdx];
+                if (potentialMatch.machine === step.machine) {
+                    matchedTask = potentialMatch;
+                    fixedTaskIdx++; // We match strictly in sequence
+                    break;
                 }
-
-                // Start searching after the existing work
-                dependencyEndTime = latestEnd;
+                // If it doesn't match the machine, it might be an extra task or a discrepency.
+                // We keep moving fixedTaskIdx to stay in sync with the physical sequence.
+                fixedTaskIdx++;
             }
-            // Pointer for where we are trying to schedule this step
-            // Must begin after the previous step (dependency) finished
-            let currentSearchStart = getNextValidWorkTime(moment(dependencyEndTime));
+
+            if (matchedTask) {
+                // STEP IS COVERED by a solid/fixed task
+                const taskEnd = moment(matchedTask.endMs);
+                if (taskEnd.isAfter(pieceDependencyEndTime)) {
+                    pieceDependencyEndTime = taskEnd;
+                }
+                // No more planning needed for this step as it's "solid"
+                continue;
+            }
+
+            // IF NO MATCH: Plan this step normally, starting after the last dependency
+            let remainingHours = step.hours;
+            let currentSearchStart = getNextValidWorkTime(moment(pieceDependencyEndTime));
 
             while (remainingHours > 0) {
-                // 1. Ensure currentSearchStart is valid (Mon-Sat 6-22)
                 currentSearchStart = getNextValidWorkTime(currentSearchStart);
-
-                // 2. Determine end of current shift (Today 22:00)
                 const shiftEnd = moment(currentSearchStart).hour(22).minute(0).second(0);
-
-                // 3. Calculate max available time in this shift
                 const hoursInShift = shiftEnd.diff(currentSearchStart, 'hours', true);
 
-                // If hardly any time left (< 15 mins), just skip to next day
                 if (hoursInShift < 0.25) {
                     currentSearchStart = getNextValidWorkTime(shiftEnd.add(1, 'minute'));
                     continue;
                 }
 
-                // 4. Proposed segment duration
                 const segmentDuration = Math.min(remainingHours, hoursInShift);
                 const proposedEnd = moment(currentSearchStart).add(segmentDuration, 'hours');
 
-                // 5. Check for collisions in [currentSearchStart, proposedEnd]
+                // 5. Check for collisions (Machine Busy OR Piece Busy elsewhere)
                 const collision = allKnownTasks.find(t =>
-                    t.machine === step.machine &&
+                    (t.machine === step.machine || t.order_id === order.id) &&
                     t.startMs < proposedEnd.valueOf() &&
                     t.endMs > currentSearchStart.valueOf()
                 );
 
                 if (collision) {
-                    // Jump past the collision
                     currentSearchStart = moment(collision.endMs);
-                    // Check validity again (might push to night/sunday) in next loop
                     continue;
                 }
 
-                // 6. No collision! Create segment.
+                // Create Draft Segment
                 const newTask: any = {
-                    id: `draft-${order.id}-${step.machine}-${Math.random().toString(36).substr(2, 5)}`,
+                    id: `draft-${order.id}-${step.machine}-${register}-${Math.random().toString(36).substr(2, 5)}`,
                     order_id: order.id,
                     machine: step.machine,
+                    register: register,
                     planned_date: currentSearchStart.format('YYYY-MM-DDTHH:mm:ss'),
                     planned_end: proposedEnd.format('YYYY-MM-DDTHH:mm:ss'),
                     status: 'pending',
                     production_orders: order,
                     isDraft: true,
-                    // Store helper for collision checking
                     startMs: currentSearchStart.valueOf(),
                     endMs: proposedEnd.valueOf()
                 };
 
                 pieceTasks.push(newTask);
-                allKnownTasks.push(newTask);
+                allKnownTasks.push(newTask); // Add to local obstacles for subsequent checks
 
-                // Update loop state
                 remainingHours -= segmentDuration;
                 currentSearchStart = moment(proposedEnd);
-
-                // If we finished a segment exactly at 22:00, next loop will move start to next day automatically
             }
 
-            // Update dependency time for next step of THIS piece
-            // It finishes when the LAST segment finishes
-            dependencyEndTime = currentSearchStart;
+            // This step is now "done" (either skipped, matched, or planned)
+            pieceDependencyEndTime = currentSearchStart;
         }
 
         if (!pieceSkipped) {
@@ -488,6 +499,7 @@ export function shiftScenarioTasks(
         .filter(t => !(t as any).isDraft)
         .map(t => ({
             machine: t.machine,
+            order_id: t.order_id,
             startMs: moment(t.planned_date).valueOf(),
             endMs: moment(t.planned_end).valueOf()
         }));
@@ -527,7 +539,7 @@ export function shiftScenarioTasks(
 
         // Check for collisions and nudge forward if needed
         const collision = existingTasksMap.find(t =>
-            t.machine === task.machine &&
+            (t.machine === task.machine || (task.order_id && t.order_id === task.order_id)) &&
             t.startMs < newEnd.valueOf() &&
             t.endMs > newStart.valueOf()
         );
@@ -564,93 +576,143 @@ export function shiftScenarioTasks(
 
 /**
  * Shifts a set of tasks so that the earliest one starts at or after the targetTime,
- * respecting work hours and avoiding collisions.
+ * respecting work hours, maintaining internal sequences, and avoiding collisions.
  */
 export function shiftTasksToCurrent(
     tasks: Partial<PlanningTask>[],
     targetTime: moment.Moment,
     existingTasks: PlanningTask[],
-    machines: string[]
+    _machines: string[] // legacy
 ): Partial<PlanningTask>[] {
     if (tasks.length === 0) return tasks;
 
-    // 1. Find the earliest start in the task set
-    const starts = tasks
-        .filter(t => t.planned_date)
-        .map(t => moment(t.planned_date));
-    
-    if (starts.length === 0) return tasks;
-    const earliestOriginal = moment.min(starts);
+    // 1. Determine "Fixed" tasks for collision detection (locked or in progress or past)
+    const nowSnapped = snapToNext15Minutes(moment());
+    const globalStart = getNextValidWorkTime(nowSnapped);
 
-    // 2. Ensure target start is valid (Mon-Sat 6-22)
-    const newGlobalStart = getNextValidWorkTime(targetTime);
-
-    // 3. Calculate the standard offset
-    const offsetMs = newGlobalStart.valueOf() - earliestOriginal.valueOf();
-
-    // 4. Map back using existing shiftScenarioTasks logic but based on MS offset
-    // (Actually, let's just make shiftScenarioTasks more generic or reuse its core logic)
-    
-    // Build collision map from existing (non-draft) tasks
-    const existingTasksMap = existingTasks
-        .filter(t => !(t as any).isDraft)
+    const obstacles = existingTasks
+        .filter(t => {
+            const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+            const isLocked = t.locked === true;
+            const hasStarted = !!t.check_in;
+            // Any started task is FIXED and MUST be an obstacle
+            const isFixed = isLocked || hasStarted || !isFuture;
+            return isFixed;
+        })
         .map(t => ({
             machine: t.machine,
+            order_id: t.order_id,
             startMs: moment(t.planned_date).valueOf(),
             endMs: moment(t.planned_end).valueOf()
         }));
 
-    return tasks.map(task => {
-        if (!task.planned_date || !task.planned_end) return task;
-
-        let newStart = getNextValidWorkTime(moment(task.planned_date).add(offsetMs, 'ms'));
-        const duration = moment(task.planned_end).diff(moment(task.planned_date), 'minutes');
-
-        // End must respect work hours
-        let rem = duration;
-        let cur = moment(newStart);
-        while (rem > 0) {
-            cur = getNextValidWorkTime(cur);
-            const se = moment(cur).hour(22).minute(0).second(0);
-            const av = se.diff(cur, 'minutes');
-            if (av <= 0) { cur.add(1, 'day').startOf('day').hour(6); continue; }
-            const seg = Math.min(rem, av);
-            rem -= seg;
-            cur = rem > 0 ? moment(se) : moment(cur).add(seg, 'minutes');
-        }
-        let newEnd = cur;
-
-        // Check collisions & nudge
-        const collision = existingTasksMap.find(t =>
-            t.machine === task.machine &&
-            t.startMs < newEnd.valueOf() &&
-            t.endMs > newStart.valueOf()
-        );
-
-        if (collision) {
-            newStart = getNextValidWorkTime(moment(collision.endMs));
-            let r = duration;
-            let c = moment(newStart);
-            while (r > 0) {
-                c = getNextValidWorkTime(c);
-                const se = moment(c).hour(22).minute(0).second(0);
-                const av = se.diff(c, 'minutes');
-                if (av <= 0) { c.add(1, 'day').startOf('day').hour(6); continue; }
-                const seg = Math.min(r, av);
-                r -= seg;
-                c = r > 0 ? moment(se) : moment(c).add(seg, 'minutes');
-            }
-            return {
-                ...task,
-                planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
-                planned_end: c.format('YYYY-MM-DDTHH:mm:ss'),
-            };
-        }
-
-        return {
-            ...task,
-            planned_date: newStart.format('YYYY-MM-DDTHH:mm:ss'),
-            planned_end: newEnd.format('YYYY-MM-DDTHH:mm:ss'),
-        };
+    // 2. Group tasks by piece (order_id) and sort chronologically within each piece
+    const tasksByPiece: Record<string, Partial<PlanningTask>[]> = {};
+    tasks.forEach(t => {
+        if (!t.order_id) return;
+        if (!tasksByPiece[t.order_id]) tasksByPiece[t.order_id] = [];
+        tasksByPiece[t.order_id].push(t);
     });
+
+    Object.values(tasksByPiece).forEach(pieceTasks => {
+        pieceTasks.sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+    });
+
+    // 3. Find global shift based on the earliest task in the ENTIRE scenario
+    const allStarts = tasks.filter(t => t.planned_date).map(t => moment(t.planned_date).valueOf());
+    if (allStarts.length === 0) return tasks;
+    const earliestOriginalMs = Math.min(...allStarts);
+
+    // Target start for the very first task
+    const shiftTargetStart = getNextValidWorkTime(snapToNext15Minutes(targetTime));
+    const globalOffsetMs = shiftTargetStart.valueOf() - earliestOriginalMs;
+
+    const resultTasks: Partial<PlanningTask>[] = [];
+    const piecePointers: Record<string, moment.Moment> = {}; // Tracks when each piece is free for its next step
+
+    // 4. Flatten all tasks and sort by original date to process them in "logical" order
+    const sortedAllTasks = [...tasks].sort((a, b) =>
+        moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
+    );
+
+    for (const task of sortedAllTasks) {
+        if (!task.planned_date || !task.planned_end || !task.order_id) {
+            resultTasks.push(task);
+            continue;
+        }
+
+        const originalStart = moment(task.planned_date);
+        const originalEnd = moment(task.planned_end);
+        const durationMinutes = originalEnd.diff(originalStart, 'minutes');
+
+        // Initial proposed start: Apply global offset
+        let proposedStart = moment(originalStart).add(globalOffsetMs, 'ms');
+
+        // Piece Constraint: Must start AFTER the previous step of the same piece
+        if (piecePointers[task.order_id] && proposedStart.isBefore(piecePointers[task.order_id])) {
+            proposedStart = moment(piecePointers[task.order_id]);
+        }
+
+        // Snap and Validate Start
+        proposedStart = getNextValidWorkTime(snapToNext15Minutes(proposedStart));
+
+        let finalStart = moment(proposedStart);
+        let finalEnd = moment(proposedStart);
+
+        // Keep searching for a valid slot if collisions exist
+        let foundSlot = false;
+        while (!foundSlot) {
+            // Calculate end respecting work hours
+            let rem = durationMinutes;
+            let cur = moment(finalStart);
+            while (rem > 0) {
+                cur = getNextValidWorkTime(cur);
+                const shiftEnd = moment(cur).hour(22).minute(0).second(0).millisecond(0);
+                const avail = shiftEnd.diff(cur, 'minutes');
+
+                if (avail <= 0) {
+                    cur.add(1, 'day').startOf('day').hour(6);
+                    continue;
+                }
+
+                const segment = Math.min(rem, avail);
+                rem -= segment;
+                cur = rem > 0 ? moment(shiftEnd) : moment(cur).add(segment, 'minutes');
+            }
+            finalEnd = cur;
+
+            // Check Collision with fixed tasks AND already shifted draft tasks
+            const collision = obstacles.find(f =>
+                (f.machine === task.machine || (task.order_id && f.order_id === task.order_id)) &&
+                f.startMs < finalEnd.valueOf() &&
+                f.endMs > finalStart.valueOf()
+            );
+
+            if (collision) {
+                // Jump past collision and snap again
+                finalStart = getNextValidWorkTime(snapToNext15Minutes(moment(collision.endMs)));
+            } else {
+                foundSlot = true;
+            }
+        }
+
+        const updatedTask = {
+            ...task,
+            planned_date: finalStart.format('YYYY-MM-DDTHH:mm:ss'),
+            planned_end: finalEnd.format('YYYY-MM-DDTHH:mm:ss'),
+        };
+
+        resultTasks.push(updatedTask);
+        piecePointers[task.order_id] = moment(finalEnd);
+
+        // Add this task to obstacles so later tasks in the same scenario avoid it
+        obstacles.push({
+            machine: updatedTask.machine || null,
+            order_id: updatedTask.order_id || null,
+            startMs: finalStart.valueOf(),
+            endMs: finalEnd.valueOf()
+        });
+    }
+
+    return resultTasks;
 }

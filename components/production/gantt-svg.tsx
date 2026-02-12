@@ -8,6 +8,12 @@ import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Max
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
 import { getProductionTaskColor } from "@/utils/production-colors";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { es } from "date-fns/locale";
+import { format } from "date-fns";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -591,9 +597,16 @@ export function GanttSVG({
         let cascadeIds: string[] = [];
         if (cascadeMode) {
             const taskEnd = moment(task.planned_end);
+            // Include both real and draft tasks in the cascade, but only if they are not locked
             const sameMachine = optimisticTasks
-                .filter(t => t.machine === task.machine && t.id !== task.id && !t.locked)
+                .filter(t => t.machine === task.machine && t.id !== task.id)
+                .filter(t => {
+                    const isFinishedOrRunning = !!t.check_in || !!t.check_out || moment(t.planned_date).isBefore(now);
+                    const isLocked = !t.isDraft && (t.locked === true || (t.locked !== false && isFinishedOrRunning));
+                    return !isLocked;
+                })
                 .sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+
             // Find consecutive chain: tasks whose start >= current task end
             for (const t of sameMachine) {
                 if (moment(t.planned_date).isSameOrAfter(taskEnd)) {
@@ -878,32 +891,78 @@ export function GanttSVG({
                             </button>
                         </div>
 
-                        {/* Date Inputs - compact styled */}
-                        <div className="w-px h-6 bg-border" />
                         <div className="flex items-center gap-1.5">
                             {viewMode === 'hour' ? (
-                                <input
-                                    type="date"
-                                    value={selectedDate.format('YYYY-MM-DD')}
-                                    onChange={(e) => setSelectedDate(moment(e.target.value))}
-                                    className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
-                                />
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[110px] justify-start shadow-sm"
+                                        >
+                                            <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
+                                            <span className="capitalize">
+                                                {selectedDate.format("dddd DD/MM/YYYY")}
+                                            </span>
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                                        <CalendarUI
+                                            mode="single"
+                                            selected={selectedDate.toDate()}
+                                            onSelect={(date) => date && setSelectedDate(moment(date))}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
                             ) : (
-                                <>
-                                    <input
-                                        type="date"
-                                        value={dateRangeStart.format('YYYY-MM-DD')}
-                                        onChange={(e) => setDateRangeStart(moment(e.target.value))}
-                                        className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
-                                    />
+                                <div className="flex items-center gap-1.5">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[100px] justify-start shadow-sm"
+                                            >
+                                                <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
+                                                <span className="capitalize">
+                                                    {dateRangeStart.format("dddd DD/MM/YYYY")}
+                                                </span>
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                                            <CalendarUI
+                                                mode="single"
+                                                selected={dateRangeStart.toDate()}
+                                                onSelect={(date) => date && setDateRangeStart(moment(date))}
+                                                initialFocus
+                                                locale={es}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
                                     <span className="text-[10px] text-muted-foreground font-bold">→</span>
-                                    <input
-                                        type="date"
-                                        value={dateRangeEnd.format('YYYY-MM-DD')}
-                                        onChange={(e) => setDateRangeEnd(moment(e.target.value))}
-                                        className="px-2 py-0.5 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all outline-none cursor-pointer font-medium"
-                                    />
-                                </>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[100px] justify-start shadow-sm"
+                                            >
+                                                <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
+                                                <span className="capitalize">
+                                                    {dateRangeEnd.format("dddd DD/MM/YYYY")}
+                                                </span>
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0 z-[100]" align="end">
+                                            <CalendarUI
+                                                mode="single"
+                                                selected={dateRangeEnd.toDate()}
+                                                onSelect={(date) => date && setDateRangeEnd(moment(date))}
+                                                initialFocus
+                                                locale={es}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
                             )}
                         </div>
                     </>
@@ -1062,6 +1121,11 @@ export function GanttSVG({
                             height={totalHeight}
                             style={{ display: 'block' }}
                         >
+                            <defs>
+                                <pattern id="draftPattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+                                    <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeOpacity="0.15" strokeWidth="4" />
+                                </pattern>
+                            </defs>
                             {/* Vertical Grid Lines */}
                             {timeColumns.map((col, i) => (
                                 <line
@@ -1191,16 +1255,31 @@ export function GanttSVG({
                                             height={height}
                                             rx={6}
                                             fill={color}
-                                            className={`shadow-xl transition-all duration-300 ${isLocked ? 'opacity-75' : (task as any).isDraft ? 'opacity-70' : 'hover:opacity-100 opacity-90'}`}
+                                            className={cn(
+                                                "shadow-xl transition-all duration-300",
+                                                isLocked ? "opacity-75" : (task as any).isDraft ? "opacity-60" : "hover:opacity-100 opacity-90"
+                                            )}
                                             style={{
                                                 filter: activeTask
                                                     ? `drop-shadow(0 8px 15px ${color})`
                                                     : "drop-shadow(0 4px 6px rgba(0,0,0,0.15))",
-                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
-                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
+                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? color : "rgba(255,255,255,0.2)"),
+                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 3 : 1),
                                                 strokeDasharray: isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none"
                                             }}
                                         />
+                                        {/* Draft Pattern Overlay */}
+                                        {(task as any).isDraft && (
+                                            <rect
+                                                x={x}
+                                                y={y}
+                                                width={width}
+                                                height={height}
+                                                rx={6}
+                                                fill="url(#draftPattern)"
+                                                className="pointer-events-none"
+                                            />
+                                        )}
                                         {/* Interaction Shield (Underneath Resize Handle) */}
                                         <rect
                                             x={x} y={y} width={width} height={height}
@@ -1232,7 +1311,10 @@ export function GanttSVG({
                                             >
                                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                                     {isLocked && <Lock className="w-2.5 h-2.5 flex-shrink-0" />}
-                                                    <div className="text-[10px] font-black truncate uppercase leading-none drop-shadow-sm">
+                                                    <div className={cn(
+                                                        "text-[10px] font-black truncate uppercase leading-none",
+                                                        (task as any).isDraft ? "text-white" : "text-white"
+                                                    )} style={{ textShadow: (task as any).isDraft ? '0 1px 3px rgba(0,0,0,0.5)' : 'none' }}>
                                                         {task.production_orders?.part_code || "S/N"}
                                                     </div>
                                                 </div>
