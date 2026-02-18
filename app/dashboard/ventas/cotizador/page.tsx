@@ -812,6 +812,147 @@ function QuoteGeneratorContent() {
         }
     };
 
+    // --- TOUR HANDLER WITH DEMO MODE ---
+    const handleStartTour = () => {
+        const originalItems = [...items];
+        const originalFormData = { ...formData };
+
+        // Inject demo data to ensure all features are visible for the tour
+        const exists = items.some(i => i.id === "tour-demo");
+        if (!exists) {
+            const demoItem: QuoteItem = {
+                id: "tour-demo",
+                description: "PIEZA DE PRUEBA (SOLO TOUR)",
+                quantity: 5,
+                unit: "PZA",
+                unit_price: 1250,
+                total: 6250,
+                drawing_url: "demo-tour-url", // This shows the Eye Icon
+                is_sub_item: false
+            };
+            setItems([demoItem, ...items]);
+        }
+
+        // Ensure we are in pieces mode to show dropzone/upload options
+        setFormData(prev => ({ ...prev, quote_type: 'pieces' }));
+
+        startTour([
+            {
+                element: "#quote-header-inputs",
+                popover: {
+                    title: "Datos de Encabezado",
+                    description: "Define quién cotiza, número de parte y requisición.",
+                    side: "bottom",
+                    align: "start"
+                }
+            },
+            {
+                element: "#quote-dates-inputs",
+                popover: {
+                    title: "Fechas y Moneda",
+                    description: "Emisión, entrega estimada y moneda de la oferta.",
+                    side: "bottom",
+                    align: "start"
+                }
+            },
+            {
+                element: "#quote-client-inputs",
+                popover: {
+                    title: "Cliente y Usuario",
+                    description: "Selecciona el cliente y contacto. Puedes crearlos si no existen.",
+                    side: "top",
+                    align: "start"
+                }
+            },
+            {
+                element: "#quote-extra-inputs",
+                popover: {
+                    title: "Detalles Adicionales",
+                    description: "Define el puesto, área y vigencia de la oferta para completar el perfil del cliente.",
+                    side: "top",
+                    align: "start"
+                }
+            },
+            {
+                element: "#quote-mode-container",
+                popover: {
+                    title: "Modo de Cotización",
+                    description: "Crucial: Elige 'Servicios' para venta libre o 'Piezas' si vas a cargar planos detallados.",
+                    side: "bottom",
+                    align: "end"
+                }
+            },
+            {
+                element: "#quote-item-grip",
+                popover: {
+                    title: "Reordenar Partidas",
+                    description: "Puedes arrastrar las filas desde este icono para cambiar su orden en cualquier momento.",
+                    side: "right",
+                    align: "center"
+                }
+            },
+            {
+                element: "#quote-items-section",
+                popover: {
+                    title: "Detalle de Partidas",
+                    description: "Aquí editas descripción, cantidades y precios. Escribe en mayúsculas por estándar.",
+                    side: "top",
+                    align: "center"
+                }
+            },
+            {
+                element: "#quote-subitem-toggle",
+                popover: {
+                    title: "Uso de Subpartidas",
+                    description: "Activa este switch para indentar partidas y desglosar componentes de una pieza principal.",
+                    side: "top",
+                    align: "center"
+                }
+            },
+            {
+                element: "#quote-view-drawing-btn",
+                popover: {
+                    title: "Visor de Planos",
+                    description: "El icono del ojo aparece cuando hay un plano. Úsalo para previsualizar sin salir.",
+                    side: "left",
+                    align: "center"
+                }
+            },
+            {
+                element: "#quote-pieces-options",
+                popover: {
+                    title: "Opciones de Ingeniería",
+                    description: "En modo 'Piezas', puedes cargar planos arrastrándolos a la tabla o usando el botón.",
+                    side: "top",
+                    align: "end"
+                }
+            },
+            {
+                element: "#quote-totals-section",
+                popover: {
+                    title: "Cálculos e IVA",
+                    description: "Verifica montos finales y alertas de validación si faltan datos mandatorios.",
+                    side: "left",
+                    align: "center"
+                }
+            },
+            {
+                element: "#quote-final-actions",
+                popover: {
+                    title: "Guardado y PDF",
+                    description: "Guarda para obtener el folio oficial. Tras guardar, el botón de 'Imprimir PDF' se activará.",
+                    side: "top",
+                    align: "end"
+                }
+            }
+        ], () => {
+            // Callback: Restore original state when tour ends
+            setItems(originalItems);
+            setFormData(originalFormData);
+            setIsDirty(false);
+        });
+    };
+
     return (
         <div id="cotizador-top" className="space-y-6 max-w-7xl mx-auto pb-20">
             {/* Header / Nav */}
@@ -822,80 +963,7 @@ function QuoteGeneratorContent() {
                 onBack={handleBack}
                 colorClass="text-red-500"
                 bgClass="bg-red-500/10"
-                onHelp={() => startTour([
-                    {
-                        element: "#quote-header-inputs",
-                        popover: {
-                            title: "Datos de Encabezado",
-                            description: "Define cómo cotizar (DMR/Inversa), el número de requisición y el número de parte.",
-                            side: "bottom",
-                            align: "start"
-                        }
-                    },
-                    {
-                        element: "#quote-dates-inputs",
-                        popover: {
-                            title: "Fechas y Moneda",
-                            description: "Establece la fecha de emisión, la entrega estimada y la moneda de la cotización.",
-                            side: "bottom",
-                            align: "start"
-                        }
-                    },
-                    {
-                        element: "#quote-client-inputs",
-                        popover: {
-                            title: "Cliente y Usuario",
-                            description: "Selecciona al cliente y el contacto. Si no existen, puedes crearlos escribiendo el nombre y haciendo clic en 'Crear'.",
-                            side: "top",
-                            align: "start"
-                        }
-                    },
-                    {
-                        element: "#quote-extra-inputs",
-                        popover: {
-                            title: "Detalles Adicionales",
-                            description: "Información complementaria como Puesto, Área y vigencia de la oferta.",
-                            side: "top",
-                            align: "start"
-                        }
-                    },
-                    {
-                        element: "#quote-items-section",
-                        popover: {
-                            title: "Listado de Partidas",
-                            description: "Aquí agregas los productos. Define descripción, cantidad, unidad (creables) y precio.",
-                            side: "top",
-                            align: "center"
-                        }
-                    },
-                    {
-                        element: "#quote-add-item-btn",
-                        popover: {
-                            title: "Agregar Más Partidas",
-                            description: "Usa este botón para añadir más filas a tu cotización.",
-                            side: "right",
-                            align: "center"
-                        }
-                    },
-                    {
-                        element: "#quote-totals-section",
-                        popover: {
-                            title: "Validación y Totales",
-                            description: "Verifica los subtotales e impuestos. Si faltan datos, aquí aparecerán las alertas de validación.",
-                            side: "left",
-                            align: "center"
-                        }
-                    },
-                    {
-                        element: "#quote-final-actions",
-                        popover: {
-                            title: "Guardar o Imprimir",
-                            description: "Finaliza guardando la cotización. Podrás generar el PDF una vez guardada.",
-                            side: "top",
-                            align: "end"
-                        }
-                    }
-                ])}
+                onHelp={handleStartTour}
             />
 
             {/* General Info Card */}
@@ -1067,7 +1135,7 @@ function QuoteGeneratorContent() {
             <Card className="bg-card border-border">
                 <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
                     <CardTitle className="text-red-500 font-semibold text-lg">Lotes y/o Items</CardTitle>
-                    <div className="flex items-center gap-3">
+                    <div id="quote-mode-container" className="flex items-center gap-3">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Modo:</label>
                         <Select
                             value={formData.quote_type}
@@ -1118,7 +1186,7 @@ function QuoteGeneratorContent() {
                                                 )}
                                             >
                                                 <TableCell className="w-[40px] cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors p-0 text-center">
-                                                    <div className="flex justify-center items-center h-full">
+                                                    <div id={index === 0 ? "quote-item-grip" : undefined} className="flex justify-center items-center h-full">
                                                         <GripVertical className="w-4 h-4" />
                                                     </div>
                                                 </TableCell>
@@ -1217,6 +1285,7 @@ function QuoteGeneratorContent() {
                                                 <TableCell>
                                                     <div className="flex items-center justify-center">
                                                         <button
+                                                            id={index === 0 ? "quote-subitem-toggle" : undefined}
                                                             type="button"
                                                             onClick={() => updateItem(index, 'is_sub_item', !item.is_sub_item)}
                                                             className={cn(
@@ -1243,6 +1312,7 @@ function QuoteGeneratorContent() {
                                                                     setViewerUrl(item.drawing_url || null);
                                                                     setViewerTitle(item.description || "Plano sin nombre");
                                                                 }}
+                                                                id={index === 0 ? "quote-view-drawing-btn" : undefined}
                                                                 className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
                                                                 title="Ver Plano"
                                                             >
@@ -1274,7 +1344,7 @@ function QuoteGeneratorContent() {
                                     </Button>
 
                                     {formData.quote_type === 'pieces' && (
-                                        <div className="flex items-center gap-3">
+                                        <div id="quote-pieces-options" className="flex items-center gap-3">
                                             <Button
                                                 variant="outline"
                                                 size="sm"

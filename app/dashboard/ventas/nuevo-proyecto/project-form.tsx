@@ -276,6 +276,45 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     const router = useRouter();
     const [loading, setLoading] = useState(false);
 
+    // Data State (mutable for new additions)
+    const [clientList, setClientList] = useState(clients);
+    const [allContacts, setAllContacts] = useState(contacts);
+
+    // Form State
+    const [selectedClient, setSelectedClient] = useState("");
+    const [clientCode, setClientCode] = useState("");
+    const [selectedUser, setSelectedUser] = useState("");
+
+    // Derived filtered contacts
+    const filteredContacts = selectedClient
+        ? allContacts.filter(c => c.client_id === selectedClient)
+        : [];
+
+    // Staging State
+    const [stagingFiles, setStagingFiles] = useState<StagingFile[]>([]);
+
+    // Dates
+    const [requestDate, setRequestDate] = useState<Date>(initialDate);
+    const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
+
+    // Project Details
+    const [projectName, setProjectName] = useState("");
+    const [driveFolderUrl, setDriveFolderUrl] = useState("");
+    const [itemsToGenerate, setItemsToGenerate] = useState(1);
+
+    // Generated Data
+    const [projectCode, setProjectCode] = useState<string | null>(null);
+    const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
+    const [showPreview, setShowPreview] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
+    const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+
+    // Viewer State
+    const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+    const [viewerTitle, setViewerTitle] = useState("");
+    const [viewerType, setViewerType] = useState<"image" | "pdf" | undefined>(undefined);
+    const supabase = createClient();
+
     // --- TOUR HANDLER WITH DEMO MODE ---
     const handleStartTour = () => {
         // 1. Simulate Data if empty to reveal hidden sections
@@ -293,11 +332,10 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
             setStagingFiles([
                 { id: "demo-file-1", name: "Plano_Estructura_001.pdf", url: "", mimeType: "application/pdf", selected: true, thumbnail: "" }
             ]);
-            // setIsSelectingFiles(true); // This state is no longer used for staging files
 
             // Populate Preview Table
             setGeneratedItems([
-                { id: 1, stableId: "demo-1", code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "", isDemo: true, is_sub_item: false },
+                { id: 1, stableId: "demo-1", code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "https://example.com/demo.pdf", isDemo: true, is_sub_item: false },
                 { id: 2, stableId: "demo-2", code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", designNo: "D-002", material: "Bronce", url: "", isDemo: true, is_sub_item: false }
             ]);
             setShowPreview(true);
@@ -310,84 +348,90 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 setProjectName("");
                 setSelectedClient("");
                 setDriveFolderUrl("");
-                setItemsToGenerate(0);
+                setItemsToGenerate(1);
                 setStagingFiles([]);
-                // setIsSelectingFiles(false); // This state is no longer used for staging files
                 setGeneratedItems([]);
                 setShowPreview(false);
                 setPendingFiles(new Map());
             }
         };
 
-        // 3. Start Tour with granular steps
+        // 3. Start Tour with grouped steps
         startTour([
             {
-                element: "#project-client-wrapper",
-                popover: { title: "Cliente", description: "Primero selecciona la empresa para la cual es el proyecto.", side: "bottom", align: "start" }
+                element: "#project-header-first-three",
+                popover: {
+                    title: "Datos de Proyecto",
+                    description: "Primero selecciona el Cliente, el Usuario solicitante y las fechas de Solicitud y Entrega.",
+                    side: "bottom",
+                    align: "start"
+                }
             },
             {
-                element: "#project-user-wrapper",
-                popover: { title: "Usuario / Solicitante", description: "Indica quién está solicitando este trabajo dentro de la empresa del cliente.", side: "bottom", align: "start" }
-            },
-            {
-                element: "#project-date-request",
-                popover: { title: "Fecha de Solicitud", description: "La fecha en que se recibió la orden de trabajo.", side: "bottom", align: "start" }
-            },
-            {
-                element: "#project-date-delivery",
-                popover: { title: "Fecha de Entrega", description: "Fecha compromiso para entregar el proyecto terminado.", side: "bottom", align: "start" }
-            },
-            {
-                element: "#project-info-section",
-                popover: { title: "Identificación del Proyecto", description: "Escribe un nombre claro para el proyecto.", side: "top", align: "start" }
+                element: "#project-identity-input",
+                popover: {
+                    title: "Identificación del Proyecto",
+                    description: "Asigna un nombre descriptivo y define la cantidad de filas iniciales.",
+                    side: "top",
+                    align: "start"
+                }
             },
             {
                 element: "#project-dropzone-section",
-                popover: { title: "Planos y Archivos", description: "Sube aquí todos los planos o documentos del proyecto para generar las partidas automáticamente.", side: "top", align: "start" }
-            },
-            {
-                element: "#project-items-count",
-                popover: { title: "Cantidad de Partidas", description: "Si no usas Drive, indica cuántas filas vacías necesitas generar.", side: "top", align: "start" }
-            },
-            {
-                element: "#project-generate-btn",
-                popover: { title: "Generar Partidas", description: "Haz clic para procesar el link de Drive o crear las filas manuales.", side: "right", align: "center" }
+                popover: {
+                    title: "Carga de Archivos",
+                    description: "Puedes arrastrar tus planos directamente aquí para procesarlos de forma masiva.",
+                    side: "top",
+                    align: "center"
+                }
             },
             {
                 element: "#project-staging-area",
-                popover: { title: "Zona de Selección (Importación)", description: "Si usaste Drive, aquí verás los archivos encontrados. Selecciona los que quieras agregar al proyecto.", side: "top", align: "center" }
+                popover: {
+                    title: "Zona de Selección (Importación)",
+                    description: "Aquí aparecen los archivos cargados. Puedes elegir cuáles incluir en el proyecto final.",
+                    side: "top",
+                    align: "center"
+                }
             },
             {
-                element: "#project-preview-table",
-                popover: { title: "Tabla de Partidas", description: "Revisa y edita la información generada (descripciones, cantidades, materiales).", side: "top", align: "center" }
+                element: ".grip-handle-tour", // Target the first grip handle
+                popover: {
+                    title: "Reordenar Registros",
+                    description: "Arrastra las filas desde el icono de la izquierda para cambiar su orden en el proyecto.",
+                    side: "right",
+                    align: "center"
+                }
+            },
+            {
+                element: ".viewer-btn-tour", // Target the first viewer button
+                popover: {
+                    title: "Visor de Planos",
+                    description: "Usa el icono del ojo para previsualizar el plano asignado a cada partida.",
+                    side: "right",
+                    align: "center"
+                }
+            },
+            {
+                element: ".subitem-switch-tour", // Target the first sub-item switch
+                popover: {
+                    title: "Crear Subpartidas",
+                    description: "Activa este switch para convertir una partida en subpartida, vinculándola a la anterior.",
+                    side: "left",
+                    align: "center"
+                }
             },
             {
                 element: "#project-save-btn",
-                popover: { title: "Guardar Proyecto", description: "Finalmente, guarda el proyecto para registrarlo en el sistema.", side: "top", align: "end" }
+                popover: {
+                    title: "Guardar Proyecto",
+                    description: "Una vez todo esté correcto, haz clic aquí para registrar el proyecto y sus partidas en el sistema.",
+                    side: "top",
+                    align: "end"
+                }
             }
         ], handleTourFinish);
     };
-
-    // Data State (mutable for new additions)
-    const [clientList, setClientList] = useState(clients);
-    const [allContacts, setAllContacts] = useState(contacts);
-
-    // Form State
-    const [selectedClient, setSelectedClient] = useState("");
-    const [clientCode, setClientCode] = useState("");
-    const [selectedUser, setSelectedUser] = useState("");
-
-    // Derived filtered contacts
-    // If no client selected, maybe show nothing? Or show all?
-    // User request: "only display contacts associated with the currently selected Client"
-    // So if no client, likely empty or "select client first".
-    const filteredContacts = selectedClient
-        ? allContacts.filter(c => c.client_id === selectedClient)
-        : [];
-
-
-    // Staging State
-    const [stagingFiles, setStagingFiles] = useState<StagingFile[]>([]);
 
     const handleClientChange = (clientId: string) => {
         setSelectedClient(clientId);
@@ -407,34 +451,12 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         }
     };
 
-    // Dates
-    const [requestDate, setRequestDate] = useState<Date>(initialDate);
-    const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
-
-    // Project Details
-    const [projectName, setProjectName] = useState("");
-    const [driveFolderUrl, setDriveFolderUrl] = useState("");    // Note: We keep itemsToGenerate as a state for the INPUT field.
-    const [itemsToGenerate, setItemsToGenerate] = useState(1);
-
-    // Sync itemsToGenerate with stagingFiles length
+    // Effect to sync itemsToGenerate with stagingFiles length
     useEffect(() => {
         if (stagingFiles.length > 0) {
             setItemsToGenerate(stagingFiles.length);
         }
     }, [stagingFiles.length]);
-
-    // Generated Data
-    const [projectCode, setProjectCode] = useState<string | null>(null);
-    const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
-    const [showPreview, setShowPreview] = useState(false);
-    const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
-    const [isUploadingFiles, setIsUploadingFiles] = useState(false);
-
-    // Viewer State
-    const [viewerUrl, setViewerUrl] = useState<string | null>(null);
-    const [viewerTitle, setViewerTitle] = useState("");
-    const [viewerType, setViewerType] = useState<"image" | "pdf" | undefined>(undefined);
-    const supabase = createClient();
 
     // Effect to sync input with actual table size when preview is active
     useEffect(() => {
@@ -848,95 +870,109 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 <Card className="border-border/40 shadow-xl shadow-primary/5 relative rounded-2xl overflow-visible bg-card/80 backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 rounded-t-2xl" />
                     <CardContent className="p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-8">
+                        <div className="relative">
+                            {/* Ghost highlight for Tour Step 1 - First 3 fields */}
+                            <div
+                                id="project-header-first-three"
+                                className="absolute pointer-events-none z-0 rounded-xl"
+                                style={{
+                                    top: '-8px',
+                                    left: '-8px',
+                                    width: 'calc(100% + 16px)',
+                                    height: 'calc(100% + 16px)'
+                                }}
+                            />
 
-                            {/* Client */}
-                            <div className="space-y-2.5" id="project-client-wrapper">
-                                <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Cliente</Label>
-                                <SearchableSelect
-                                    options={clientList.map(c => ({ label: c.name, value: c.id }))}
-                                    value={selectedClient}
-                                    onChange={handleClientChange}
-                                    onCreate={handleCreateClient}
-                                    placeholder="Seleccionar o crear..."
-                                    className="w-full"
-                                />
-                            </div>
-
-                            {/* User / Requestor */}
-                            <div className="space-y-2.5" id="project-user-wrapper">
-                                <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Usuario / Solicitante</Label>
-                                <SearchableSelect
-                                    options={filteredContacts.map(c => ({ label: c.name, value: c.id }))}
-                                    value={selectedUser}
-                                    onChange={setSelectedUser}
-                                    onCreate={handleCreateContact}
-                                    placeholder={selectedClient ? "Seleccionar o crear..." : "Selecciona Cliente primero"}
-                                    className="w-full"
-                                    disabled={!selectedClient}
-                                />
-                            </div>
-
-                            {/* Dates */}
-                            <div id="project-date-request">
-                                <DateSelector
-                                    label="Fecha de Solicitud"
-                                    date={requestDate}
-                                    onSelect={(d) => d && setRequestDate(d)}
-                                />
-                            </div>
-
-                            <div id="project-date-delivery">
-                                <DateSelector
-                                    label="Fecha de Entrega"
-                                    date={deliveryDate}
-                                    onSelect={setDeliveryDate}
-                                />
-                            </div>
-
-                            {/* Project Info & Items Count Row - MOVED ABOVE */}
-                            <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4" id="project-generation-section">
-                                <div className="space-y-2.5 md:col-span-3" id="project-info-section">
-                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nombre del Proyecto</Label>
-                                    <Input
-                                        placeholder="Ej. Fabricación de Estructura Principal..."
-                                        value={projectName}
-                                        onChange={(e) => setProjectName(e.target.value)}
-                                        className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-8 mb-8">
+                                {/* Client */}
+                                <div className="space-y-2.5 z-10" id="project-client-wrapper">
+                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Cliente</Label>
+                                    <SearchableSelect
+                                        options={clientList.map(c => ({ label: c.name, value: c.id }))}
+                                        value={selectedClient}
+                                        onChange={handleClientChange}
+                                        onCreate={handleCreateClient}
+                                        placeholder="Seleccionar o crear..."
+                                        className="w-full"
                                     />
                                 </div>
-                                <div className="space-y-2.5" id="project-items-count">
-                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">No. de filas</Label>
-                                    <Input
-                                        id="items-to-generate"
-                                        type="number"
-                                        min={1}
-                                        value={itemsToGenerate}
-                                        onChange={(e) => setItemsToGenerate(parseInt(e.target.value) || 1)}
-                                        disabled={loading || stagingFiles.length > 0 || showPreview}
-                                        className={cn(
-                                            "bg-background border-zinc-500/20 focus:ring-red-500/20",
-                                            (stagingFiles.length > 0 || showPreview) && "opacity-70 bg-muted cursor-not-allowed"
-                                        )}
+
+                                {/* User / Requestor */}
+                                <div className="space-y-2.5 z-10" id="project-user-wrapper">
+                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Usuario / Solicitante</Label>
+                                    <SearchableSelect
+                                        options={filteredContacts.map(c => ({ label: c.name, value: c.id }))}
+                                        value={selectedUser}
+                                        onChange={setSelectedUser}
+                                        onCreate={handleCreateContact}
+                                        placeholder={selectedClient ? "Seleccionar o crear..." : "Selecciona Cliente primero"}
+                                        className="w-full"
+                                        disabled={!selectedClient}
+                                    />
+                                </div>
+
+                                {/* Dates Request */}
+                                <div className="z-10" id="project-date-request">
+                                    <DateSelector
+                                        label="Fecha de Solicitud"
+                                        date={requestDate}
+                                        onSelect={(d) => d && setRequestDate(d)}
+                                    />
+                                </div>
+
+                                {/* Date Delivery - Always visible, not part of first ghost highlight */}
+                                <div id="project-date-delivery" className="z-10">
+                                    <DateSelector
+                                        label="Fecha de Entrega"
+                                        date={deliveryDate}
+                                        onSelect={setDeliveryDate}
                                     />
                                 </div>
                             </div>
-
-                            {/* Dropzone for Files - Hidden when staging exists */}
-                            {stagingFiles.length === 0 && !showPreview && (
-                                <div className="md:col-span-4" id="project-dropzone-section">
-                                    <Dropzone
-                                        onFilesSelected={onFilesSelected}
-                                        isUploading={isUploadingFiles}
-                                        className="h-48"
-                                    />
-                                </div>
-                            )}
                         </div>
+
+                        {/* Project Info & Items Count Row - Group 2 for tour */}
+                        <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8" id="project-identity-input">
+                            <div className="space-y-2.5 md:col-span-3" id="project-info-section">
+                                <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nombre del Proyecto</Label>
+                                <Input
+                                    placeholder="Ej. Fabricación de Estructura Principal..."
+                                    value={projectName}
+                                    onChange={(e) => setProjectName(e.target.value)}
+                                    className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
+                                />
+                            </div>
+                            <div className="space-y-2.5 md:col-span-1" id="project-items-count">
+                                <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">No. de filas</Label>
+                                <Input
+                                    id="items-to-generate"
+                                    type="number"
+                                    min={1}
+                                    value={itemsToGenerate}
+                                    onChange={(e) => setItemsToGenerate(parseInt(e.target.value) || 1)}
+                                    disabled={loading || stagingFiles.length > 0 || showPreview}
+                                    className={cn(
+                                        "bg-background border-zinc-500/20 focus:ring-red-500/20",
+                                        (stagingFiles.length > 0 || showPreview) && "opacity-70 bg-muted cursor-not-allowed"
+                                    )}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Dropzone for Files - Hidden when staging exists, but visible in tour */}
+                        {((stagingFiles.length === 0 && !showPreview) || (generatedItems.some(i => i.isDemo))) && (
+                            <div className="md:col-span-4" id="project-dropzone-section">
+                                <Dropzone
+                                    onFilesSelected={onFilesSelected}
+                                    isUploading={isUploadingFiles}
+                                    className="h-48"
+                                />
+                            </div>
+                        )}
 
                         {/* STAGING AREA (Zona de Selección) - MOVED INSIDE CARD */}
                         <AnimatePresence>
-                            {stagingFiles.length > 0 && !showPreview && (
+                            {((stagingFiles.length > 0 && !showPreview) || (generatedItems.some(i => i.isDemo))) && (
                                 <motion.div
                                     id="project-staging-area"
                                     initial={{ opacity: 0, height: 0 }}
@@ -1084,7 +1120,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                 )}
                                             >
                                                 <TableCell className="w-[30px] pr-0">
-                                                    <GripVertical className="w-4 h-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing hover:text-red-500 transition-colors" />
+                                                    <GripVertical className="w-4 h-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing hover:text-red-500 transition-colors grip-handle-tour" />
                                                 </TableCell>
                                                 <TableCell className={cn(
                                                     "font-mono text-center font-bold w-[80px]",
@@ -1149,7 +1185,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                                     const type = (item.mimeType?.includes('pdf') ? 'pdf' : undefined) as "pdf" | undefined;
                                                                     setViewerType(type);
                                                                 }}
-                                                                className="h-9 w-9 text-muted-foreground/40 hover:text-foreground hover:bg-muted shrink-0 rounded-full"
+                                                                className="h-9 w-9 text-muted-foreground/40 hover:text-foreground hover:bg-muted shrink-0 rounded-full viewer-btn-tour"
                                                             >
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
@@ -1190,7 +1226,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                                 setGeneratedItems(resequenced);
                                                             }}
                                                             className={cn(
-                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner",
+                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner subitem-switch-tour",
                                                                 item.is_sub_item ? "bg-red-500" : "bg-zinc-300 dark:bg-zinc-700"
                                                             )}
                                                         >
@@ -1251,6 +1287,6 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 title={viewerTitle}
                 type={viewerType}
             />
-        </div>
+        </div >
     );
 }
