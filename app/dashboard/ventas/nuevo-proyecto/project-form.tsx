@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarIcon, Loader2, Save, FileText, RefreshCw, Plus, Trash2, X, ChevronDown, ImageIcon, ExternalLink, ZoomIn, ZoomOut, RotateCcw, Sparkles, FolderPlus } from "lucide-react";
+import { CalendarIcon, Loader2, Save, FileText, RefreshCw, Plus, Trash2, X, ChevronDown, ImageIcon, ExternalLink, ZoomIn, ZoomOut, RotateCcw, Sparkles, FolderPlus, UploadCloud, Eye, GripVertical } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 
 import { DashboardHeader } from "@/components/dashboard-header";
 import { useTour } from "@/hooks/use-tour";
@@ -49,6 +49,9 @@ import { getNextProjectCode, createProjectAndItems } from "@/app/dashboard/venta
 import { scanDriveFolder } from "@/app/dashboard/ventas/drive-actions";
 import { createClientEntry, createContactEntry } from "@/app/dashboard/ventas/actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Dropzone } from "@/components/sales/dropzone";
+import { createClient } from "@/utils/supabase/client";
+import { DrawingViewer } from "@/components/sales/drawing-viewer";
 
 
 interface ProjectFormProps {
@@ -61,6 +64,7 @@ interface ProjectFormProps {
 
 interface GeneratedItem {
     id: number;
+    stableId: string; // Added for Framer Motion keys
     code: string;
     description: string;
     quantity: number;
@@ -70,7 +74,9 @@ interface GeneratedItem {
     url: string;
     thumbnail?: string;
     fileId?: string;
-    isDemo?: boolean; // Flag to identify demo items
+    mimeType?: string; // Added for better format detection
+    is_sub_item?: boolean;
+    isDemo?: boolean;
 }
 
 interface StagingFile {
@@ -80,6 +86,7 @@ interface StagingFile {
     url: string;
     mimeType?: string;
     selected: boolean;
+    file?: File;
 }
 
 // Animation Variants
@@ -286,12 +293,12 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
             setStagingFiles([
                 { id: "demo-file-1", name: "Plano_Estructura_001.pdf", url: "", mimeType: "application/pdf", selected: true, thumbnail: "" }
             ]);
-            setIsSelectingFiles(true);
+            // setIsSelectingFiles(true); // This state is no longer used for staging files
 
             // Populate Preview Table
             setGeneratedItems([
-                { id: 1, code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "", isDemo: true },
-                { id: 2, code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", designNo: "D-002", material: "Bronce", url: "", isDemo: true }
+                { id: 1, stableId: "demo-1", code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "", isDemo: true, is_sub_item: false },
+                { id: 2, stableId: "demo-2", code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", designNo: "D-002", material: "Bronce", url: "", isDemo: true, is_sub_item: false }
             ]);
             setShowPreview(true);
         }
@@ -305,9 +312,10 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 setDriveFolderUrl("");
                 setItemsToGenerate(0);
                 setStagingFiles([]);
-                setIsSelectingFiles(false);
+                // setIsSelectingFiles(false); // This state is no longer used for staging files
                 setGeneratedItems([]);
                 setShowPreview(false);
+                setPendingFiles(new Map());
             }
         };
 
@@ -334,8 +342,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 popover: { title: "Identificación del Proyecto", description: "Escribe un nombre claro para el proyecto.", side: "top", align: "start" }
             },
             {
-                element: "#project-drive-input",
-                popover: { title: "Carpeta de Drive", description: "Si tienes los planos en Drive, pega el link aquí para importarlos automáticamente.", side: "top", align: "start" }
+                element: "#project-dropzone-section",
+                popover: { title: "Planos y Archivos", description: "Sube aquí todos los planos o documentos del proyecto para generar las partidas automáticamente.", side: "top", align: "start" }
             },
             {
                 element: "#project-items-count",
@@ -378,9 +386,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         : [];
 
 
-    // Staging State (Drive Selection)
+    // Staging State
     const [stagingFiles, setStagingFiles] = useState<StagingFile[]>([]);
-    const [isSelectingFiles, setIsSelectingFiles] = useState(false);
 
     const handleClientChange = (clientId: string) => {
         setSelectedClient(clientId);
@@ -406,15 +413,28 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
     // Project Details
     const [projectName, setProjectName] = useState("");
-    const [driveFolderUrl, setDriveFolderUrl] = useState(""); // NEW
-
-    // Note: We keep itemsToGenerate as a state for the INPUT field.
+    const [driveFolderUrl, setDriveFolderUrl] = useState("");    // Note: We keep itemsToGenerate as a state for the INPUT field.
     const [itemsToGenerate, setItemsToGenerate] = useState(1);
+
+    // Sync itemsToGenerate with stagingFiles length
+    useEffect(() => {
+        if (stagingFiles.length > 0) {
+            setItemsToGenerate(stagingFiles.length);
+        }
+    }, [stagingFiles.length]);
 
     // Generated Data
     const [projectCode, setProjectCode] = useState<string | null>(null);
     const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
     const [showPreview, setShowPreview] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
+    const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+
+    // Viewer State
+    const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+    const [viewerTitle, setViewerTitle] = useState("");
+    const [viewerType, setViewerType] = useState<"image" | "pdf" | undefined>(undefined);
+    const supabase = createClient();
 
     // Effect to sync input with actual table size when preview is active
     useEffect(() => {
@@ -425,71 +445,77 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
 
     const handleGeneratePreview = async () => {
+        if (!selectedClient) {
+            toast.error("Selecciona un cliente primero.");
+            return;
+        }
+
         setLoading(true);
-        // Reset staging state
-        setStagingFiles([]);
-        setIsSelectingFiles(false);
+        // Reset generated items
         setGeneratedItems([]);
         setShowPreview(false);
 
         try {
             // Determine project code logic
-            let nextCode = projectCode;
+            const fetchedCode = await getNextProjectCode(clientCode || "PRJ");
+            const nextCode = fetchedCode || projectCode || `${clientCode || "PRJ"}-${format(requestDate, "yyMMdd")}-XXXX`;
+            setProjectCode(nextCode);
 
-            if (!nextCode && clientCode) {
-                // Fetch real next code from server
-                try {
-                    const fetchedCode = await getNextProjectCode(clientCode);
-                    if (fetchedCode) {
-                        nextCode = fetchedCode;
-                        setProjectCode(fetchedCode);
+            const selectedFiles = stagingFiles.filter(f => f.selected);
+
+            if (selectedFiles.length > 0) {
+                // --- STAGING MODE (Files) ---
+                const newPendingFiles = new Map<string, File>();
+                const newItems: GeneratedItem[] = selectedFiles.map((f: StagingFile, idx) => {
+                    const fileName = f.name.substring(0, f.name.lastIndexOf('.')) || f.name;
+                    const upperName = fileName.toUpperCase();
+
+                    if (f.file) {
+                        newPendingFiles.set(f.id, f.file);
                     }
-                } catch (e) {
-                    console.error("Error fetching next code:", e);
-                    // Fallback if fetch fails
-                    const dateStr = format(requestDate, "yyMMdd");
-                    nextCode = `${clientCode}-${dateStr}-XXXX`;
-                }
-            } else if (!nextCode) {
-                const prefix = clientCode || "PRJ";
-                const dateStr = format(requestDate, "yyMMdd");
-                nextCode = `${prefix}-${dateStr}-XXXX`;
-            }
 
-            if (driveFolderUrl) {
-                // --- DRIVE MODE -> STAGING ---
-                const result = await scanDriveFolder(driveFolderUrl);
+                    return {
+                        id: idx + 1,
+                        stableId: `file-${f.id}-${idx}`,
+                        code: `${nextCode}-${(idx + 1).toString().padStart(2, "0")}.00`,
+                        description: "",
+                        quantity: 1,
+                        unit: "PZA",
+                        designNo: upperName,
+                        material: "",
+                        url: f.url,
+                        fileId: f.id,
+                        mimeType: f.mimeType,
+                        is_sub_item: false
+                    };
+                });
 
-                if (!result.success) {
-                    toast.error(result.error);
-                } else if (result.items && result.items.length > 0) {
+                setPendingFiles(prev => {
+                    const updated = new Map(prev);
+                    newPendingFiles.forEach((file, id) => updated.set(id, file));
+                    return updated;
+                });
 
-                    const staging: StagingFile[] = result.items.map(f => ({
-                        id: f.fileId,
-                        name: f.name,
-                        url: f.link,
-                        thumbnail: f.thumbnail,
-                        selected: true, // Auto-select all by default
-                        mimeType: f.mimeType || undefined
-                    }));
-
-                    setStagingFiles(staging);
-                    setIsSelectingFiles(true);
-                    toast.success(`Se encontraron ${result.items.length} archivos. Selecciona cuáles importar.`);
-
-                } else {
-                    toast.info("La carpeta está vacía o no se encontraron archivos.");
-                }
-
+                setGeneratedItems(newItems);
+                setShowPreview(true);
+                setStagingFiles([]); // Clear staging after generation
+                toast.success(`Partidas generadas desde ${selectedFiles.length} archivos.`);
             } else {
-                // --- MANUAL MODE (No Drive Link) ---
+                // --- MANUAL MODE ---
                 const newItems: GeneratedItem[] = [];
                 for (let i = 1; i <= itemsToGenerate; i++) {
                     const suffix = i.toString().padStart(2, "0");
                     newItems.push({
                         id: i,
+                        stableId: `manual-${i}-${Math.random().toString(36).substring(7)}`,
                         code: `${nextCode}-${suffix}.00`,
-                        description: "", quantity: 1, unit: "PZA", designNo: "", material: "", url: ""
+                        description: "",
+                        quantity: 1,
+                        unit: "PZA",
+                        designNo: "",
+                        material: "",
+                        url: "",
+                        is_sub_item: false
                     });
                 }
                 setGeneratedItems(newItems);
@@ -502,6 +528,152 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         } finally {
             setLoading(false);
         }
+    };
+
+    const getLotNumber = (index: number, items: GeneratedItem[]) => {
+        let parentCount = 0;
+        let childCount = 0;
+        for (let i = 0; i <= index; i++) {
+            if (!items[i].is_sub_item) {
+                parentCount++;
+                childCount = 0;
+            } else {
+                childCount++;
+            }
+        }
+        if (items[index].is_sub_item) {
+            return `${parentCount}.${childCount}`;
+        }
+        return `${parentCount}`;
+    };
+
+    const resequenceItems = (items: GeneratedItem[], baseCode: string) => {
+        let parentCount = 0;
+        let childCount = 0;
+
+        return items.map((item, idx) => {
+            if (!item.is_sub_item) {
+                parentCount++;
+                childCount = 0;
+            } else {
+                childCount++;
+            }
+
+            const suffix = parentCount.toString().padStart(2, "0");
+            const subSuffix = childCount.toString().padStart(2, "0");
+            const finalCode = `${baseCode}-${suffix}.${subSuffix}`;
+
+            return {
+                ...item,
+                id: idx + 1,
+                code: finalCode
+            };
+        });
+    };
+
+    const generatePdfThumbnail = async (file: File): Promise<string | undefined> => {
+        try {
+            // Dynamic import to avoid SSR errors
+            const pdfjsLib = await import("pdfjs-dist");
+
+            // Set worker on client
+            if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+            }
+
+            const arrayBuffer = await file.arrayBuffer();
+            const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(1);
+
+            const viewport = page.getViewport({ scale: 0.5 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            if (!context) return undefined;
+
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({ canvasContext: context, viewport, canvas: canvas as any }).promise;
+            return canvas.toDataURL();
+        } catch (error) {
+            console.error("Error generating PDF thumbnail:", error);
+            return undefined;
+        }
+    };
+
+    const onFilesSelected = async (files: File[]) => {
+        if (files.length === 0) return;
+
+        setLoading(true);
+        try {
+            const newStaging: StagingFile[] = await Promise.all(files.map(async (file) => {
+                const isImage = file.type.startsWith('image/');
+                const isPdf = file.type === 'application/pdf';
+                const url = URL.createObjectURL(file);
+
+                let thumbnail: string | undefined = undefined;
+                if (isImage) {
+                    thumbnail = url;
+                } else if (isPdf) {
+                    thumbnail = await generatePdfThumbnail(file);
+                }
+
+                return {
+                    id: `temp_${Math.random().toString(36).substring(7)}`,
+                    name: file.name,
+                    url: url,
+                    thumbnail: thumbnail,
+                    mimeType: file.type,
+                    selected: true,
+                    file: file
+                } as StagingFile;
+            }));
+
+            setStagingFiles(prev => [...prev, ...newStaging]);
+            toast.success(`${files.length} archivos añadidos a la previa.`);
+        } catch (error) {
+            toast.error("Error al procesar archivos.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const removeStagedFile = (id: string) => {
+        setStagingFiles(prev => {
+            const fileToRemove = prev.find(f => f.id === id);
+            if (fileToRemove) {
+                URL.revokeObjectURL(fileToRemove.url);
+            }
+            return prev.filter(f => f.id !== id);
+        });
+    };
+
+    const uploadPendingFiles = async (projectId: string): Promise<Record<string, string>> => {
+        const results: Record<string, string> = {};
+
+        for (const [id, file] of pendingFiles.entries()) {
+            const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const filePath = `${projectId}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from("projects")
+                .upload(filePath, file);
+
+            if (uploadError) {
+                console.error(`Error uploading ${file.name}:`, uploadError);
+                throw new Error(`Fallo al subir ${file.name}`);
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from("projects")
+                .getPublicUrl(filePath);
+
+            results[id] = publicUrl;
+        }
+
+        return results;
     };
 
 
@@ -521,12 +693,14 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
         setLoading(true);
         try {
-            const success = await createProjectAndItems({
+            // 1. Create Project and Initial Items
+            const result = await createProjectAndItems({
                 code: projectCode,
                 name: projectName,
                 client_id: selectedClient,
                 company_name: clientList.find(c => c.id === selectedClient)?.name || "",
                 requestor: allContacts.find(c => c.id === selectedUser)?.name || "",
+                requestor_id: selectedUser,
                 start_date: format(requestDate, "yyyy-MM-dd"),
                 delivery_date: format(deliveryDate, "yyyy-MM-dd"),
                 status: "active"
@@ -535,13 +709,47 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 part_name: item.description,
                 quantity: item.quantity,
                 material: item.material,
-                drawing_url: item.url,
+                drawing_url: item.url.startsWith('blob:') ? "" : item.url, // Initially empty if it's a blob
                 image: "",
                 unit: item.unit,
                 design_no: item.designNo,
+                is_sub_item: item.is_sub_item || false,
             })));
 
-            if (success) {
+            if (result.success && result.projectId) {
+                // 2. Upload pending files
+                let drawingUrls: Record<string, string> = {};
+                if (pendingFiles.size > 0) {
+                    setIsUploadingFiles(true);
+                    try {
+                        drawingUrls = await uploadPendingFiles(result.projectId);
+                    } catch (err: any) {
+                        toast.error("Error al subir archivos: " + err.message);
+                        // We continue, the project is created but some drawings might be missing
+                    } finally {
+                        setIsUploadingFiles(false);
+                    }
+                }
+
+                // 3. Update items with real URLs (using a direct Supabase update if needed,
+                // but since we want to be consistent, let's just update the items that had blobs)
+                if (Object.keys(drawingUrls).length > 0) {
+                    const updates = generatedItems
+                        .filter(item => item.fileId && drawingUrls[item.fileId])
+                        .map(item => ({
+                            part_code: item.code,
+                            drawing_url: drawingUrls[item.fileId!]
+                        }));
+
+                    for (const update of updates) {
+                        await supabase
+                            .from("production_orders")
+                            .update({ drawing_url: update.drawing_url })
+                            .eq("project_id", result.projectId)
+                            .eq("part_code", update.part_code);
+                    }
+                }
+
                 toast.success("Proyecto creado exitosamente");
                 router.push("/dashboard");
             }
@@ -550,71 +758,6 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         } finally {
             setLoading(false);
         }
-    };
-
-    const toggleStagingFile = (fileId: string) => {
-        setStagingFiles(prev => prev.map(f => f.id === fileId ? { ...f, selected: !f.selected } : f));
-    };
-
-    const confirmImport = () => {
-        const selectedFiles = stagingFiles.filter(f => f.selected);
-        if (selectedFiles.length === 0) {
-            toast.warning("Selecciona al menos un archivo para importar.");
-            return;
-        }
-
-        const newItems: GeneratedItem[] = [];
-        const nextCode = projectCode || `${clientCode}-${format(requestDate, "yyMMdd")}-XXXX`;
-
-        // Use existing length to continue numbering if appending? For now, we assume fresh gen.
-        // But if user scans twice, maybe we should append? 
-        // For simplicity now: Replace or Append? Let's assume Append if we already have items?
-        // Actually the Generate button usually resets. Let's keep reset behavior for now or Append?
-        // User requested "Select -> Import". 
-        // Let's Append to existing generatedItems if any.
-
-        const startId = generatedItems.length > 0 ? Math.max(...generatedItems.map(i => i.id)) + 1 : 1;
-        let counter = 0;
-
-        selectedFiles.forEach((file) => {
-            const id = startId + counter;
-            const itemSuffix = id.toString().padStart(2, "0"); // 01, 02... based on ID
-            // Actually code suffix usually resets per project? 
-            // If we are "Generating", we usually start from 01. 
-            // If we Append, we continue.
-
-            // Let's recalculate suffix based on total index.
-            // But wait, generatedItems state might be mixed logic.
-            // Simplified: Just add them.
-
-            newItems.push({
-                id: id,
-                code: `${nextCode}-${itemSuffix}.00`, // Provisional code, updated on save or re-seq?
-                description: "", // User requested to separate Name and Design No. We leave Description empty for manual input.
-                quantity: 1,
-                unit: "PZA",
-                designNo: file.name, // Use Filename as Design No
-                material: "",
-                url: file.url,
-                thumbnail: file.thumbnail,
-                fileId: file.id
-            });
-            counter++;
-        });
-
-        // Re-sequence everything to be safe
-        const combined = [...generatedItems, ...newItems];
-        const resequenced = combined.map((item, idx) => ({
-            ...item,
-            id: idx + 1,
-            code: `${nextCode}-${(idx + 1).toString().padStart(2, "0")}.00`
-        }));
-
-        setGeneratedItems(resequenced);
-        setIsSelectingFiles(false);
-        setStagingFiles([]);
-        setShowPreview(true);
-        toast.success(`Importados ${selectedFiles.length} archivos.`);
     };
 
     // Update item helper
@@ -635,6 +778,7 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 const suffix = (index + 1).toString().padStart(2, "0");
                 return {
                     ...item,
+                    id: index + 1,
                     code: `${projectCode}-${suffix}.00`
                 };
             });
@@ -750,119 +894,142 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                 />
                             </div>
 
-                            {/* Project Info */}
-                            <div className="space-y-2.5 md:col-span-2" id="project-info-section">
-                                <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nombre del Proyecto</Label>
-                                <Input
-                                    placeholder="Ej. Fabricación de Estructura Principal..."
-                                    value={projectName}
-                                    onChange={(e) => setProjectName(e.target.value)}
-                                    className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
-                                />
-                            </div>
-
-                            {/* Drive Folder Input & Items Count Row */}
-                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6" id="project-generation-section">
-                                <div className="space-y-2.5 md:col-span-2" id="project-drive-input">
-                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider flex items-center gap-2">
-                                        Link Carpeta Drive (Opcional)
-                                    </Label>
+                            {/* Project Info & Items Count Row - MOVED ABOVE */}
+                            <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-4 gap-6 mb-4" id="project-generation-section">
+                                <div className="space-y-2.5 md:col-span-3" id="project-info-section">
+                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nombre del Proyecto</Label>
                                     <Input
-                                        placeholder="https://drive.google.com/drive/folders/..."
-                                        value={driveFolderUrl}
-                                        onChange={(e) => setDriveFolderUrl(e.target.value)}
-                                        className="bg-blue-50/30 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900 shadow-sm h-10 transition-all hover:bg-card focus:border-blue-500/50"
+                                        placeholder="Ej. Fabricación de Estructura Principal..."
+                                        value={projectName}
+                                        onChange={(e) => setProjectName(e.target.value)}
+                                        className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
                                     />
                                 </div>
                                 <div className="space-y-2.5" id="project-items-count">
-                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">Nº de Partidas</Label>
+                                    <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">No. de filas</Label>
                                     <Input
+                                        id="items-to-generate"
                                         type="number"
                                         min={1}
                                         value={itemsToGenerate}
                                         onChange={(e) => setItemsToGenerate(parseInt(e.target.value) || 1)}
-                                        className="bg-muted/50 border-border shadow-sm h-10 transition-all hover:bg-card focus:border-primary/50"
+                                        disabled={loading || stagingFiles.length > 0 || showPreview}
+                                        className={cn(
+                                            "bg-background border-zinc-500/20 focus:ring-red-500/20",
+                                            (stagingFiles.length > 0 || showPreview) && "opacity-70 bg-muted cursor-not-allowed"
+                                        )}
                                     />
                                 </div>
                             </div>
+
+                            {/* Dropzone for Files - Hidden when staging exists */}
+                            {stagingFiles.length === 0 && !showPreview && (
+                                <div className="md:col-span-4" id="project-dropzone-section">
+                                    <Dropzone
+                                        onFilesSelected={onFilesSelected}
+                                        isUploading={isUploadingFiles}
+                                        className="h-48"
+                                    />
+                                </div>
+                            )}
                         </div>
+
+                        {/* STAGING AREA (Zona de Selección) - MOVED INSIDE CARD */}
+                        <AnimatePresence>
+                            {stagingFiles.length > 0 && !showPreview && (
+                                <motion.div
+                                    id="project-staging-area"
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="space-y-4 mb-8"
+                                >
+                                    <Dropzone
+                                        onFilesSelected={onFilesSelected}
+                                        isUploading={isUploadingFiles}
+                                        className="bg-muted/10 p-6 rounded-3xl border border-dashed border-zinc-500/20"
+                                    >
+                                        <div className="flex items-center justify-between px-2 mb-4">
+                                            <h3 className="text-xl font-bold flex items-center gap-2 text-foreground">
+                                                <span className="bg-red-500/10 text-red-600 p-2 rounded-lg"><ImageIcon className="w-5 h-5" /></span>
+                                                Zona de Selección
+                                                <span className="text-sm font-normal text-muted-foreground ml-2">({stagingFiles.filter(f => f.selected).length} archivos cargados)</span>
+                                            </h3>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setStagingFiles([])}
+                                                    className="text-muted-foreground hover:text-red-500"
+                                                >
+                                                    <Trash2 className="w-4 h-4 mr-1" /> Limpiar Todo
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-y-8 gap-x-4 max-h-[400px] overflow-y-auto p-5 custom-scrollbar">
+                                            {stagingFiles.map(file => (
+                                                <div
+                                                    key={file.id}
+                                                    className={cn(
+                                                        "relative group border border-zinc-500/10 rounded-2xl overflow-hidden transition-all duration-300 aspect-[3/4] bg-muted/40 backdrop-blur-sm shadow-md",
+                                                        file.selected ? "ring-2 ring-zinc-500/30 scale-[1.02] bg-muted/60" : "hover:border-zinc-500/30 hover:scale-[1.02]"
+                                                    )}
+                                                >
+                                                    <div className="absolute top-3 right-3 z-10">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                setStagingFiles(prev => prev.filter(f => f.id !== file.id));
+                                                            }}
+                                                            className="h-8 w-8 bg-black/20 hover:bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-md"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="w-full h-full flex items-center justify-center p-6 pb-12">
+                                                        {file.thumbnail ? (
+                                                            <img
+                                                                src={file.thumbnail}
+                                                                alt={file.name}
+                                                                className="w-full h-full object-contain drop-shadow-lg rounded-sm"
+                                                                referrerPolicy="no-referrer"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <FileText className="w-12 h-12 text-zinc-500 opacity-50" />
+                                                                <span className="text-[10px] text-zinc-500 font-mono">PDF</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="absolute bottom-0 left-0 w-full bg-background/80 backdrop-blur-md p-2.5 text-[10px] font-medium truncate border-t border-zinc-500/5 text-center text-muted-foreground uppercase tracking-tighter">
+                                                        {file.name}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Dropzone>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         <div className="mt-10 flex justify-end">
                             <Button
                                 id="project-generate-btn"
                                 onClick={handleGeneratePreview}
-                                disabled={loading || !selectedClient || !projectName}
-                                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-500/20 px-8 h-10 rounded-full transition-all duration-300 hover:scale-[1.02]"
+                                disabled={loading || !selectedClient || !projectName || showPreview}
+                                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-500/20 px-8 h-12 rounded-full transition-all duration-300 hover:scale-[1.02] font-bold uppercase tracking-wide group"
                             >
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                                {driveFolderUrl ? "Escanear Drive y Generar" : "Generar Vista Previa"}
+                                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2 group-hover:rotate-180 transition-transform duration-500" />}
+                                {stagingFiles.length > 0 ? `Generar Partidas desde Archivos (${stagingFiles.length})` : "Generar Vista Previa Manual"}
                             </Button>
                         </div>
                     </CardContent>
                 </Card>
             </motion.div>
-
-            {/* STAGING AREA (Zona de Selección) */}
-            <AnimatePresence>
-                {isSelectingFiles && (
-                    <motion.div
-                        id="project-staging-area"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="space-y-4"
-                    >
-                        <div className="flex items-center justify-between px-2 pt-4">
-                            <h3 className="text-xl font-bold flex items-center gap-2 text-foreground">
-                                <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 p-2 rounded-lg"><ImageIcon className="w-5 h-5" /></span>
-                                Zona de Selección
-                                <span className="text-sm font-normal text-muted-foreground ml-2">({stagingFiles.filter(f => f.selected).length} seleccionados)</span>
-                            </h3>
-                            <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => setIsSelectingFiles(false)}><X className="w-4 h-4 mr-1" /> Cancelar</Button>
-                                <Button onClick={confirmImport} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all hover:scale-105 shadow-lg shadow-blue-500/20">
-                                    <Plus className="w-4 h-4 mr-2" /> Importar Seleccionados
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-6 bg-muted/50 rounded-2xl border border-dashed border-border">
-                            {stagingFiles.map(file => (
-                                <div
-                                    key={file.id}
-                                    onClick={() => toggleStagingFile(file.id)}
-                                    className={cn(
-                                        "relative group cursor-pointer border rounded-xl overflow-hidden transition-all duration-200 aspect-[3/4] bg-card",
-                                        file.selected ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-background border-blue-500 shadow-xl shadow-blue-500/10 scale-[1.02]" : "border-border hover:border-blue-300 opacity-70 hover:opacity-100 hover:scale-[1.02]"
-                                    )}
-                                >
-                                    {/* Selection Indicator */}
-                                    <div className={cn(
-                                        "absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center transition-all shadow-sm",
-                                        file.selected ? "bg-blue-500 text-white" : "bg-white/80 hover:bg-white text-zinc-400"
-                                    )}>
-                                        {file.selected ? <Plus className="w-4 h-4" /> : <div className="w-3 h-3 rounded-full border-2 border-current" />}
-                                    </div>
-
-                                    {/* Thumbnail */}
-                                    <div className="w-full h-full flex items-center justify-center p-4">
-                                        {file.thumbnail ? (
-                                            <img src={file.thumbnail} alt={file.name} className="w-full h-full object-contain drop-shadow-sm" referrerPolicy="no-referrer" />
-                                        ) : (
-                                            <FileText className="w-12 h-12 text-zinc-300" />
-                                        )}
-                                    </div>
-
-                                    {/* Name Label */}
-                                    <div className="absolute bottom-0 left-0 w-full bg-card/95 backdrop-blur-sm p-2 text-[10px] font-medium truncate border-t border-border text-center text-muted-foreground">
-                                        {file.name}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             {/* PREVIEW SECTION */}
             <AnimatePresence>
@@ -889,40 +1056,69 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                 <Table className="min-w-[1200px]">
                                     <TableHeader className="bg-table-header-bg">
                                         <TableRow className="hover:bg-transparent border-b-border/50">
-                                            <TableHead className="w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">Código</TableHead>
-                                            <TableHead className="w-auto min-w-[200px] max-w-[450px] font-bold text-xs uppercase tracking-wider text-zinc-500">Descripción / Nombre</TableHead>
-                                            <TableHead className="min-w-[100px] font-bold text-xs uppercase tracking-wider text-zinc-500">Cant.</TableHead>
-                                            <TableHead className="w-[140px] font-bold text-xs uppercase tracking-wider text-zinc-500">Unidad</TableHead>
-                                            <TableHead className="w-auto min-w-[150px] max-w-[400px] font-bold text-xs uppercase tracking-wider text-zinc-500">No. Diseño</TableHead>
-                                            <TableHead className="min-w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">Material</TableHead>
-                                            <TableHead className="min-w-[180px] font-bold text-xs uppercase tracking-wider text-zinc-500">URL Plano</TableHead>
-                                            <TableHead className="w-[50px]"></TableHead>
+                                            <TableHead className="w-[30px]"></TableHead>
+                                            <TableHead className="w-[80px] text-muted-foreground text-center">Partida</TableHead>
+                                            <TableHead className="text-muted-foreground min-w-[300px]">Nombre de Pieza</TableHead>
+                                            <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
+                                            <TableHead className="w-[120px] text-muted-foreground text-center">U.M</TableHead>
+                                            <TableHead className="w-[150px] text-muted-foreground text-center">Nombre de Diseño</TableHead>
+                                            <TableHead className="w-[150px] text-muted-foreground text-center">Material</TableHead>
+                                            <TableHead className="w-[80px] text-muted-foreground text-center">Subp.</TableHead>
+                                            <TableHead className="w-[80px] text-muted-foreground text-center"></TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
-                                        {generatedItems.map((item, index) => (
-                                            <TableRow
-                                                key={item.id}
+                                    <Reorder.Group
+                                        axis="y"
+                                        values={generatedItems}
+                                        onReorder={(newItems) => setGeneratedItems(resequenceItems(newItems, projectCode || "PRJ"))}
+                                        as="tbody"
+                                    >
+                                        {generatedItems.map((item, idx) => (
+                                            <Reorder.Item
+                                                key={item.stableId}
+                                                value={item}
+                                                as="tr"
                                                 className={cn(
-                                                    "border-b-border transition-colors hover:bg-table-row-hover",
-                                                    index % 2 === 0 ? "bg-card" : "bg-table-row-even"
+                                                    "border-border/50 transition-colors bg-card",
+                                                    item.is_sub_item ? "bg-zinc-500/5" : "hover:bg-muted/50"
                                                 )}
                                             >
-                                                <TableCell className="font-mono font-semibold text-foreground whitespace-nowrap pl-4">{item.code}</TableCell>
-                                                <TableCell>
-                                                    <AutoResizeTextarea
-                                                        value={item.description}
-                                                        onChange={(e: any) => updateItem(item.id, "description", e.target.value)}
-                                                        className={cn(ghostTextareaClass, "min-w-[150px] max-w-[450px]")}
-                                                        placeholder="Descripción..."
-                                                    />
+                                                <TableCell className="w-[30px] pr-0">
+                                                    <GripVertical className="w-4 h-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing hover:text-red-500 transition-colors" />
+                                                </TableCell>
+                                                <TableCell className={cn(
+                                                    "font-mono text-center font-bold w-[80px]",
+                                                    item.is_sub_item ? "text-red-500 text-xs" : "text-muted-foreground"
+                                                )}>
+                                                    {getLotNumber(idx, generatedItems)}
                                                 </TableCell>
                                                 <TableCell>
+                                                    <div className={cn("flex items-start gap-2", item.is_sub_item && "pl-6")}>
+                                                        {item.is_sub_item && <span className="text-red-500 mt-2">↳</span>}
+                                                        <Textarea
+                                                            placeholder="Ej. PLACA BASE..."
+                                                            value={item.description}
+                                                            onChange={(e) => {
+                                                                const newItems = [...generatedItems];
+                                                                newItems[idx].description = e.target.value.toUpperCase();
+                                                                setGeneratedItems(newItems);
+                                                            }}
+                                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase h-auto"
+                                                            rows={1}
+                                                            onInput={(e) => {
+                                                                const target = e.target as HTMLTextAreaElement;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = target.scrollHeight + 'px';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="w-[120px] px-1 text-center">
                                                     <Input
                                                         type="number"
                                                         value={item.quantity}
                                                         onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value))}
-                                                        className={ghostInputClass}
+                                                        className={cn(ghostInputClass, "text-left w-[80px] mx-auto pl-4 pr-2")}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
@@ -942,25 +1138,21 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1">
-                                                        {item.thumbnail && (
-                                                            <Dialog>
-                                                                <DialogTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600/70 hover:text-blue-700 hover:bg-blue-50 shrink-0 rounded-full">
-                                                                        <ImageIcon className="h-4 w-4" />
-                                                                    </Button>
-                                                                </DialogTrigger>
-                                                                <DialogContent className="!fixed !top-[50%] !left-[50%] !translate-x-[-50%] !translate-y-[-50%] !max-w-6xl !w-[90vw] !h-[85vh] !max-h-[85vh] p-0 overflow-hidden bg-zinc-950 border border-zinc-800 shadow-2xl rounded-3xl flex flex-col items-center justify-center z-[9999] data-[state=open]:!zoom-in-95 data-[state=closed]:!zoom-out-95 data-[state=open]:!slide-in-from-left-1/2 data-[state=open]:!slide-in-from-top-[48%]">
-                                                                    <DialogTitle className="sr-only">Vista Previa Plano</DialogTitle>
-                                                                    <div className="w-full h-full flex items-center justify-center overflow-hidden p-4 relative group bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-100">
-                                                                        {/* Decorative background glow */}
-                                                                        <div className="absolute inset-0 bg-gradient-to-tr from-zinc-900/50 via-zinc-950/50 to-zinc-900/50 pointer-events-none" />
-
-
-
-                                                                        <ImagePreviewWithZoom src={item.thumbnail} fileId={item.fileId} />
-                                                                    </div>
-                                                                </DialogContent>
-                                                            </Dialog>
+                                                        {item.url && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => {
+                                                                    setViewerUrl(item.url);
+                                                                    setViewerTitle(`${item.code} - ${item.designNo}`);
+                                                                    // Helper to pass type to viewer
+                                                                    const type = (item.mimeType?.includes('pdf') ? 'pdf' : undefined) as "pdf" | undefined;
+                                                                    setViewerType(type);
+                                                                }}
+                                                                className="h-9 w-9 text-muted-foreground/40 hover:text-foreground hover:bg-muted shrink-0 rounded-full"
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
                                                         )}
                                                         <AutoResizeTextarea
                                                             value={item.designNo}
@@ -987,28 +1179,50 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                                                     </Select>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Input
-                                                        value={item.url}
-                                                        onChange={(e) => updateItem(item.id, "url", e.target.value)}
-                                                        className={ghostInputClass}
-                                                        placeholder="https://..."
-                                                    />
+                                                    <div className="flex items-center justify-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newItems = [...generatedItems];
+                                                                newItems[idx].is_sub_item = !newItems[idx].is_sub_item;
+                                                                // Resequence everything to fix codes
+                                                                const resequenced = resequenceItems(newItems, projectCode || "PRJ");
+                                                                setGeneratedItems(resequenced);
+                                                            }}
+                                                            className={cn(
+                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner",
+                                                                item.is_sub_item ? "bg-red-500" : "bg-zinc-300 dark:bg-zinc-700"
+                                                            )}
+                                                        >
+                                                            <div
+                                                                className={cn(
+                                                                    "w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
+                                                                    item.is_sub_item ? "translate-x-4" : "translate-x-0"
+                                                                )}
+                                                            />
+                                                        </button>
+                                                    </div>
                                                 </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-1 justify-end">
+                                                <TableCell className="text-center">
+                                                    <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                                                            onClick={() => handleDeleteItem(item.id)}
+                                                            onClick={() => {
+                                                                setGeneratedItems(prev => {
+                                                                    const updated = prev.filter((_, i) => i !== idx);
+                                                                    return resequenceItems(updated, projectCode || "PRJ");
+                                                                });
+                                                            }}
+                                                            className="h-8 w-8 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
                                                     </div>
                                                 </TableCell>
-                                            </TableRow>
+                                            </Reorder.Item>
                                         ))}
-                                    </TableBody>
+                                    </Reorder.Group>
                                 </Table>
                             </div>
                         </Card>
@@ -1028,6 +1242,15 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                     </motion.div>
                 )}
             </AnimatePresence>
+            <DrawingViewer
+                url={viewerUrl}
+                onClose={() => {
+                    setViewerUrl(null);
+                    setViewerType(undefined);
+                }}
+                title={viewerTitle}
+                type={viewerType}
+            />
         </div>
     );
 }

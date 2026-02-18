@@ -27,6 +27,7 @@ export async function getNextProjectCode(clientPrefix: string) {
     }
 
     let maxSequence = 0;
+    // Match codes like "PREFIX-0001" or "PREFIX-123"
     const regex = new RegExp(`^${clientPrefix}-(\\d+)$`);
 
     data.forEach((row) => {
@@ -40,8 +41,8 @@ export async function getNextProjectCode(clientPrefix: string) {
     });
 
     const nextSequence = maxSequence + 1;
-    const padding = Math.max(4, nextSequence.toString().length);
-    const nextSequenceStr = nextSequence.toString().padStart(padding, "0");
+    // We want at least 4 digits, but if it goes beyond (e.g. 10000) it shouldn't cut off
+    const nextSequenceStr = nextSequence.toString().padStart(4, "0");
 
     return `${clientPrefix}-${nextSequenceStr}`;
 }
@@ -56,6 +57,7 @@ export async function createProjectAndItems(
         client_id: string;
         company_name: string;
         requestor: string;
+        requestor_id?: string;
         start_date: string;
         delivery_date: string;
         status: string;
@@ -69,6 +71,7 @@ export async function createProjectAndItems(
         material?: string;
         image?: string;
         drawing_url?: string;
+        is_sub_item?: boolean;
     }>
 ) {
     const cookieStore = await cookies();
@@ -82,6 +85,7 @@ export async function createProjectAndItems(
             name: projectData.name,
             company: projectData.company_name, // Mapping client name to text column
             requestor: projectData.requestor,
+            requestor_id: projectData.requestor_id,
             start_date: projectData.start_date,
             delivery_date: projectData.delivery_date,
             status: projectData.status
@@ -106,7 +110,8 @@ export async function createProjectAndItems(
             drawing_url: item.drawing_url,
             unit: item.unit,
             design_no: item.design_no,
-            genral_status: "A1-INGENIERIA",
+            is_sub_item: item.is_sub_item || false,
+            genral_status: "A0-NUEVO PROYECTO",
         }));
 
         const { error: itemsError } = await supabase

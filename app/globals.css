@@ -149,6 +149,7 @@
 ::-webkit-scrollbar-thumb {
   @apply bg-muted-foreground/20 rounded-full border-2 border-transparent bg-clip-content hover:bg-muted-foreground/40;
 }
+
 /* Driver.js Custom Theme */
 .driverjs-theme-light .driver-popover.driverjs-theme {
   background-color: #ffffff;
@@ -160,7 +161,8 @@
 .driverjs-theme-light .driver-popover.driverjs-theme .driver-popover-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #b91c1c; /* Reyper Red */
+  color: #b91c1c;
+  /* Reyper Red */
 }
 
 .driverjs-theme-light .driver-popover.driverjs-theme .driver-popover-description {
@@ -203,7 +205,8 @@
 .driverjs-theme-dark .driver-popover.driverjs-theme .driver-popover-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #f87171; /* Lighter Red for Dark mode */
+  color: #f87171;
+  /* Lighter Red for Dark mode */
 }
 
 .driverjs-theme-dark .driver-popover.driverjs-theme .driver-popover-description {
@@ -234,4 +237,3 @@
 .driverjs-theme-dark .driver-popover.driverjs-theme button.driver-popover-next-btn:hover {
   background-color: #991b1b;
 }
-
