@@ -92,7 +92,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
+type Order = Database["public"]["Tables"]["production_orders"]["Row"] & { urgencia?: boolean };
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
     production_orders: Order | null;
     isDraft?: boolean;
@@ -140,6 +140,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
     // Live Strategy States
     const [activeStrategy, setActiveStrategy] = useState<SchedulingStrategy | "NONE">("NONE");
+    const [localOrders, setLocalOrders] = useState<Order[]>(orders);
     const [strategyFilters, setStrategyFilters] = useState({
         onlyWithCAD: false,
         onlyWithBlueprint: false,
@@ -431,7 +432,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     const liveDraftResult = useMemo(() => {
         if (activeStrategy === "NONE") return null;
 
-        const result = generateAutomatedPlanning(orders, optimisticTasks, machines.map(m => m.name), {
+        const result = generateAutomatedPlanning(localOrders, optimisticTasks, machines.map(m => m.name), {
             mainStrategy: activeStrategy,
             ...strategyFilters
         });
@@ -653,12 +654,13 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Sync props to state
     React.useEffect(() => {
         setSavedTasks(tasks);
+        setLocalOrders(orders);
         // Only reset optimistic state if we don't have pending changes
         // This prevents losing work on accidental re-renders
         if (changedTasks.length === 0) {
             setOptimisticTasks(tasks);
         }
-    }, [tasks, changedTasks.length]);
+    }, [tasks, orders, changedTasks.length]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -977,10 +979,15 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                     size="icon"
                                     className="h-7 w-7 rounded-lg hover:bg-background shadow-none shrink-0"
                                     onClick={() => {
-                                        const strategies = ["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
+                                        const strategies = ["NONE", "URGENCY", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
                                         const idx = strategies.indexOf(activeStrategy);
                                         const prev = strategies[(idx - 1 + strategies.length) % strategies.length];
                                         setActiveStrategy(prev as any);
+                                        // Clear manual tweaks when switching strategies to avoid stale overrides
+                                        if (prev !== "NONE") {
+                                            setDraftTasks([]);
+                                            setHistory([]);
+                                        }
                                     }}
                                 >
                                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -1005,6 +1012,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                         >
                                             {(({
                                                 NONE: "Manual",
+                                                URGENCY: "Urgencia",
                                                 DELIVERY_DATE: "Entrega",
                                                 CRITICAL_PATH: "Ruta Crítica",
                                                 PROJECT_GROUP: "Proyecto",
@@ -1022,10 +1030,15 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                     size="icon"
                                     className="h-7 w-7 rounded-lg hover:bg-background shadow-none shrink-0"
                                     onClick={() => {
-                                        const strategies = ["NONE", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
+                                        const strategies = ["NONE", "URGENCY", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
                                         const idx = strategies.indexOf(activeStrategy);
                                         const next = strategies[(idx + 1) % strategies.length];
                                         setActiveStrategy(next as any);
+                                        // Clear manual tweaks when switching strategies to avoid stale overrides
+                                        if (next !== "NONE") {
+                                            setDraftTasks([]);
+                                            setHistory([]);
+                                        }
                                     }}
                                 >
                                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1755,14 +1768,29 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 onClose={() => setIsEvalModalOpen(false)}
                 order={selectedOrderForEval as any}
                 machines={machines}
-                onSuccess={(newSteps) => {
+                onSuccess={(newSteps, urg) => {
+                    // Update local state immediately for reactivity
+                    setLocalOrders(prev => prev.map(o =>
+                        o.id === selectedOrderForEval?.id
+                            ? { ...o, evaluation: newSteps, urgencia: urg }
+                            : o
+                    ));
+
+                    // Update eval navigation list if applicable
                     if (selectedEvalIndex !== -1 && evalNavigationList[selectedEvalIndex]) {
                         const updatedList = [...evalNavigationList];
                         const updatedItem = { ...updatedList[selectedEvalIndex] } as any;
                         updatedItem.evaluation = newSteps;
+                        updatedItem.urgencia = urg;
                         updatedList[selectedEvalIndex] = updatedItem;
                         setEvalNavigationList(updatedList);
                     }
+
+                    // Clear manual tweaks for this piece so the strategy can re-calculate it correctly
+                    if (activeStrategy !== "NONE") {
+                        setDraftTasks(prev => prev.filter(d => d.order_id !== selectedOrderForEval?.id));
+                    }
+
                     router.refresh();
                 }}
                 onNext={handleNextEval}

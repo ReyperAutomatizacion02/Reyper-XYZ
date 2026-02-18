@@ -1,7 +1,7 @@
 import moment from "moment";
 import { Database } from "@/utils/supabase/types";
 
-export type Order = Database["public"]["Tables"]["production_orders"]["Row"];
+export type Order = Database["public"]["Tables"]["production_orders"]["Row"] & { urgencia?: boolean };
 export type PlanningTask = Database["public"]["Tables"]["planning"]["Row"];
 
 export interface EvaluationStep {
@@ -40,7 +40,7 @@ export interface SavedScenario {
     applied_at: string | null;
 }
 
-export type SchedulingStrategy = "DELIVERY_DATE" | "FAB_TIME" | "FAST_TRACK" | "TREATMENTS" | "CRITICAL_PATH" | "PROJECT_GROUP" | "MATERIAL_OPTIMIZATION";
+export type SchedulingStrategy = "DELIVERY_DATE" | "FAB_TIME" | "FAST_TRACK" | "TREATMENTS" | "CRITICAL_PATH" | "PROJECT_GROUP" | "MATERIAL_OPTIMIZATION" | "URGENCY";
 
 export interface StrategyConfig {
     mainStrategy: SchedulingStrategy;
@@ -87,6 +87,11 @@ export function getStatusPriority(status: string): number {
  * Comparator function for sorting orders by Priority (Status > Delivery Date).
  */
 export function compareOrdersByPriority(a: Order, b: Order): number {
+    // 0. Manual Urgency Priority (The most important)
+    const urgA = (a as any).urgencia ? 0 : 1;
+    const urgB = (b as any).urgencia ? 0 : 1;
+    if (urgA !== urgB) return urgA - urgB;
+
     // 1. Sort by Status Priority
     const prioA = getStatusPriority((a as any).genral_status);
     const prioB = getStatusPriority((b as any).genral_status);
@@ -184,6 +189,9 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
                 }
 
                 case "DELIVERY_DATE":
+                case "URGENCY":
+                // Urgency strategy actually just uses the fallback which now handles urgency first,
+                // but we explicitly define it for clarity.
                 default:
                     return compareOrdersByPriority(a, b);
             }

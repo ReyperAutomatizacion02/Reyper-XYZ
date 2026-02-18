@@ -102,7 +102,9 @@ export async function saveQuote(quoteData: any, items: any[]) {
     // 1. Insert Quote
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
-        .insert(quoteData)
+        .insert({
+            ...quoteData,
+        })
         .select("id, quote_number")
         .single();
 
@@ -164,10 +166,12 @@ export async function getQuotesHistory() {
             issue_date,
             total,
             currency,
+            status,
+            quote_type,
             client:sales_clients(name),
             contact:sales_contacts(name)
         `)
-        .eq("status", "active")
+        .in("status", ["active", "approved"])
         .order("quote_number", { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -259,15 +263,23 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    // 1. Update Quote Info
+    // 1. Get old items to check for orphaned drawings
+    const { data: oldItems } = await supabase
+        .from("sales_quote_items")
+        .select("drawing_url")
+        .eq("quote_id", id);
+
+    // 2. Update Quote Info
     const { error: quoteError } = await supabase
         .from("sales_quotes")
-        .update(quoteData)
+        .update({
+            ...quoteData,
+        })
         .eq("id", id);
 
     if (quoteError) throw new Error(quoteError.message);
 
-    // 2. Delete old items and insert fresh ones (Simplest way to sync)
+    // 3. Delete old items and insert fresh ones (Simplest way to sync)
     await supabase.from("sales_quote_items").delete().eq("quote_id", id);
 
     const itemsWithQuoteId = items.map((item, index) => ({
@@ -281,12 +293,64 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
         if (itemsError) throw new Error(itemsError.message);
     }
 
+    // 4. Cleanup orphaned storage files
+    if (oldItems && oldItems.length > 0) {
+        // Function to extract the actual storage path from various Supabase URL formats
+        const getFilename = (url: any): string | null => {
+            if (!url || typeof url !== 'string') return null;
+            try {
+                // Remove everything before the last slash and strip query/fragments
+                const clean = decodeURIComponent(url).split(/[?#]/)[0];
+                return clean.split('/').pop() || null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const oldFiles = oldItems.map(i => getFilename(i.drawing_url)).filter(Boolean) as string[];
+        const newFiles = items.map(i => getFilename(i.drawing_url)).filter(Boolean) as string[];
+
+        // SAFETY CHECK: If the UI has items with drawings, but we couldn't parse ANY of them,
+        // or if our extraction count doesn't match the items with drawings, abort to be safe.
+        const itemsWithRemoteDrawings = items.filter(i =>
+            i.drawing_url &&
+            !i.drawing_url.startsWith('blob:') &&
+            !i.drawing_url.startsWith('data:')
+        );
+
+        if (itemsWithRemoteDrawings.length > 0 && newFiles.length < itemsWithRemoteDrawings.length) {
+            console.error("Storage cleanup aborted: Could not parse all referenced drawing filenames correctly.");
+            return { id };
+        }
+
+        const filesToDelete = oldFiles.filter(f => !newFiles.includes(f));
+
+        if (filesToDelete.length > 0) {
+            const pathsToDelete = filesToDelete.map(f => `${id}/${f}`);
+            const { error: storageError } = await supabase.storage
+                .from("quotes")
+                .remove(pathsToDelete);
+
+            if (storageError) {
+                console.error("Error cleaning up orphaned storage files:", storageError);
+            }
+        }
+    }
+
     return { id };
 }
 
 export async function deleteQuote(id: string, reason: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+
+    // 1. Storage Cleanup - Delete all files associated with this quote
+    try {
+        await deleteQuoteFiles(id);
+    } catch (e) {
+        console.error("Error deleting storage files for quote:", e);
+        // We continue even if storage cleanup fails to ensure DB inconsistency is avoided
+    }
 
     const { error } = await supabase
         .from("sales_quotes")
@@ -295,6 +359,156 @@ export async function deleteQuote(id: string, reason: string) {
             deleted_at: new Date().toISOString(),
             deleted_reason: reason
         })
+        .eq("id", id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+/**
+ * Deletes all files in the storage bucket for a specific quote.
+ */
+export async function deleteQuoteFiles(quoteId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // List all files in quotes/{quoteId}/
+    const { data: files, error: listError } = await supabase.storage
+        .from("quotes")
+        .list(quoteId);
+
+    if (listError) return; // If bucket or folder doesn't exist, nothing to do
+
+    if (files && files.length > 0) {
+        const filesToRemove = files.map((f) => `${quoteId}/${f.name}`);
+        const { error: removeError } = await supabase.storage
+            .from("quotes")
+            .remove(filesToRemove);
+
+        if (removeError) throw new Error("Error cleaning up storage: " + removeError.message);
+    }
+}
+
+export async function getNextProjectCode(clientPrefix: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data, error } = await supabase
+        .from("projects")
+        .select("code")
+        .like("code", `${clientPrefix}-%`)
+        .order("code", { ascending: false })
+        .limit(1);
+
+    if (error) throw new Error(error.message);
+
+    let nextNum = 1;
+    if (data && data.length > 0) {
+        const lastCode = data[0].code;
+        const lastNum = parseInt(lastCode.split("-")[1]);
+        if (!isNaN(lastNum)) {
+            nextNum = lastNum + 1;
+        }
+    }
+
+    return `${clientPrefix}-${String(nextNum).padStart(4, '0')}`;
+}
+
+export async function convertQuoteToProject(quoteId: string, projectName?: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    // 1. Get Quote and Items
+    const quote = await getQuoteById(quoteId);
+    if (!quote) throw new Error("Quote not found");
+    if (quote.status === "approved") throw new Error("Quote already approved");
+
+    // 2. Get Client Prefix
+    const { data: client, error: clientError } = await supabase
+        .from("sales_clients")
+        .select("name, prefix")
+        .eq("id", quote.client_id)
+        .single();
+
+    if (clientError || !client) throw new Error("Client prefix not found");
+
+    const projectCode = await getNextProjectCode(client.prefix);
+    const finalProjectName = projectName || `COT-${quote.quote_number}`;
+
+    // 3. Get Contact Name
+    const { data: contact, error: contactError } = await supabase
+        .from("sales_contacts")
+        .select("name")
+        .eq("id", quote.contact_id)
+        .single();
+
+    if (contactError) throw new Error("Contact name not found: " + contactError.message);
+
+    // 4. Create Project
+    const { data: project, error: projectError } = await supabase
+        .from("projects")
+        .insert({
+            code: projectCode,
+            name: finalProjectName,
+            company: `${client.prefix}-${client.name}`,
+            requestor: contact.name, // Store Name in requestor
+            requestor_id: quote.contact_id, // Store ID in new column
+            start_date: new Date().toISOString().split('T')[0],
+            delivery_date: quote.delivery_date,
+            status: "active"
+        })
+        .select("id")
+        .single();
+
+    if (projectError) throw new Error("Error creating project: " + projectError.message);
+
+    // 5. Transform Quote Items to Production Orders
+    let parentCounter = 0;
+    let childCounter = 0;
+
+    const productionOrders = quote.items.map((item: any) => {
+        if (!item.is_sub_item) {
+            parentCounter++;
+            childCounter = 0;
+        } else {
+            childCounter++;
+        }
+
+        const lotPart = String(parentCounter).padStart(2, '0');
+        const subPart = String(childCounter).padStart(2, '0');
+        const partCode = `${projectCode}-${lotPart}.${subPart}`;
+
+        return {
+            project_id: project.id,
+            part_code: partCode,
+            part_name: item.description,
+            quantity: item.quantity,
+            material: "POR DEFINIR", // Default
+            genral_status: "D0-PUNTO DE RE-ORDEN", // Default start status
+            design_no: item.design_no,
+            drawing_url: item.drawing_url,
+            unit: item.unit
+        };
+    });
+
+    if (productionOrders.length > 0) {
+        const { error: itemsError } = await supabase.from("production_orders").insert(productionOrders);
+        if (itemsError) throw new Error("Error creating project items: " + itemsError.message);
+    }
+
+    // 6. Mark Quote as Approved
+    await supabase.from("sales_quotes").update({ status: 'approved' }).eq("id", quoteId);
+
+    return { success: true, projectCode, projectId: project.id };
+}
+
+export async function updateQuoteStatus(id: string, status: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await supabase
+        .from("sales_quotes")
+        .update({ status })
         .eq("id", id);
 
     if (error) throw new Error(error.message);

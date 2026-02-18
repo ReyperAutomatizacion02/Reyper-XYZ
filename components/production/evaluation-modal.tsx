@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Dialog, DialogContent,
     DialogHeader,
@@ -20,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { extractDriveFileId } from "@/lib/drive-utils";
@@ -38,9 +40,10 @@ interface EvaluationModalProps {
         part_name: string;
         evaluation?: EvaluationStep[] | null;
         drawing_url?: string;
+        urgencia?: boolean;
     } | null;
     machines: { name: string }[];
-    onSuccess: (steps: EvaluationStep[]) => void;
+    onSuccess: (steps: EvaluationStep[], urgencia?: boolean) => void;
     onNext?: () => void;
     onPrevious?: () => void;
     hasNext?: boolean;
@@ -63,6 +66,7 @@ export function EvaluationModal({
     const [steps, setSteps] = useState<EvaluationStep[]>(
         order?.evaluation || [{ machine: "", hours: 0 }]
     );
+    const [urgencia, setUrgencia] = useState(order?.urgencia || false);
     const [isSaving, setIsSaving] = useState(false);
     const [previewFileId, setPreviewFileId] = useState<string | null>(null);
     const [confirmModal, setConfirmModal] = useState<{
@@ -72,11 +76,13 @@ export function EvaluationModal({
         onConfirm: () => void;
     } | null>(null);
     const supabase = createClient();
+    const router = useRouter();
 
     // Sync state when order changes
     React.useEffect(() => {
         if (order) {
             let initialSteps = [...(order.evaluation || [])];
+            setUrgencia(order.urgencia || false);
 
             // Ensure there's always at least one step
             if (initialSteps.length === 0) {
@@ -167,13 +173,17 @@ export function EvaluationModal({
         try {
             const { error } = await supabase
                 .from("production_orders")
-                .update({ evaluation: validSteps })
+                .update({
+                    evaluation: validSteps,
+                    urgencia: urgencia
+                })
                 .eq("id", order.id);
 
             if (error) throw error;
 
             toast.success("Evaluación guardada correctamente");
-            onSuccess(validSteps);
+            onSuccess(validSteps, urgencia);
+            router.refresh();
 
             // If we have a next item, we just update the order in the parent. 
             // The modal stays open because isOpen is still true.
@@ -304,6 +314,23 @@ export function EvaluationModal({
                                 <p className="text-[11px] text-muted-foreground">
                                     Asignación de máquinas y tiempos estimada
                                 </p>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center">
+                                        <AlertTriangle className="w-4 h-4 text-white" />
+                                    </div>
+                                    <div>
+                                        <Label className="text-[11px] font-black uppercase text-red-700 leading-none">Pedido Urgente</Label>
+                                        <p className="text-[10px] text-red-600 font-medium">Priorizar en planeación automática</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={urgencia}
+                                    onCheckedChange={setUrgencia}
+                                    className="data-[state=checked]:bg-red-600"
+                                />
                             </div>
 
                             <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">

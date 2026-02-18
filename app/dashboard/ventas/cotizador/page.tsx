@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Plus, Trash2, Save, FileText, ArrowLeft, Loader2, Printer, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useEffect, useState, useRef, forwardRef, type ReactNode } from "react";
+import { Plus, Trash2, Save, FileText, ArrowLeft, Loader2, Printer, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Eye, Copy, FileEdit, FileCheck, UploadCloud, ZoomIn, ZoomOut, Maximize, X, GripVertical } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -43,6 +43,12 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 
@@ -60,6 +66,95 @@ import {
 } from "../actions";
 
 import { QuotePDF } from "@/components/sales/quote-pdf";
+import { DrawingViewer } from "@/components/sales/drawing-viewer";
+import { createClient } from "@/utils/supabase/client";
+import { useTour } from "@/hooks/use-tour";
+
+const Dropzone = forwardRef<HTMLInputElement, {
+    onFilesSelected: (files: File[]) => void,
+    isUploading: boolean,
+    children?: ReactNode,
+    className?: string
+}>(({
+    onFilesSelected,
+    isUploading,
+    children,
+    className
+}, ref) => {
+    const internalRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = (ref as React.RefObject<HTMLInputElement>) || internalRef;
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            onFilesSelected(Array.from(e.dataTransfer.files));
+        }
+    };
+
+    return (
+        <div
+            className={cn(
+                "relative transition-all duration-200",
+                !children && "w-full flex flex-col items-center justify-center border-2 border-dashed border-zinc-500/30 rounded-2xl p-8 hover:bg-zinc-500/5 cursor-pointer group",
+                isDragging && "border-red-500 bg-red-500/5 ring-4 ring-red-500/10",
+                className
+            )}
+            onClick={(e) => {
+                if (!children) {
+                    fileInputRef.current?.click();
+                }
+            }}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,image/*"
+                className="hidden"
+                onChange={(e) => {
+                    if (e.target.files) onFilesSelected(Array.from(e.target.files));
+                }}
+            />
+            {isDragging && children && (
+                <div className="absolute inset-0 z-[100] bg-red-500/10 backdrop-blur-[2px] border-2 border-dashed border-red-500 flex items-center justify-center rounded-xl pointer-events-none animate-in fade-in zoom-in duration-200">
+                    <div className="bg-background/90 border border-red-500/20 px-6 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 scale-110">
+                        <UploadCloud className="w-10 h-10 text-red-500 animate-bounce" />
+                        <p className="text-sm font-bold uppercase text-red-600">Suelta tus planos aquí</p>
+                    </div>
+                </div>
+            )}
+            {children ? children : (
+                <>
+                    <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        {isUploading ? <Loader2 className="w-6 h-6 text-red-500 animate-spin" /> : <Plus className="w-6 h-6 text-red-500" />}
+                    </div>
+                    <p className="text-sm font-bold uppercase tracking-tight">{isUploading ? "Subiendo archivos..." : "Sube tus archivos aquí o arrástralos"}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase">PDF o imágenes únicamente</p>
+                </>
+            )}
+        </div>
+    );
+});
+Dropzone.displayName = "Dropzone";
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -134,9 +229,27 @@ type QuoteItem = {
     unit: string;
     unit_price: number;
     total: number;
+    design_no?: string;
+    drawing_url?: string;
+    is_sub_item?: boolean;
 };
 
-import { useTour } from "@/hooks/use-tour";
+interface IQuoteForm {
+    quote_as: string;
+    quote_type: "services" | "pieces";
+    requisition_no: string;
+    part_no: string;
+    issue_date: string;
+    delivery_date: string;
+    currency: string;
+    client_id: string;
+    contact_id: string;
+    payment_terms_days: number;
+    position_id: string;
+    area_id: string;
+    validity_days: number;
+    tax_rate: number;
+}
 
 export default function QuoteGeneratorPage() {
     return (
@@ -157,24 +270,28 @@ function QuoteGeneratorContent() {
     const [saving, setSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
     const [showBackConfirm, setShowBackConfirm] = useState(false);
+    const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+    const [viewerTitle, setViewerTitle] = useState<string>("");
 
     // Catalogs
     const [clients, setClients] = useState<Option[]>([]);
-    const [allContacts, setAllContacts] = useState<{ id: string, name: string, client_id?: string | null }[]>([]); // Store full contacts data
+    const [allContacts, setAllContacts] = useState<{ id: string, name: string, client_id?: string | null }[]>([]);
     const [positions, setPositions] = useState<Option[]>([]);
     const [areas, setAreas] = useState<Option[]>([]);
-    const [units, setUnits] = useState<Option[]>([]);
+    const dropzoneRef = useRef<HTMLInputElement>(null);
+    const [units, setUnits] = useState<{ value: string; label: string }[]>([]);
 
     // Form State
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<IQuoteForm>({
         quote_as: "DMR",
+        quote_type: "services",
         requisition_no: "",
         part_no: "",
         issue_date: new Date().toISOString().split('T')[0],
         delivery_date: "",
         currency: "MXN",
         client_id: "",
-        contact_id: "", // User/Contact Name
+        contact_id: "",
         payment_terms_days: 30,
         position_id: "",
         area_id: "",
@@ -195,6 +312,9 @@ function QuoteGeneratorContent() {
     // Totals
     const [totals, setTotals] = useState({ subtotal: 0, tax: 0, total: 0 });
     const [savedQuote, setSavedQuote] = useState<{ id: string, quote_number: number } | null>(null);
+    const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
+    const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+    const supabase = createClient();
 
     // Calculate Grand Totals
     useEffect(() => {
@@ -227,6 +347,102 @@ function QuoteGeneratorContent() {
         }
     };
 
+    const onFilesSelected = (files: File[]) => {
+        if (files.length === 0) return;
+
+        const newPendingFiles = new Map<string, File>();
+        const processedFiles: string[] = [];
+        const ignoredFiles: string[] = [];
+
+        // Auto-generate items from filenames
+        const newItems: QuoteItem[] = [];
+
+        files.forEach(file => {
+            const fileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const upperName = fileName.toUpperCase();
+
+            // Check if this file name already exists as an item WITH a drawing_url (already uploaded or blob)
+            const exists = items.some(item =>
+                item.description.toUpperCase().trim() === upperName.trim() &&
+                (item.drawing_url || pendingFiles.has(item.id))
+            );
+
+            if (exists) {
+                ignoredFiles.push(file.name);
+                return;
+            }
+
+            const tempId = `temp_${Math.random().toString(36).substring(7)}`;
+
+            // Add to the local batch of pending files
+            newPendingFiles.set(tempId, file);
+            processedFiles.push(file.name);
+
+            newItems.push({
+                id: tempId,
+                description: upperName,
+                quantity: 1,
+                unit: "PZA",
+                unit_price: 0,
+                total: 0,
+                drawing_url: URL.createObjectURL(file) + (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf') ? '#pdf' : '') // Hint for viewer
+            });
+        });
+
+        if (newItems.length === 0) {
+            if (ignoredFiles.length > 0) {
+                toast.info("Los archivos ya existen en la lista y no fueron agregados de nuevo.");
+            }
+            return;
+        }
+
+        // Update pendingFiles once
+        setPendingFiles(prev => {
+            const updated = new Map(prev);
+            newPendingFiles.forEach((file, id) => updated.set(id, file));
+            return updated;
+        });
+
+        setItems(prev => {
+            // Remove initial empty item if it's there and empty
+            const filtered = prev.filter(i => i.description !== "" || i.unit_price > 0);
+            return [...filtered, ...newItems];
+        });
+
+        if (ignoredFiles.length > 0) {
+            toast.success(`${processedFiles.length} archivos agregados. ${ignoredFiles.length} omitidos por ya existir.`);
+        } else {
+            toast.success(`${processedFiles.length} archivos procesados localmente.`);
+        }
+        setIsDirty(true);
+    };
+
+    const uploadPendingFiles = async (quoteId: string): Promise<Record<string, string>> => {
+        const results: Record<string, string> = {};
+
+        for (const [id, file] of pendingFiles.entries()) {
+            const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const filePath = `${quoteId}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from("quotes")
+                .upload(filePath, file);
+
+            if (uploadError) {
+                console.error(`Error uploading ${file.name}:`, uploadError);
+                throw new Error(`Fallo al subir ${file.name}`);
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from("quotes")
+                .getPublicUrl(filePath);
+
+            results[id] = publicUrl;
+        }
+
+        return results;
+    };
+
     // Helper to format numbers with commas
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('es-MX', {
@@ -252,7 +468,8 @@ function QuoteGeneratorContent() {
             items.forEach((item, idx) => {
                 const itemNum = idx + 1;
                 if (!item.description.trim()) errors.push(`Descripción vacía en el LOT ${itemNum}`);
-                if (item.unit_price <= 0) errors.push(`Precio Unitario inválido en el LOT ${itemNum}`);
+                if (item.quantity <= 0) errors.push(`Cantidad inválida en el LOT ${itemNum}`);
+                if (item.unit_price <= 0) errors.push(`Precio Unitario inválido o vacío en el LOT ${itemNum}`);
             });
         }
         return errors;
@@ -276,6 +493,7 @@ function QuoteGeneratorContent() {
                     // Pre-fill form
                     setFormData({
                         quote_as: existing.quote_as,
+                        quote_type: existing.quote_type || "services",
                         requisition_no: existing.requisition_no,
                         part_no: existing.part_no,
                         issue_date: existing.issue_date,
@@ -297,7 +515,10 @@ function QuoteGeneratorContent() {
                         quantity: i.quantity,
                         unit: i.unit,
                         unit_price: i.unit_price,
-                        total: i.total_price
+                        total: i.total_price,
+                        design_no: i.design_no,
+                        drawing_url: i.drawing_url,
+                        is_sub_item: i.is_sub_item || false
                     })));
 
                     // Prepare ID for PDF download (only if not cloning)
@@ -312,7 +533,7 @@ function QuoteGeneratorContent() {
             }
         }
         loadAll();
-    }, [editingId]);
+    }, [editingId, isClone]);
 
     const handleFormChange = (updates: Partial<typeof formData>) => {
         // If client changes, clear contact if it doesn't belong to the new client
@@ -341,9 +562,60 @@ function QuoteGeneratorContent() {
     // Logic: Remove Item
     const removeItem = (index: number) => {
         setIsDirty(true);
+        const itemToRemove = items[index];
+        const hadFile = !!itemToRemove.drawing_url;
+
+        // If it's the last item, don't remove it, just reset its values
+        if (items.length === 1) {
+            // Cleanup if it was a pending file
+            if (itemToRemove.drawing_url?.startsWith('blob:')) {
+                URL.revokeObjectURL(itemToRemove.drawing_url.split('#')[0]);
+                setPendingFiles(prev => {
+                    const updated = new Map(prev);
+                    updated.delete(itemToRemove.id);
+                    return updated;
+                });
+            }
+
+            const resetItem: QuoteItem = {
+                id: Math.random().toString(36).substr(2, 9),
+                description: '',
+                quantity: 1,
+                unit: 'PZA',
+                unit_price: 0,
+                total: 0,
+                drawing_url: undefined
+            };
+            setItems([resetItem]);
+            if (hadFile) {
+                toast.info("Plano removido de la partida", {
+                    icon: <FileText className="w-4 h-4 text-zinc-500" />,
+                    duration: 2000
+                });
+            }
+            return;
+        }
+
+        // Cleanup if it was a pending file
+        if (itemToRemove.drawing_url?.startsWith('blob:')) {
+            URL.revokeObjectURL(itemToRemove.drawing_url.split('#')[0]);
+            setPendingFiles(prev => {
+                const updated = new Map(prev);
+                updated.delete(itemToRemove.id);
+                return updated;
+            });
+        }
+
         const newItems = [...items];
         newItems.splice(index, 1);
         setItems(newItems);
+
+        if (hadFile) {
+            toast.info("Partida y plano asociado eliminados", {
+                icon: <Trash2 className="w-4 h-4 text-red-500" />,
+                duration: 2000
+            });
+        }
     };
 
     // Logic: Update Item
@@ -368,10 +640,28 @@ function QuoteGeneratorContent() {
         setItems(newItems);
     };
 
+    const getLotNumber = (index: number) => {
+        let parentCount = 0;
+        let childCount = 0;
+        for (let i = 0; i <= index; i++) {
+            if (!items[i].is_sub_item) {
+                parentCount++;
+                childCount = 0;
+            } else {
+                childCount++;
+            }
+        }
+        if (items[index].is_sub_item) {
+            return `${parentCount}.${childCount}`;
+        }
+        return `${parentCount}`;
+    };
+
     // Logic: Full Reset (Nuevo) - Clears everything including ID/Folio to start fresh
     const handleNewQuote = () => {
         setFormData({
             quote_as: "DMR",
+            quote_type: "services",
             requisition_no: "",
             part_no: "",
             issue_date: new Date().toISOString().split('T')[0],
@@ -402,6 +692,7 @@ function QuoteGeneratorContent() {
     const handleResetFields = () => {
         setFormData({
             quote_as: "DMR",
+            quote_type: "services",
             requisition_no: "",
             part_no: "",
             issue_date: new Date().toISOString().split('T')[0],
@@ -443,34 +734,119 @@ function QuoteGeneratorContent() {
             };
 
             // Prepare Items for DB (remove UI id, keep others)
-            // The `saveQuote` action expects items without the temporary 'id'
             const dbItems = items.map(i => ({
                 description: i.description,
                 quantity: i.quantity,
                 unit: i.unit,
                 unit_price: i.unit_price,
-                total_price: i.total
+                total_price: i.total,
+                design_no: i.design_no,
+                drawing_url: i.drawing_url,
+                is_sub_item: i.is_sub_item || false
             }));
 
-            if (editingId && !isClone) {
-                await updateQuote(editingId, dbQuote, dbItems);
-                toast.success(`Cotización #${savedQuote?.quote_number} actualizada.`);
+            // Determine if we are updating an existing quote
+            // We update if we have a URL id (editingId) or if we just saved it in this session (savedQuote.id)
+            const currentId = (editingId && !isClone) ? editingId : savedQuote?.id;
+
+            if (currentId) {
+                // If we have pending files, upload them now
+                let drawingUrls: Record<string, string> = {};
+                if (pendingFiles.size > 0) {
+                    setIsUploadingFiles(true);
+                    try {
+                        drawingUrls = await uploadPendingFiles(currentId);
+                    } catch (err: any) {
+                        toast.error("Fallo al subir archivos: " + err.message);
+                        setSaving(false);
+                        return;
+                    } finally {
+                        setIsUploadingFiles(false);
+                    }
+                }
+
+                // Update items with real URLs if any were uploaded
+                const finalItems = dbItems.map((item, idx) => {
+                    const tempId = items[idx].id;
+                    if (drawingUrls[tempId]) {
+                        return { ...item, drawing_url: drawingUrls[tempId] };
+                    }
+                    return item;
+                });
+
+                await updateQuote(currentId, dbQuote, finalItems);
+
+                // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
+                setItems(prev => prev.map((item, idx) => {
+                    const realUrl = drawingUrls[item.id];
+                    if (realUrl) {
+                        // Revoke the old blob URL to free memory
+                        if (item.drawing_url?.startsWith('blob:')) {
+                            URL.revokeObjectURL(item.drawing_url.split('#')[0]);
+                        }
+                        return { ...item, drawing_url: realUrl };
+                    }
+                    return item;
+                }));
+
+                toast.success(`Cotización #${savedQuote?.quote_number || ""} actualizada.`);
+                setPendingFiles(new Map());
                 setIsDirty(false);
             } else {
-                const result = await saveQuote(dbQuote, dbItems);
+                // For NEW quotes, we need an ID first to upload files
+                // 1. Save initial quote to get ID
+                const result = await saveQuote(dbQuote, []); // Insert with NO items first to avoid RLS/Dup issues
+
+                // 2. Upload files for this new ID
+                let drawingUrls: Record<string, string> = {};
+                if (pendingFiles.size > 0) {
+                    setIsUploadingFiles(true);
+                    try {
+                        drawingUrls = await uploadPendingFiles(result.id);
+                    } catch (err: any) {
+                        toast.error("Error al subir archivos: " + err.message);
+                    } finally {
+                        setIsUploadingFiles(false);
+                    }
+                }
+
+                // 3. Now update with ALL items correctly
+                const finalItems = dbItems.map((item, idx) => {
+                    const tempId = items[idx].id;
+                    if (drawingUrls[tempId]) {
+                        return { ...item, drawing_url: drawingUrls[tempId] };
+                    }
+                    return item;
+                });
+
+                await updateQuote(result.id, dbQuote, finalItems);
+
+                // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
+                setItems(prev => prev.map(item => {
+                    const realUrl = drawingUrls[item.id];
+                    if (realUrl) {
+                        if (item.drawing_url?.startsWith('blob:')) {
+                            URL.revokeObjectURL(item.drawing_url.split('#')[0]);
+                        }
+                        return { ...item, drawing_url: realUrl };
+                    }
+                    return item;
+                }));
+
                 toast.success(`Cotización #${result.quote_number} generada exitosamente.`);
                 setSavedQuote(result);
+                setPendingFiles(new Map());
                 setIsDirty(false);
-                // If it was a clone, we now have a real ID, so stop cloning mode
+
+                // If it was a clone, clean up the URL to point to the new ID
                 if (isClone) {
                     router.replace(`/dashboard/ventas/cotizador?id=${result.id}`);
                 }
             }
-            // Do NOT scroll to top here on save
 
-        } catch (error: any) { // Added type for error
+        } catch (error: any) {
             console.error(error);
-            toast.error("Error al guardar la cotización: " + error.message); // Added error message
+            toast.error("Error al guardar la cotización: " + error.message);
         } finally {
             setSaving(false);
         }
@@ -634,20 +1010,20 @@ function QuoteGeneratorContent() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase"># No. Requisición</label>
-                            <Input
-                                value={formData.requisition_no}
-                                onChange={e => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
-                                placeholder="REQ-001"
-                                className="bg-background border-input text-foreground uppercase"
-                            />
-                        </div>
-                        <div className="space-y-2">
                             <label className="text-xs font-semibold text-red-500 uppercase">No. Parte</label>
                             <Input
                                 value={formData.part_no}
                                 onChange={e => handleFormChange({ part_no: e.target.value.toUpperCase() })}
                                 placeholder="PN-X99"
+                                className="bg-background border-input text-foreground uppercase"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-red-500 uppercase">No. Requisición</label>
+                            <Input
+                                value={formData.requisition_no}
+                                onChange={e => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
+                                placeholder="Ej. REQ-12345..."
                                 className="bg-background border-input text-foreground uppercase"
                             />
                         </div>
@@ -772,133 +1148,242 @@ function QuoteGeneratorContent() {
             </Card>
 
             {/* Items Table Card */}
-            <Card id="quote-items-section" className="bg-card border-border">
+            <Card className="bg-card border-border">
                 <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
                     <CardTitle className="text-red-500 font-semibold text-lg">Lotes y/o Items</CardTitle>
+                    <div className="flex items-center gap-3">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Modo:</label>
+                        <Select
+                            value={formData.quote_type}
+                            onValueChange={(value: "services" | "pieces") => handleFormChange({ quote_type: value })}
+                        >
+                            <SelectTrigger className="h-8 w-[200px] bg-background border-zinc-500/20 text-xs font-bold uppercase transition-all focus:ring-red-500/20">
+                                <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                                <SelectItem value="services" className="text-xs font-bold uppercase">Servicios (Venta Libre)</SelectItem>
+                                <SelectItem value="pieces" className="text-xs font-bold uppercase">Piezas (Planos)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </CardHeader>
-                <CardContent className="pt-0 px-0">
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="border-border hover:bg-muted/50">
-                                    <TableHead className="w-[50px] text-muted-foreground">LOT</TableHead>
-                                    <TableHead className="text-muted-foreground">Descripción</TableHead>
-                                    <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
-                                    <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
-                                    <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
-                                    <TableHead className="w-[150px] text-muted-foreground text-right">Total</TableHead>
-                                    <TableHead className="w-[50px] text-muted-foreground"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {items.map((item, index) => (
-                                    <TableRow key={item.id} className="border-border hover:bg-muted/50">
-                                        <TableCell className="font-mono text-muted-foreground text-center font-bold">{index + 1}</TableCell>
-                                        <TableCell>
-                                            <Textarea
-                                                value={item.description}
-                                                onChange={(e) => updateItem(index, 'description', e.target.value)}
-                                                placeholder="DESCRIPCIÓN DETALLADA DEL ARTÍCULO..."
-                                                className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase"
-                                                ref={(el) => {
-                                                    if (el) {
-                                                        el.style.height = 'auto';
-                                                        el.style.height = el.scrollHeight + 'px';
-                                                    }
-                                                }}
-                                                onInput={(e) => {
-                                                    const target = e.target as HTMLTextAreaElement;
-                                                    target.style.height = 'auto';
-                                                    target.style.height = target.scrollHeight + 'px';
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center justify-center">
-                                                <Input
-                                                    type="number"
-                                                    min={1}
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                                                    className="w-20 bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center text-foreground"
-                                                />
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex justify-center">
-                                                <ComboboxCreatable
-                                                    options={units}
-                                                    value={item.unit}
-                                                    onSelect={(val) => {
-                                                        // Find label for the value if needed, or just use val if we store name directly
-                                                        updateItem(index, 'unit', val);
-                                                    }}
-                                                    onCreate={async (name) => {
-                                                        const upperName = name.toUpperCase();
-                                                        await createUnitEntry(upperName);
-                                                        setUnits([...units, { value: upperName, label: upperName }]);
-                                                        return upperName;
-                                                    }}
-                                                    createLabel="Crear U.M."
-                                                    placeholder="U.M."
-                                                    searchPlaceholder="Buscar unidad..."
-                                                    className="w-24 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-center"
-                                                />
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input
-                                                type="text"
-                                                defaultValue={item.unit_price === 0 ? "" : formatCurrency(item.unit_price)}
-                                                key={`${item.id}-${item.unit_price}`}
-                                                onBlur={(e) => {
-                                                    const rawValue = e.target.value.replace(/,/g, '');
-                                                    if (!rawValue) {
-                                                        updateItem(index, 'unit_price', 0);
-                                                        return;
-                                                    }
-                                                    const numericValue = parseFloat(rawValue);
-                                                    if (isNaN(numericValue)) {
-                                                        updateItem(index, 'unit_price', 0);
-                                                        return;
-                                                    }
-                                                    updateItem(index, 'unit_price', numericValue);
-                                                }}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    if (/[^0-9.,]/.test(val)) {
-                                                        e.target.value = val.replace(/[^0-9.,]/g, '');
-                                                    }
-                                                }}
-                                                placeholder="0.00"
-                                                className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right text-foreground font-mono"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono text-foreground">
-                                            ${formatCurrency(item.total)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => removeItem(index)}
-                                                className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                <CardContent className="pt-0 px-0 relative">
+                    <Dropzone
+                        onFilesSelected={onFilesSelected}
+                        isUploading={isUploadingFiles}
+                        className="border-0 p-0 rounded-none hover:bg-transparent"
+                        ref={dropzoneRef}
+                    >
+                        <div id="quote-items-section" className="relative group/table p-0 flex flex-col min-h-full">
+                            <div className="overflow-x-auto flex-1">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="border-border hover:bg-muted/50">
+                                            <TableHead className="w-[40px]"></TableHead>
+                                            <TableHead className="w-[60px] text-muted-foreground text-center">LOT</TableHead>
+                                            <TableHead className="text-muted-foreground">Descripción</TableHead>
+                                            <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
+                                            <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
+                                            <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
+                                            <TableHead className="w-[150px] text-muted-foreground text-right">Total</TableHead>
+                                            <TableHead className="w-[80px] text-muted-foreground text-center">Subp.</TableHead>
+                                            <TableHead className="w-[100px] text-muted-foreground"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <Reorder.Group axis="y" values={items} onReorder={setItems} as="tbody" className="contents">
+                                        {items.map((item, index) => (
+                                            <Reorder.Item
+                                                key={item.id}
+                                                value={item}
+                                                as="tr"
+                                                className={cn(
+                                                    "border-border hover:bg-muted/50 transition-colors bg-card",
+                                                    item.is_sub_item && "bg-zinc-50/30 dark:bg-zinc-900/10"
+                                                )}
                                             >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                                <TableCell className="w-[40px] cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors p-0 text-center">
+                                                    <div className="flex justify-center items-center h-full">
+                                                        <GripVertical className="w-4 h-4" />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className={cn(
+                                                    "font-mono text-center font-bold",
+                                                    item.is_sub_item ? "text-red-500 text-xs" : "text-muted-foreground"
+                                                )}>
+                                                    {getLotNumber(index)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className={cn("flex items-start gap-2", item.is_sub_item && "pl-6")}>
+                                                        {item.is_sub_item && <span className="text-red-500 mt-2">↳</span>}
+                                                        <Textarea
+                                                            value={item.description}
+                                                            onChange={(e) => updateItem(index, 'description', e.target.value)}
+                                                            placeholder="DESCRIPCIÓN DETALLADA DEL ARTÍCULO..."
+                                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase"
+                                                            ref={(el) => {
+                                                                if (el) {
+                                                                    el.style.height = 'auto';
+                                                                    el.style.height = el.scrollHeight + 'px';
+                                                                }
+                                                            }}
+                                                            onInput={(e) => {
+                                                                const target = e.target as HTMLTextAreaElement;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = target.scrollHeight + 'px';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center justify-center">
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                                            className="w-20 bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center text-foreground"
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex justify-center">
+                                                        <ComboboxCreatable
+                                                            options={units}
+                                                            value={item.unit}
+                                                            onSelect={(val) => {
+                                                                // Find label for the value if needed, or just use val if we store name directly
+                                                                updateItem(index, 'unit', val);
+                                                            }}
+                                                            onCreate={async (name) => {
+                                                                const upperName = name.toUpperCase();
+                                                                await createUnitEntry(upperName);
+                                                                setUnits([...units, { value: upperName, label: upperName }]);
+                                                                return upperName;
+                                                            }}
+                                                            createLabel="Crear U.M."
+                                                            placeholder="U.M."
+                                                            searchPlaceholder="Buscar unidad..."
+                                                            className="w-24 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-center"
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Input
+                                                        type="text"
+                                                        defaultValue={item.unit_price === 0 ? "" : formatCurrency(item.unit_price)}
+                                                        key={`${item.id}-${item.unit_price}`}
+                                                        onBlur={(e) => {
+                                                            const rawValue = e.target.value.replace(/,/g, '');
+                                                            if (!rawValue) {
+                                                                updateItem(index, 'unit_price', 0);
+                                                                return;
+                                                            }
+                                                            const numericValue = parseFloat(rawValue);
+                                                            if (isNaN(numericValue)) {
+                                                                updateItem(index, 'unit_price', 0);
+                                                                return;
+                                                            }
+                                                            updateItem(index, 'unit_price', numericValue);
+                                                        }}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (/[^0-9.,]/.test(val)) {
+                                                                e.target.value = val.replace(/[^0-9.,]/g, '');
+                                                            }
+                                                        }}
+                                                        placeholder="0.00"
+                                                        className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right text-foreground font-mono"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-foreground">
+                                                    ${formatCurrency(item.total)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center justify-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateItem(index, 'is_sub_item', !item.is_sub_item)}
+                                                            className={cn(
+                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner",
+                                                                item.is_sub_item ? "bg-red-500" : "bg-zinc-300 dark:bg-zinc-700"
+                                                            )}
+                                                        >
+                                                            <div
+                                                                className={cn(
+                                                                    "w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
+                                                                    item.is_sub_item ? "translate-x-4" : "translate-x-0"
+                                                                )}
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        {item.drawing_url && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => {
+                                                                    setViewerUrl(item.drawing_url || null);
+                                                                    setViewerTitle(item.description || "Plano sin nombre");
+                                                                }}
+                                                                className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                                                                title="Ver Plano"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => removeItem(index)}
+                                                            className="h-8 w-8 p-0 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                                            title="Eliminar"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </Reorder.Item>
+                                        ))}
+                                    </Reorder.Group>
+                                </Table>
+                            </div>
 
-                    <div id="quote-items-footer" className="p-4 border-t border-border">
-                        <Button id="quote-add-item-btn" onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Agregar Fila
-                        </Button>
-                    </div>
+                            <div id="quote-items-footer" className="p-4 border-t border-border flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <Button id="quote-add-item-btn" onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground shadow-sm">
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Agregar Fila
+                                    </Button>
+
+                                    {formData.quote_type === 'pieces' && (
+                                        <div className="flex items-center gap-3">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => dropzoneRef.current?.click()}
+                                                className="h-8 border-red-500/20 text-red-500 hover:bg-red-500/10 hover:text-red-600 font-bold uppercase text-[10px] shadow-sm"
+                                            >
+                                                <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                                                Cargar Planos
+                                            </Button>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                                                    <FileCheck className="w-3.5 h-3.5" />
+                                                    {items.filter(i => i.drawing_url).length} Planos cargados
+                                                </div>
+                                                <p className="hidden sm:block text-[10px] text-muted-foreground uppercase font-bold tracking-tight opacity-70">
+                                                    O arrastra archivos a la tabla
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </Dropzone>
                 </CardContent>
             </Card>
 
@@ -994,7 +1479,8 @@ function QuoteGeneratorContent() {
                     )}
 
                     <div className="flex gap-2">
-                        {((editingId && !isClone) || savedQuote) && (
+                        {/* Imprimir PDF - Only visible if saved AND not modified */}
+                        {((savedQuote || (editingId && !isClone)) && !isDirty) && (
                             <PDFDownloadLink
                                 document={
                                     <QuotePDF
@@ -1014,7 +1500,7 @@ function QuoteGeneratorContent() {
                             >
                                 {/* @ts-ignore - render prop issues in some versions */}
                                 {({ loading: pdfLoading }) => (
-                                    <Button className="bg-green-600 hover:bg-green-700 text-white min-w-[180px] h-12 text-lg font-bold shadow-lg shadow-green-500/20">
+                                    <Button className="bg-green-600 hover:bg-green-700 text-white min-w-[200px] h-12 text-lg font-bold shadow-lg shadow-green-500/20 animate-in fade-in zoom-in duration-300">
                                         {pdfLoading ? <Loader2 className="w-5 h-5 mr-3 animate-spin" /> : <Printer className="w-5 h-5 mr-3" />}
                                         Imprimir PDF
                                     </Button>
@@ -1022,14 +1508,20 @@ function QuoteGeneratorContent() {
                             </PDFDownloadLink>
                         )}
 
-                        {(!savedQuote || editingId) && (
+                        {/* Save/Update Button - Hidden if saved AND not modified (no changes to save) */}
+                        {(!savedQuote || (editingId && !isClone) || isDirty) && (
                             <Button
                                 onClick={handleSave}
-                                disabled={saving}
-                                className="bg-red-600 hover:bg-red-700 text-white min-w-[220px] h-12 text-lg font-bold shadow-lg shadow-red-500/20"
+                                disabled={saving || (!isDirty && (Boolean(savedQuote) || Boolean(editingId && !isClone)))}
+                                className={cn(
+                                    "min-w-[220px] h-12 text-lg font-bold shadow-lg transition-all duration-300",
+                                    (savedQuote || (editingId && !isClone)) && isDirty
+                                        ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/20 animate-in slide-in-from-right-4"
+                                        : "bg-red-600 hover:bg-red-700 text-white shadow-red-500/20"
+                                )}
                             >
                                 {saving ? <Loader2 className="w-5 h-5 mr-3 animate-spin" /> : <Save className="w-5 h-5 mr-3" />}
-                                {editingId && !isClone ? "Actualizar Cambios" : "Guardar Cotización"}
+                                {(savedQuote || (editingId && !isClone)) && isDirty ? "Actualizar Cambios" : "Guardar Cotización"}
                             </Button>
                         )}
                     </div>
@@ -1059,6 +1551,15 @@ function QuoteGeneratorContent() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <DrawingViewer
+                url={viewerUrl}
+                title={viewerTitle}
+                onClose={() => {
+                    setViewerUrl(null);
+                    setViewerTitle("");
+                }}
+            />
         </div>
     );
 }

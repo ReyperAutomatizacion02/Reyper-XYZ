@@ -43,6 +43,12 @@ interface AutoPlanDialogProps {
 
 const STRATEGIES: { id: SchedulingStrategy; label: string; icon: any; description: string }[] = [
     {
+        id: "URGENCY",
+        label: "Urgencia (Manual)",
+        icon: AlertTriangle,
+        description: "Prioriza piezas marcadas manualmente como 'Urgente' en su evaluación."
+    },
+    {
         id: "DELIVERY_DATE",
         label: "Prioridad x Entrega",
         icon: Calendar,
