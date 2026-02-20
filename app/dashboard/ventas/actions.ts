@@ -171,7 +171,7 @@ export async function getQuotesHistory() {
             client:sales_clients(name),
             contact:sales_contacts(name)
         `)
-        .in("status", ["active", "approved"])
+        .in("status", ["active", "approved", "cancelled"])
         .order("quote_number", { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -192,7 +192,9 @@ export async function getActiveProjects() {
             requestor, 
             start_date, 
             delivery_date, 
-            status
+            status,
+            requestor_id,
+            company_id
         `)
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
@@ -450,7 +452,8 @@ export async function convertQuoteToProject(quoteId: string, projectName?: strin
         .insert({
             code: projectCode,
             name: finalProjectName,
-            company: `${client.prefix}-${client.name}`,
+            company: client.name,
+            company_id: quote.client_id,
             requestor: contact.name, // Store Name in requestor
             requestor_id: quote.contact_id, // Store ID in new column
             start_date: new Date().toISOString().split('T')[0],
@@ -497,7 +500,8 @@ export async function convertQuoteToProject(quoteId: string, projectName?: strin
     }
 
     // 6. Mark Quote as Approved
-    await supabase.from("sales_quotes").update({ status: 'approved' }).eq("id", quoteId);
+    const { error: updateError } = await supabase.from("sales_quotes").update({ status: 'approved' }).eq("id", quoteId);
+    if (updateError) throw new Error("Error updating quote status: " + updateError.message);
 
     return { success: true, projectCode, projectId: project.id };
 }
@@ -509,6 +513,27 @@ export async function updateQuoteStatus(id: string, status: string) {
     const { error } = await supabase
         .from("sales_quotes")
         .update({ status })
+        .eq("id", id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+export async function updateProject(id: string, data: {
+    name?: string;
+    start_date?: string;
+    delivery_date?: string;
+    status?: string;
+    company?: string;
+    company_id?: string;
+    requestor?: string;
+    requestor_id?: string;
+}) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await supabase
+        .from("projects")
+        .update(data)
         .eq("id", id);
 
     if (error) throw new Error(error.message);

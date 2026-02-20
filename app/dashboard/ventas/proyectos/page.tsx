@@ -8,7 +8,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { getActiveProjects, getFilterOptions } from "../actions";
+import { getActiveProjects, getFilterOptions, getCatalogData } from "../actions";
+import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ProjectDetailsPanel } from "@/components/sales/project-details-panel";
@@ -21,7 +22,9 @@ interface Project {
     code: string;
     name: string;
     company: string;
+    company_id?: string;
     requestor: string;
+    requestor_id?: string;
     start_date: string;
     delivery_date: string;
     status: string;
@@ -34,32 +37,41 @@ export default function ActiveProjectsPage() {
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [filterOptions, setFilterOptions] = useState<{ clients: string[], requestors: string[] }>({ clients: [], requestors: [] });
 
+    // Full catalog for editing
+    const [catalog, setCatalog] = useState<{
+        clients: { id: string, name: string, prefix?: string | null }[],
+        contacts: { id: string, name: string, client_id?: string }[]
+    }>({ clients: [], contacts: [] });
+
     // Custom hook for filters
     const { filters, updateFilter, resetFilters, activeFilterCount } = useProjectFilters();
 
+    const fetchProjects = async () => {
+        try {
+            const [projectsData, optionsData, catalogData] = await Promise.all([
+                getActiveProjects(),
+                getFilterOptions(),
+                getCatalogData()
+            ]);
+            setProjects(projectsData as any);
+            setFilterOptions(optionsData as any);
+            setCatalog(catalogData as any);
+        } catch (error: any) {
+            toast.error("Error al cargar datos: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const init = async () => {
-            try {
-                const [projectsData, optionsData] = await Promise.all([
-                    getActiveProjects(),
-                    getFilterOptions()
-                ]);
-                setProjects(projectsData as any);
-                setFilterOptions(optionsData as any);
-            } catch (error: any) {
-                toast.error("Error al cargar datos: " + error.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        init();
+        fetchProjects();
     }, []);
 
     // Function to calculate progress and date status
     const getProjectStatus = (start: string, end: string) => {
-        const startDate = new Date(start).getTime();
-        const endDate = new Date(end).getTime();
-        const today = new Date().getTime();
+        const startDate = parseLocalDate(start)?.getTime() || 0;
+        const endDate = parseLocalDate(end)?.getTime() || 0;
+        const today = new Date().setHours(0, 0, 0, 0); // Start of today
 
         const totalDuration = endDate - startDate;
         const elapsed = today - startDate;
@@ -163,7 +175,7 @@ export default function ActiveProjectsPage() {
 
         // Date Range Filter
         if (filters.dateRange?.from || filters.dateRange?.to) {
-            const deliveryDate = new Date(p.delivery_date).getTime();
+            const deliveryDate = parseLocalDate(p.delivery_date)?.getTime() || 0;
             if (filters.dateRange.from && deliveryDate < filters.dateRange.from.getTime()) return false;
             // Add 1 day to 'to' date to make it inclusive (end of day)
             if (filters.dateRange.to) {
@@ -268,11 +280,11 @@ export default function ActiveProjectsPage() {
                                         <div className="flex justify-between items-center mb-2 text-xs">
                                             <div className="flex items-center gap-1.5 text-muted-foreground">
                                                 <Calendar className="w-3.5 h-3.5" />
-                                                Inicio: <span className="text-foreground font-medium">{new Date(project.start_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
+                                                Inicio: <span className="text-foreground font-medium">{parseLocalDate(project.start_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <span className={dateColor}>
-                                                    Entrega: {new Date(project.delivery_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                                                    Entrega: {parseLocalDate(project.delivery_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                                                 </span>
                                             </div>
                                         </div>
@@ -302,6 +314,9 @@ export default function ActiveProjectsPage() {
                 project={selectedProject}
                 isOpen={!!selectedProject}
                 onClose={() => setSelectedProject(null)}
+                onProjectUpdated={fetchProjects}
+                clients={catalog.clients}
+                contacts={catalog.contacts}
             />
         </div >
     );

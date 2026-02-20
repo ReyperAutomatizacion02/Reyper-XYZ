@@ -5,17 +5,46 @@ import { X, Calendar, User2, Building2, Package, Image as ImageIcon, Loader2, Ch
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { getProjectDetails } from "@/app/dashboard/ventas/actions";
+import { getProjectDetails, updateProject } from "@/app/dashboard/ventas/actions";
+import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { Input } from "@/components/ui/input";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Check, CalendarIcon, Search, ChevronDown } from "lucide-react";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface Project {
     id: string;
     code: string;
     name: string;
     company: string;
+    company_id?: string;
     requestor: string;
+    requestor_id?: string;
     start_date: string;
     delivery_date: string;
     status: string;
@@ -35,21 +64,73 @@ interface ProjectDetailsPanelProps {
     project: Project | null;
     isOpen: boolean;
     onClose: () => void;
+    onProjectUpdated?: () => void;
+    clients?: { id: string; name: string; prefix?: string | null }[];
+    contacts?: { id: string; name: string; client_id?: string }[];
 }
 
-export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetailsPanelProps) {
+export function ProjectDetailsPanel({
+    project,
+    isOpen,
+    onClose,
+    onProjectUpdated,
+    clients = [],
+    contacts = []
+}: ProjectDetailsPanelProps) {
     const [items, setItems] = useState<ProjectItem[]>([]);
     const [selectedItem, setSelectedItem] = useState<ProjectItem | null>(null);
     const [loading, setLoading] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Form state
+    const [editName, setEditName] = useState("");
+    const [editStartDate, setEditStartDate] = useState<Date | undefined>(undefined);
+    const [editDeliveryDate, setEditDeliveryDate] = useState<Date | undefined>(undefined);
+    const [editCompany, setEditCompany] = useState("");
+    const [editCompanyId, setEditCompanyId] = useState("");
+    const [editRequestor, setEditRequestor] = useState("");
+    const [editRequestorId, setEditRequestorId] = useState("");
 
     useEffect(() => {
         if (project && isOpen) {
             loadItems(project.id);
+            setEditName(project.name || "");
+            setEditStartDate(parseLocalDate(project.start_date));
+            setEditDeliveryDate(parseLocalDate(project.delivery_date));
+            setEditCompany(project.company || "");
+            setEditCompanyId(project.company_id || "");
+            setEditRequestor(project.requestor || "");
+            setEditRequestorId(project.requestor_id || "");
         } else {
             setItems([]);
             setSelectedItem(null);
+            setIsEditing(false);
         }
     }, [project, isOpen]);
+
+    const handleSave = async () => {
+        if (!project) return;
+        setIsSaving(true);
+        try {
+            await updateProject(project.id, {
+                name: editName,
+                start_date: editStartDate ? format(editStartDate, "yyyy-MM-dd") : undefined,
+                delivery_date: editDeliveryDate ? format(editDeliveryDate, "yyyy-MM-dd") : undefined,
+                company: editCompany,
+                company_id: editCompanyId,
+                requestor: editRequestor,
+                requestor_id: editRequestorId
+            });
+            toast.success("Proyecto actualizado correctamente");
+            setIsEditing(false);
+            if (onProjectUpdated) onProjectUpdated();
+        } catch (error: any) {
+            toast.error("Error al actualizar proyecto: " + error.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const loadItems = async (id: string) => {
         setLoading(true);
@@ -66,9 +147,9 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
     if (!project) return null;
 
     // Calculate progress (same logic as card)
-    const startDate = new Date(project.start_date).getTime();
-    const endDate = new Date(project.delivery_date).getTime();
-    const today = new Date().getTime();
+    const startDate = parseLocalDate(project.start_date)?.getTime() || 0;
+    const endDate = parseLocalDate(project.delivery_date)?.getTime() || 0;
+    const today = new Date().setHours(0, 0, 0, 0);
     const totalDuration = endDate - startDate;
     const elapsed = today - startDate;
     const progress = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
@@ -101,19 +182,95 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                                             <Badge variant="outline" className="bg-red-500/5 text-red-600 dark:text-red-400 border-none shadow-none px-2 py-0.5 h-auto font-mono font-bold tracking-wider">
                                                 {project.code}
                                             </Badge>
-                                            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full hover:bg-muted">
-                                                <X className="w-5 h-5" />
-                                            </Button>
-                                        </div>
-                                        <h2 className="text-2xl font-bold leading-tight mb-2">{project.name}</h2>
-                                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                                            <div className="flex items-center">
-                                                <Building2 className="w-4 h-4 mr-2" />
-                                                {project.company}
+                                            <div className="flex items-center gap-2">
+                                                {isEditing ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setIsEditing(false)}
+                                                            className="h-8 text-[10px] font-bold uppercase hover:bg-muted"
+                                                            disabled={isSaving}
+                                                        >
+                                                            Cancelar
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={handleSave}
+                                                            className="h-8 text-[10px] font-bold uppercase border-green-500/50 text-green-600 hover:bg-green-500/10"
+                                                            disabled={isSaving}
+                                                        >
+                                                            {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                                            Guardar
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setIsEditing(true)}
+                                                        className="h-8 text-[10px] font-bold uppercase border-orange-500/50 text-orange-600 hover:bg-orange-500/10"
+                                                    >
+                                                        Editar
+                                                    </Button>
+                                                )}
+                                                <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full hover:bg-muted">
+                                                    <X className="w-5 h-5" />
+                                                </Button>
                                             </div>
-                                            <div className="flex items-center">
+                                        </div>
+                                        {isEditing ? (
+                                            <div className="space-y-3 mb-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Nombre del Proyecto</label>
+                                                    <Input
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        className="bg-background/50 border-border font-bold text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <h2 className="text-2xl font-bold leading-tight mb-2">{project.name}</h2>
+                                        )}
+                                        <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-2">
+                                            <div className="flex items-center min-h-[2rem]">
+                                                <Building2 className="w-4 h-4 mr-2" />
+                                                {isEditing ? (
+                                                    <SearchableCombobox
+                                                        value={editCompanyId}
+                                                        onValueChange={(val) => {
+                                                            setEditCompanyId(val);
+                                                            const client = clients.find(c => c.id === val);
+                                                            if (client) setEditCompany(client.name);
+                                                        }}
+                                                        options={clients.map(c => ({ label: c.name, value: c.id }))}
+                                                        placeholder="Seleccionar Cliente"
+                                                    />
+                                                ) : (
+                                                    <span>{project.company}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center min-h-[2rem]">
                                                 <User2 className="w-4 h-4 mr-2" />
-                                                {project.requestor}
+                                                {isEditing ? (
+                                                    <SearchableCombobox
+                                                        value={editRequestorId}
+                                                        onValueChange={(val) => {
+                                                            setEditRequestorId(val);
+                                                            const contact = contacts.find(c => c.id === val);
+                                                            if (contact) setEditRequestor(contact.name);
+                                                        }}
+                                                        options={contacts
+                                                            .filter(c => editCompanyId ? c.client_id === editCompanyId : true)
+                                                            .map(c => ({ label: c.name, value: c.id }))
+                                                        }
+                                                        placeholder="Seleccionar Usuario"
+                                                    />
+                                                ) : (
+                                                    <span>{project.requestor}</span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -127,22 +284,43 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                                             </h3>
                                             <div className="bg-muted/30 p-4 rounded-xl border border-border/50 space-y-4">
                                                 <div className="flex justify-between items-center text-sm">
-                                                    <div>
-                                                        <p className="text-xs text-muted-foreground mb-1">Inicio</p>
-                                                        <p className="font-semibold">{new Date(project.start_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                    <div className="flex-1">
+                                                        <p className="text-xs text-muted-foreground mb-1 font-bold uppercase">Inicio</p>
+                                                        {isEditing ? (
+                                                            <DateSelector
+                                                                date={editStartDate}
+                                                                onSelect={setEditStartDate}
+                                                                label=""
+                                                                align="start"
+                                                            />
+                                                        ) : (
+                                                            <p className="font-semibold">{parseLocalDate(project.start_date)?.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                        )}
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-xs text-muted-foreground mb-1">Entrega Estimada</p>
-                                                        <p className="font-semibold text-red-600 dark:text-red-400">{new Date(project.delivery_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                    <div className="w-4" />
+                                                    <div className="flex-1 text-right">
+                                                        <p className="text-xs text-muted-foreground mb-1 font-bold uppercase text-right">Entrega</p>
+                                                        {isEditing ? (
+                                                            <DateSelector
+                                                                date={editDeliveryDate}
+                                                                onSelect={setEditDeliveryDate}
+                                                                label=""
+                                                                align="end"
+                                                            />
+                                                        ) : (
+                                                            <p className="font-semibold text-red-600 dark:text-red-400">{parseLocalDate(project.delivery_date)?.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between text-xs font-medium">
-                                                        <span>Progreso de tiempo</span>
-                                                        <span>{Math.round(progress)}%</span>
+                                                {!isEditing && (
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-xs font-medium">
+                                                            <span>Progreso de tiempo</span>
+                                                            <span>{Math.round(progress)}%</span>
+                                                        </div>
+                                                        <Progress value={progress} className="h-2" />
                                                     </div>
-                                                    <Progress value={progress} className="h-2" />
-                                                </div>
+                                                )}
                                             </div>
                                         </section>
 
@@ -301,5 +479,113 @@ export function ProjectDetailsPanel({ project, isOpen, onClose }: ProjectDetails
                 </>
             )}
         </AnimatePresence>
+    );
+}
+
+function DateSelector({
+    date,
+    onSelect,
+    label,
+    align = "start"
+}: {
+    date: Date | undefined;
+    onSelect: (d: Date | undefined) => void;
+    label: string;
+    align?: "start" | "end";
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <div className="space-y-1 relative">
+            {label && <label className="text-muted-foreground font-medium text-[10px] uppercase tracking-wider ml-1">{label}</label>}
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        variant={"outline"}
+                        className={cn(
+                            "h-8 w-full justify-start text-left font-normal bg-background/50 hover:bg-card border-border transition-all duration-200 text-xs px-2",
+                            !date && "text-muted-foreground"
+                        )}
+                    >
+                        <CalendarIcon className="mr-2 h-3 w-3 text-red-500" />
+                        {date ? format(date, "dd MMM yyyy", { locale: es }) : <span>Seleccionar</span>}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border rounded-xl shadow-xl overflow-hidden" align={align}>
+                    <CalendarUI
+                        mode="single"
+                        selected={date}
+                        onSelect={(d) => {
+                            onSelect(d);
+                            setIsOpen(false);
+                        }}
+                        initialFocus
+                    />
+                </PopoverContent>
+            </Popover>
+        </div>
+    );
+}
+
+function SearchableCombobox({
+    value,
+    onValueChange,
+    options,
+    placeholder
+}: {
+    value: string | undefined;
+    onValueChange: (val: string) => void;
+    options: { label: string; value: string }[];
+    placeholder: string;
+}) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="h-8 w-full justify-between bg-background/50 border-border text-xs font-normal hover:bg-muted/50 transition-all duration-200"
+                >
+                    <span className="truncate">
+                        {value
+                            ? options.find((opt) => opt.value === value)?.label
+                            : placeholder}
+                    </span>
+                    <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0" align="start" sideOffset={8}>
+                <Command>
+                    <CommandInput placeholder={`Buscar ${placeholder.toLowerCase()}...`} className="h-9" />
+                    <CommandList className="max-h-[250px] custom-scrollbar">
+                        <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+                        <CommandGroup>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    value={option.label}
+                                    onSelect={() => {
+                                        onValueChange(option.value);
+                                        setOpen(false);
+                                    }}
+                                    className="flex items-center justify-between py-2 cursor-pointer"
+                                >
+                                    <span className="truncate text-xs">{option.label}</span>
+                                    <Check
+                                        className={cn(
+                                            "h-3 w-3 text-primary",
+                                            value === option.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 }

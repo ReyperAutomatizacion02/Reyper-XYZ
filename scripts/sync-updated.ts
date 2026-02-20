@@ -114,6 +114,11 @@ function formatTime(dateStr: string | null | undefined) {
     return local.format("YYYY-MM-DDTHH:mm:ss");
 }
 
+function cleanName(name: string | null | undefined) {
+    if (!name) return null;
+    return name.replace(/^[0-9]+-/, '');
+}
+
 async function syncImage(id: string, url: string): Promise<string | null> {
     try {
         const res = await fetch(url);
@@ -204,8 +209,8 @@ async function run() {
                 const data: any = {
                     code,
                     name: p.properties[" NOMBRE DE PROYECTO"]?.rich_text?.[0]?.plain_text || null,
-                    company: p.properties["01-EMPRESA."]?.select?.name || null,
-                    requestor: p.properties["SOLICITA"]?.select?.name || null,
+                    company: cleanName(p.properties["01-EMPRESA."]?.select?.name),
+                    requestor: cleanName(p.properties["SOLICITA"]?.select?.name),
                     start_date: p.properties["01-FECHA DE SOLICITUD"]?.date?.start || null,
                     delivery_date: p.properties["01-FECHA DE ENTREGA X CLIENTE"]?.date?.start || null,
                     notion_id: p.id,
@@ -282,8 +287,8 @@ async function run() {
                                 const { data: newP } = await supabase.from("projects").upsert({
                                     code: pCode,
                                     name: pPage.properties["NOMBRE DE PROYECTO"]?.rich_text?.[0]?.plain_text || null,
-                                    company: pPage.properties["01-EMPRESA."]?.select?.name || null,
-                                    requestor: pPage.properties["SOLICITA"]?.select?.name || null,
+                                    company: cleanName(pPage.properties["01-EMPRESA."]?.select?.name),
+                                    requestor: cleanName(pPage.properties["SOLICITA"]?.select?.name),
                                     start_date: pPage.properties["01-FECHA DE SOLICITUD"]?.date?.start || null,
                                     delivery_date: pPage.properties["01-FECHA DE ENTREGA X CLIENTE"]?.date?.start || null,
                                     notion_id: pPage.id,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, FileEdit, Printer, ArrowLeft, History, Filter, Copy, Trash2, Loader2, ArrowUpDown, CheckCircle, FolderPlus, Download } from "lucide-react";
+import { Search, FileEdit, Printer, ArrowLeft, History, Filter, Copy, Trash2, Loader2, ArrowUpDown, CheckCircle, FolderPlus, Download, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,12 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { getQuotesHistory, deleteQuote, getCatalogData, getQuoteById, convertQuoteToProject } from "../actions";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { getQuotesHistory, deleteQuote, getCatalogData, getQuoteById, convertQuoteToProject, updateQuoteStatus } from "../actions";
 import { toast } from "sonner";
 import { useRealtime } from "@/hooks/use-realtime";
 import dynamic from "next/dynamic";
@@ -72,6 +77,7 @@ export default function QuoteHistoryPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [clientFilter, setClientFilter] = useState("all");
     const [clients, setClients] = useState<{ id: string, name: string }[]>([]);
+    const [statusFilter, setStatusFilter] = useState("all");
     const [deleteReason, setDeleteReason] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
     const [fetchingQuoteId, setFetchingQuoteId] = useState<string | null>(null);
@@ -222,12 +228,13 @@ export default function QuoteHistoryPage() {
     const filteredAndSortedQuotes = getSortedQuotes(quotes.filter(q => {
         const search = searchTerm.toLowerCase();
         const matchesClient = clientFilter === "all" || q.client?.name === clients.find(c => c.id === clientFilter)?.name;
+        const matchesStatus = statusFilter === "all" || q.status === statusFilter;
 
         const matchesSearch =
             q.quote_number.toString().includes(searchTerm) ||
             q.client?.name.toLowerCase().includes(searchTerm.toLowerCase());
 
-        return matchesClient && matchesSearch;
+        return matchesClient && matchesStatus && matchesSearch;
     }));
 
     const formatCurrency = (val: number) => {
@@ -304,7 +311,7 @@ export default function QuoteHistoryPage() {
                 }
             />
 
-            {/* Filters */}
+            {/* Search and Advanced Filters */}
             <Card className="bg-card border-border border-l-4 border-l-red-500 shadow-sm" id="history-search-filter">
                 <CardContent className="pt-6">
                     <div className="flex flex-col md:flex-row gap-4">
@@ -317,19 +324,74 @@ export default function QuoteHistoryPage() {
                                 className="pl-10 bg-background/50 border-border focus:border-red-500 transition-colors uppercase"
                             />
                         </div>
-                        <div className="w-full md:w-[250px]">
-                            <Select value={clientFilter} onValueChange={setClientFilter}>
-                                <SelectTrigger className="bg-background/50 border-border uppercase text-xs font-bold">
-                                    <SelectValue placeholder="Filtrar por Cliente" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">TODOS LOS CLIENTES</SelectItem>
-                                    {clients.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="bg-background/50 border-border font-bold text-xs uppercase flex gap-2">
+                                    <Filter className="w-4 h-4" />
+                                    Filtros {(clientFilter !== 'all' || statusFilter !== 'all') && (
+                                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] text-white">
+                                            {(clientFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)}
+                                        </span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="bg-card border-border sm:w-[350px]" align="end">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 border-b border-border pb-2">
+                                        <Filter className="w-4 h-4 text-red-500" />
+                                        <span className="text-xs font-bold uppercase text-red-500">Filtros Avanzados</span>
+                                    </div>
+                                    <div className="grid gap-4 py-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Cliente</label>
+                                            <Select value={clientFilter} onValueChange={setClientFilter}>
+                                                <SelectTrigger className="bg-background/50 border-border uppercase text-xs font-bold w-full">
+                                                    <SelectValue placeholder="Filtrar por Cliente" />
+                                                </SelectTrigger>
+                                                <SelectContent position="popper" className="max-h-[var(--radix-select-content-available-height)]">
+                                                    <SelectItem value="all">TODOS LOS CLIENTES</SelectItem>
+                                                    {clients.map(c => (
+                                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Estado</label>
+                                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                                <SelectTrigger className="bg-background/50 border-border uppercase text-xs font-bold w-full">
+                                                    <SelectValue placeholder="Estatus" />
+                                                </SelectTrigger>
+                                                <SelectContent position="popper">
+                                                    <SelectItem value="all">TODOS LOS ESTADOS</SelectItem>
+                                                    <SelectItem value="active">ACTIVA</SelectItem>
+                                                    <SelectItem value="approved">PROYECTO</SelectItem>
+                                                    <SelectItem value="cancelled">CANCELADA</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 border-t border-border pt-4">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-[10px] font-bold uppercase hover:bg-muted h-8"
+                                            onClick={() => {
+                                                setClientFilter("all");
+                                                setStatusFilter("all");
+                                                setSearchTerm("");
+                                            }}
+                                        >
+                                            Limpiar Todo
+                                        </Button>
+                                        <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase h-8 px-6">
+                                            Aplicar
+                                        </Button>
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </CardContent>
             </Card>
@@ -421,14 +483,16 @@ export default function QuoteHistoryPage() {
                                                 "font-bold px-3 py-1 uppercase tracking-wider",
                                                 q.status === 'approved'
                                                     ? "bg-green-600 text-white hover:bg-green-700"
-                                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                                    : q.status === 'cancelled'
+                                                        ? "bg-zinc-500 text-white hover:bg-zinc-600"
+                                                        : "bg-blue-600 text-white hover:bg-blue-700"
                                             )}>
-                                                {q.status === 'approved' ? 'APROBADA/PROYECTO' : 'ACTIVA'}
+                                                {q.status === 'approved' ? 'PROYECTO' : q.status === 'cancelled' ? 'CANCELADA' : 'ACTIVA'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center justify-center gap-2">
-                                                {q.status !== 'approved' && (
+                                                {q.status === 'active' && (
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
@@ -439,6 +503,46 @@ export default function QuoteHistoryPage() {
                                                     >
                                                         {convertingId === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
                                                     </Button>
+                                                )}
+
+                                                {q.status === 'active' && (
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-500/10"
+                                                                title="Cancelar Cotización"
+                                                            >
+                                                                <XCircle className="w-4 h-4" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent className="bg-card border-border">
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Cancelar Cotización COT-{q.quote_number}?</AlertDialogTitle>
+                                                                <AlertDialogDescription className="text-muted-foreground">
+                                                                    Esta acción marcará la cotización como CANCELADA. Podrás seguir viéndola en el historial filtrando por este estado.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel className="bg-muted hover:bg-muted font-bold text-xs">VOLVER</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs"
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await updateQuoteStatus(q.id, 'cancelled');
+                                                                            toast.success("Cotización cancelada.");
+                                                                            loadData();
+                                                                        } catch (error: any) {
+                                                                            toast.error("Error: " + error.message);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    CONFIRMAR CANCELACIÓN
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
                                                 )}
 
                                                 <Link href={`/dashboard/ventas/cotizador?id=${q.id}&clone=true`}>
