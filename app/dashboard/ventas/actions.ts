@@ -135,13 +135,15 @@ export async function getCatalogData() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const [clients, contacts, positions, areas, units, materials] = await Promise.all([
+    const [clients, contacts, positions, areas, units, materials, statuses, treatments] = await Promise.all([
         supabase.from("sales_clients").select("id, name, prefix, business_name, is_active").order("name"),
         supabase.from("sales_contacts").select("id, name, client_id, is_active").order("name"),
         supabase.from("sales_positions").select("id, name").order("name"),
         supabase.from("sales_areas").select("id, name").order("name"),
         supabase.from("sales_units").select("id, name").order("name"),
-        supabase.from("sales_materials").select("id, name").order("name")
+        supabase.from("sales_materials").select("id, name").order("name"),
+        supabase.from("production_statuses").select("id, name").order("name"),
+        supabase.from("production_treatments").select("id, name").order("name")
     ]);
 
     return {
@@ -150,7 +152,9 @@ export async function getCatalogData() {
         positions: positions.data || [],
         areas: areas.data || [],
         units: units.data || [],
-        materials: materials.data || []
+        materials: materials.data || [],
+        statuses: statuses.data || [],
+        treatments: treatments.data || []
     };
 }
 
@@ -230,7 +234,7 @@ export async function getProjectDetails(projectId: string) {
 
     const { data: items, error } = await supabase
         .from("production_orders")
-        .select("id, part_code, part_name, quantity, genral_status, image, material")
+        .select("id, part_code, part_name, quantity, genral_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url")
         .eq("project_id", projectId)
         .order("part_code", { ascending: true });
 
@@ -533,6 +537,33 @@ export async function updateProject(id: string, data: {
 
     const { error } = await supabase
         .from("projects")
+        .update(data)
+        .eq("id", id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+export async function updateProductionOrder(id: string, data: {
+    part_name?: string;
+    quantity?: number;
+    material?: string;
+    material_id?: string;
+    genral_status?: string;
+    status_id?: string;
+    unit?: string;
+    treatment?: string;
+    treatment_id?: string | null;
+    design_no?: string;
+    urgencia?: boolean;
+    drawing_url?: string;
+    image?: string;
+}) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { error } = await supabase
+        .from("production_orders")
         .update(data)
         .eq("id", id);
 

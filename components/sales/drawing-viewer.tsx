@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTheme } from "next-themes";
+import { extractDriveFileId } from "@/lib/drive-utils";
 import { FileText, ZoomIn, ZoomOut, Maximize, X, RotateCw, Download, Printer } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -31,9 +32,26 @@ export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: 
     const [rotation, setRotation] = useState(0);
     const [resetKey, setResetKey] = useState(0);
 
-    const cleanUrl = url.split('#')[0];
+    // 1. Process Google Drive URLs (convert to /preview)
+    const driveId = extractDriveFileId(url);
+    const isDrive = !!driveId;
+    const finalUrl = driveId ? `https://drive.google.com/file/d/${driveId}/preview` : url;
 
-    const isPdf = type === "pdf" || (!type && (
+    const cleanUrl = finalUrl.split('#')[0];
+
+    // 2. Logic to detect if it's an image
+    const isImage = type === "image" || (!type && (
+        cleanUrl.toLowerCase().endsWith('.jpg') ||
+        cleanUrl.toLowerCase().endsWith('.jpeg') ||
+        cleanUrl.toLowerCase().endsWith('.png') ||
+        cleanUrl.toLowerCase().endsWith('.gif') ||
+        cleanUrl.toLowerCase().endsWith('.webp') ||
+        url.includes('/public/partidas/items/')
+    ));
+
+    // 3. Logic to detect if it's a "Page/PDF" viewer (iframe)
+    const isIframeViewer = type === "pdf" || (!isImage && (
+        isDrive ||
         cleanUrl.toLowerCase().endsWith('.pdf') ||
         url.includes('#pdf')
     ));
@@ -65,14 +83,21 @@ export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: 
         }}>
             <DialogContent className="max-w-none w-screen h-screen p-0 gap-0 overflow-hidden bg-background border-none flex flex-col rounded-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95">
                 <DialogHeader className="p-4 border-b border-border bg-background/80 backdrop-blur-xl flex flex-row items-center justify-between space-y-0 sticky top-0 z-[100]">
-                    <DialogTitle className="text-foreground flex items-center gap-3 text-sm uppercase font-black tracking-widest">
-                        <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
                             <FileText className="w-4 h-4 text-red-500" />
                         </div>
-                        <span className="truncate max-w-[200px] sm:max-w-md">{title}</span>
-                    </DialogTitle>
+                        <div className="flex flex-col min-w-0">
+                            <DialogTitle className="text-sm font-black truncate uppercase tracking-tight leading-none mb-1">
+                                {title}
+                            </DialogTitle>
+                            <p className="text-[10px] text-muted-foreground font-medium truncate opacity-70">
+                                {isImage ? "Vista de Imagen (Herramientas de Zoom activas)" : (isDrive ? "Visor de Google Drive" : "Documento PDF")}
+                            </p>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-1 sm:gap-2">
-                        {!isPdf && (
+                        {isImage && (
                             <div className="flex items-center bg-muted/50 rounded-lg px-1 sm:px-2 border border-border mr-2">
                                 <Button variant="ghost" size="icon" onClick={handleZoomOut} className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground" title="Zoom Out">
                                     <ZoomOut className="w-4 h-4" />
@@ -111,10 +136,10 @@ export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: 
                     </div>
                 </DialogHeader>
                 <div className="flex-1 w-full relative bg-background overflow-hidden flex items-center justify-center">
-                    {isPdf ? (
+                    {isIframeViewer ? (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-muted">
                             <iframe
-                                src={url.startsWith('blob:') ? cleanUrl : cleanUrl}
+                                src={finalUrl}
                                 className="w-full h-full border-none shadow-2xl"
                                 title="Visor de Archivo"
                                 style={{

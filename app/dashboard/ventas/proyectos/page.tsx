@@ -40,8 +40,11 @@ export default function ActiveProjectsPage() {
     // Full catalog for editing
     const [catalog, setCatalog] = useState<{
         clients: { id: string, name: string, prefix?: string | null }[],
-        contacts: { id: string, name: string, client_id?: string }[]
-    }>({ clients: [], contacts: [] });
+        contacts: { id: string, name: string, client_id?: string }[],
+        materials: { id: string, name: string }[],
+        statuses: { id: string, name: string }[],
+        treatments: { id: string, name: string }[]
+    }>({ clients: [], contacts: [], materials: [], statuses: [], treatments: [] });
 
     // Custom hook for filters
     const { filters, updateFilter, resetFilters, activeFilterCount } = useProjectFilters();
@@ -317,6 +320,9 @@ export default function ActiveProjectsPage() {
                 onProjectUpdated={fetchProjects}
                 clients={catalog.clients}
                 contacts={catalog.contacts}
+                materials={catalog.materials}
+                statuses={catalog.statuses}
+                treatments={catalog.treatments}
             />
         </div >
     );
