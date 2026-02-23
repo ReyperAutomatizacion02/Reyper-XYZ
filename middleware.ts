@@ -39,8 +39,12 @@ export async function middleware(request: NextRequest) {
     // Public routes that don't require authentication
     const isPublicRoute = PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith("/auth/"));
 
+    // API routes (like webhooks) do not require user session authentication
+    // Webhooks handle their own security (e.g., via Secret Tokens)
+    const isApiRoute = pathname.startsWith("/api/");
+
     // If not authenticated and trying to access protected route
-    if (!user && !isPublicRoute) {
+    if (!user && !isPublicRoute && !isApiRoute) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
