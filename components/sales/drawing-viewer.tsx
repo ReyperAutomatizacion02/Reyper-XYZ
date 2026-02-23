@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { extractDriveFileId } from "@/lib/drive-utils";
-import { FileText, ZoomIn, ZoomOut, Maximize, X, RotateCw, Download, Printer } from "lucide-react";
+import { FileText, ZoomIn, ZoomOut, Maximize, X, RotateCw, Download, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -23,9 +23,22 @@ interface DrawingViewerProps {
      * If not provided, it will attempt to detect based on the URL string.
      */
     type?: "image" | "pdf";
+    onNext?: () => void;
+    onPrevious?: () => void;
+    hasNext?: boolean;
+    hasPrevious?: boolean;
 }
 
-export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: DrawingViewerProps) {
+export function DrawingViewer({
+    url,
+    onClose,
+    title = "Visor de Plano",
+    type,
+    onNext,
+    onPrevious,
+    hasNext,
+    hasPrevious
+}: DrawingViewerProps) {
     if (!url) return null;
     const { theme } = useTheme();
     const [zoom, setZoom] = useState(1);
@@ -46,7 +59,8 @@ export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: 
         cleanUrl.toLowerCase().endsWith('.png') ||
         cleanUrl.toLowerCase().endsWith('.gif') ||
         cleanUrl.toLowerCase().endsWith('.webp') ||
-        url.includes('/public/partidas/items/')
+        url.includes('/public/partidas/items/') ||
+        (url.startsWith('blob:') && !url.includes('#pdf'))
     ));
 
     // 3. Logic to detect if it's a "Page/PDF" viewer (iframe)
@@ -96,6 +110,33 @@ export function DrawingViewer({ url, onClose, title = "Visor de Plano", type }: 
                             </p>
                         </div>
                     </div>
+
+                    {/* Navigation Controls (Mobile/Desktop) */}
+                    {(onNext || onPrevious) && (
+                        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border border-border mx-2">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onPrevious}
+                                disabled={!hasPrevious}
+                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                title="Anterior"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onNext}
+                                disabled={!hasNext}
+                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                title="Siguiente"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-1 sm:gap-2">
                         {isImage && (
                             <div className="flex items-center bg-muted/50 rounded-lg px-1 sm:px-2 border border-border mr-2">

@@ -196,7 +196,7 @@ export default function ActiveProjectsPage() {
     if (loading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Cargando proyectos activos...</div>;
 
     return (
-        <div className={`space-y-6 max-w-7xl mx-auto pb-20 transition-all duration-300 ${selectedProject ? "mr-12 xl:mr-[28rem]" : ""}`}>
+        <div className={`space-y-6 max-w-7xl mx-auto pb-20 transition-all duration-300 ${selectedProject ? "mr-12 xl:mr-[500px]" : ""}`}>
             <DashboardHeader
                 title="Proyectos Activos"
                 description="Monitoreo de proyectos en curso y tiempos de entrega"
@@ -236,7 +236,7 @@ export default function ActiveProjectsPage() {
                     <p className="text-muted-foreground font-medium">No se encontraron proyectos activos.</p>
                 </div>
             ) : (
-                <div className={`grid gap-6 md:grid-cols-2 ${selectedProject ? "lg:grid-cols-2" : "lg:grid-cols-3"} transition-all duration-300`}>
+                <div className={`grid gap-6 md:grid-cols-2 ${selectedProject ? "lg:grid-cols-1 xl:grid-cols-2" : "lg:grid-cols-3"} transition-all duration-300`}>
                     {filteredProjects.map((project, index) => {
                         const { progress, dateColor, daysRemaining } = getProjectStatus(project.start_date, project.delivery_date);
 

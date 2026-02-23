@@ -25,23 +25,10 @@ import {
     Shield,
     X,
 } from "lucide-react";
+import { ROLE_ROUTE_ACCESS } from "@/lib/config/permissions";
 
 
-// Role-based access mapping (same as middleware)
-const roleRouteAccess: Record<string, string[]> = {
-    admin: ["*"], // Admin tiene acceso a todo
-    administracion: ["/dashboard", "/dashboard/admin"],
-    recursos_humanos: ["/dashboard", "/dashboard/rrhh"],
-    contabilidad: ["/dashboard", "/dashboard/contabilidad"],
-    compras: ["/dashboard", "/dashboard/compras"],
-    ventas: ["/dashboard", "/dashboard/ventas"],
-    automatizacion: ["/dashboard", "/dashboard/produccion", "/dashboard/diseno"],
-    diseno: ["/dashboard", "/dashboard/diseno"],
-    produccion: ["/dashboard", "/dashboard/produccion"],
-    operador: ["/dashboard", "/dashboard/produccion"],
-    calidad: ["/dashboard", "/dashboard/calidad"],
-    almacen: ["/dashboard", "/dashboard/almacen"],
-};
+// Role-based access mapping imported from config
 
 const sidebarItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -110,7 +97,7 @@ export function AppSidebar() {
     // Aggregate allowed routes from all user roles
     const allAllowedRoutes = new Set<string>();
     userRoles.forEach(role => {
-        const routes = roleRouteAccess[role] || [];
+        const routes = ROLE_ROUTE_ACCESS[role] || [];
         routes.forEach(r => allAllowedRoutes.add(r));
     });
 

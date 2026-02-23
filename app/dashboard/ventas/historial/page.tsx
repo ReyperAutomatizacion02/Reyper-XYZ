@@ -52,12 +52,11 @@ import {
     AlertDialogContent,
     AlertDialogDescription,
     AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 import { pdf } from "@react-pdf/renderer";
+import { CancelQuoteDialog, ConvertQuoteDialog, DeleteQuoteDialog } from "@/components/sales/quote-action-dialogs";
+import { QuoteHistoryFilters } from "@/components/sales/quote-history-filters";
 
 interface QuoteSummary {
     id: string;
@@ -89,6 +88,13 @@ export default function QuoteHistoryPage() {
     const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
     const [projectNameInput, setProjectNameInput] = useState("");
     const [quoteToConvert, setQuoteToConvert] = useState<QuoteSummary | null>(null);
+
+    // Global dialog states for better performance
+    const [quoteToDelete, setQuoteToDelete] = useState<QuoteSummary | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+    const [quoteToCancel, setQuoteToCancel] = useState<QuoteSummary | null>(null);
+    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -126,11 +132,25 @@ export default function QuoteHistoryPage() {
             await deleteQuote(id, deleteReason.toUpperCase());
             toast.success("Cotización borrada (el folio ha sido invalidado).");
             setDeleteReason("");
+            setIsDeleteDialogOpen(false);
+            setQuoteToDelete(null);
             loadData();
         } catch (error: any) {
             toast.error("Error al borrar: " + error.message);
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleCancelQuote = async (id: string) => {
+        try {
+            await updateQuoteStatus(id, 'cancelled');
+            toast.success("Cotización cancelada.");
+            setIsCancelDialogOpen(false);
+            setQuoteToCancel(null);
+            loadData();
+        } catch (error: any) {
+            toast.error("Error: " + error.message);
         }
     };
 
@@ -311,90 +331,15 @@ export default function QuoteHistoryPage() {
                 }
             />
 
-            {/* Search and Advanced Filters */}
-            <Card className="bg-card border-border border-l-4 border-l-red-500 shadow-sm" id="history-search-filter">
-                <CardContent className="pt-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Buscar por Folio (COT-...) o Cliente..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 bg-background/50 border-border focus:border-red-500 transition-colors uppercase"
-                            />
-                        </div>
-
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="bg-background/50 border-border font-bold text-xs uppercase flex gap-2">
-                                    <Filter className="w-4 h-4" />
-                                    Filtros {(clientFilter !== 'all' || statusFilter !== 'all') && (
-                                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] text-white">
-                                            {(clientFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)}
-                                        </span>
-                                    )}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="bg-card border-border sm:w-[350px]" align="end">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b border-border pb-2">
-                                        <Filter className="w-4 h-4 text-red-500" />
-                                        <span className="text-xs font-bold uppercase text-red-500">Filtros Avanzados</span>
-                                    </div>
-                                    <div className="grid gap-4 py-2">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Cliente</label>
-                                            <Select value={clientFilter} onValueChange={setClientFilter}>
-                                                <SelectTrigger className="bg-background/50 border-border uppercase text-xs font-bold w-full">
-                                                    <SelectValue placeholder="Filtrar por Cliente" />
-                                                </SelectTrigger>
-                                                <SelectContent position="popper" className="max-h-[var(--radix-select-content-available-height)]">
-                                                    <SelectItem value="all">TODOS LOS CLIENTES</SelectItem>
-                                                    {clients.map(c => (
-                                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Estado</label>
-                                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                                <SelectTrigger className="bg-background/50 border-border uppercase text-xs font-bold w-full">
-                                                    <SelectValue placeholder="Estatus" />
-                                                </SelectTrigger>
-                                                <SelectContent position="popper">
-                                                    <SelectItem value="all">TODOS LOS ESTADOS</SelectItem>
-                                                    <SelectItem value="active">ACTIVA</SelectItem>
-                                                    <SelectItem value="approved">PROYECTO</SelectItem>
-                                                    <SelectItem value="cancelled">CANCELADA</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end gap-2 border-t border-border pt-4">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-[10px] font-bold uppercase hover:bg-muted h-8"
-                                            onClick={() => {
-                                                setClientFilter("all");
-                                                setStatusFilter("all");
-                                                setSearchTerm("");
-                                            }}
-                                        >
-                                            Limpiar Todo
-                                        </Button>
-                                        <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase h-8 px-6">
-                                            Aplicar
-                                        </Button>
-                                    </div>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                </CardContent>
-            </Card>
+            <QuoteHistoryFilters
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                clientFilter={clientFilter}
+                setClientFilter={setClientFilter}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                clients={clients}
+            />
 
             {/* History Table */}
             <Card className="bg-card border-border overflow-hidden" id="history-table">
@@ -506,43 +451,18 @@ export default function QuoteHistoryPage() {
                                                 )}
 
                                                 {q.status === 'active' && (
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-500/10"
-                                                                title="Cancelar Cotización"
-                                                            >
-                                                                <XCircle className="w-4 h-4" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent className="bg-card border-border">
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Cancelar Cotización COT-{q.quote_number}?</AlertDialogTitle>
-                                                                <AlertDialogDescription className="text-muted-foreground">
-                                                                    Esta acción marcará la cotización como CANCELADA. Podrás seguir viéndola en el historial filtrando por este estado.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel className="bg-muted hover:bg-muted font-bold text-xs">VOLVER</AlertDialogCancel>
-                                                                <AlertDialogAction
-                                                                    className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs"
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            await updateQuoteStatus(q.id, 'cancelled');
-                                                                            toast.success("Cotización cancelada.");
-                                                                            loadData();
-                                                                        } catch (error: any) {
-                                                                            toast.error("Error: " + error.message);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    CONFIRMAR CANCELACIÓN
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-500/10"
+                                                        title="Cancelar Cotización"
+                                                        onClick={() => {
+                                                            setQuoteToCancel(q);
+                                                            setIsCancelDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        <XCircle className="w-4 h-4" />
+                                                    </Button>
                                                 )}
 
                                                 <Link href={`/dashboard/ventas/cotizador?id=${q.id}&clone=true`}>
@@ -573,41 +493,18 @@ export default function QuoteHistoryPage() {
                                                 </Button>
 
                                                 {q.status !== 'approved' && (
-                                                    <Dialog>
-                                                        <DialogTrigger asChild>
-                                                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500/50 hover:text-red-500 hover:bg-red-500/10" title="Borrar">
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                        </DialogTrigger>
-                                                        <DialogContent className="bg-card border-border">
-                                                            <DialogHeader>
-                                                                <DialogTitle className="text-red-500 font-bold uppercase">Borrar Cotización COT-{q.quote_number}</DialogTitle>
-                                                                <DialogDescription className="text-muted-foreground">
-                                                                    Esta acción invalidará el folio permanentemente. Debes proporcionar una razón para este fallo.
-                                                                </DialogDescription>
-                                                            </DialogHeader>
-                                                            <div className="py-4">
-                                                                <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Razón del Borrado</label>
-                                                                <Textarea
-                                                                    placeholder="EJ. ERROR EN PRECIOS, CLIENTE CANCELÓ, ETC..."
-                                                                    value={deleteReason}
-                                                                    onChange={(e) => setDeleteReason(e.target.value.toUpperCase())}
-                                                                    className="bg-background border-border uppercase text-sm"
-                                                                />
-                                                            </div>
-                                                            <DialogFooter>
-                                                                <Button variant="ghost" className="hover:bg-muted font-bold text-xs" onClick={() => setDeleteReason("")}>CANCELAR</Button>
-                                                                <Button
-                                                                    variant="destructive"
-                                                                    className="bg-red-600 hover:bg-red-700 font-bold text-xs"
-                                                                    disabled={isDeleting || !deleteReason.trim()}
-                                                                    onClick={() => handleDelete(q.id)}
-                                                                >
-                                                                    {isDeleting ? "BORRANDO..." : "CONFIRMAR BORRADO"}
-                                                                </Button>
-                                                            </DialogFooter>
-                                                        </DialogContent>
-                                                    </Dialog>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                                        title="Borrar"
+                                                        onClick={() => {
+                                                            setQuoteToDelete(q);
+                                                            setIsDeleteDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
                                                 )}
                                             </div>
                                         </TableCell>
@@ -619,68 +516,32 @@ export default function QuoteHistoryPage() {
                 </div>
             </Card>
 
-            {/* Conversion Dialog with Project Name Prompt */}
-            <Dialog open={isConvertDialogOpen} onOpenChange={setIsConvertDialogOpen}>
-                <DialogContent className="bg-card border-border sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-green-500 font-bold uppercase flex items-center gap-2">
-                            <FolderPlus className="w-5 h-5" />
-                            Convertir a Proyecto
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
-                            Define el nombre del nuevo proyecto basado en la cotización <span className="text-red-500 font-bold">COT-{quoteToConvert?.quote_number}</span> para <span className="font-bold">{quoteToConvert?.client?.name}</span>.
-                        </DialogDescription>
-                    </DialogHeader>
+            <ConvertQuoteDialog
+                quote={quoteToConvert}
+                isOpen={isConvertDialogOpen}
+                onOpenChange={setIsConvertDialogOpen}
+                projectNameInput={projectNameInput}
+                setProjectNameInput={setProjectNameInput}
+                convertingId={convertingId}
+                onConvert={handleConvertToProject}
+            />
 
-                    <div className="py-6 space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                                Nombre del Proyecto <span className="text-red-500">*</span>
-                            </label>
-                            <Input
-                                placeholder="EJ. MOLDE DE INYECCIÓN - PROYECTO X"
-                                value={projectNameInput}
-                                onChange={(e) => setProjectNameInput(e.target.value.toUpperCase())}
-                                className="bg-background border-border focus:border-green-500 transition-colors uppercase font-bold"
-                                autoFocus
-                            />
-                        </div>
+            <DeleteQuoteDialog
+                quote={quoteToDelete}
+                isOpen={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+                deleteReason={deleteReason}
+                setDeleteReason={setDeleteReason}
+                isDeleting={isDeleting}
+                onDelete={handleDelete}
+            />
 
-                        <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-2 text-xs">
-                            <p className="font-bold text-muted-foreground uppercase">Este proceso realizará:</p>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                                <li>Generación automática de folio de proyecto.</li>
-                                <li>Migración de partidas a producción.</li>
-                                <li>Marca la cotización como <span className="text-green-500 font-bold">APROBADA</span>.</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button
-                            variant="ghost"
-                            className="hover:bg-muted font-bold text-xs"
-                            onClick={() => setIsConvertDialogOpen(false)}
-                        >
-                            CANCELAR
-                        </Button>
-                        <Button
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold text-xs px-8"
-                            disabled={convertingId !== null || !projectNameInput.trim()}
-                            onClick={handleConvertToProject}
-                        >
-                            {convertingId ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    CONVIRTIENDO...
-                                </>
-                            ) : (
-                                "CONFIRMAR CONVERSIÓN"
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <CancelQuoteDialog
+                quote={quoteToCancel}
+                isOpen={isCancelDialogOpen}
+                onOpenChange={setIsCancelDialogOpen}
+                onCancel={handleCancelQuote}
+            />
         </div>
     );
 }

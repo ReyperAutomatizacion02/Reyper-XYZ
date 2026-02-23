@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ROLE_ROUTE_ACCESS, PUBLIC_ROUTES } from "./lib/config/permissions";
 
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -36,8 +37,7 @@ export async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
 
     // Public routes that don't require authentication
-    const publicRoutes = ["/", "/login", "/register", "/forgot-password", "/auth/callback", "/pending-approval"];
-    const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith("/auth/"));
+    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith("/auth/"));
 
     // If not authenticated and trying to access protected route
     if (!user && !isPublicRoute) {
@@ -62,21 +62,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(url);
         }
 
-        // Role-based route permissions
-        const roleRouteAccess: Record<string, string[]> = {
-            admin: ["*"], // Admin tiene acceso a todo
-            administracion: ["/dashboard", "/dashboard/admin"],
-            recursos_humanos: ["/dashboard", "/dashboard/rrhh"],
-            contabilidad: ["/dashboard", "/dashboard/contabilidad"],
-            compras: ["/dashboard", "/dashboard/compras"],
-            ventas: ["/dashboard", "/dashboard/ventas"],
-            automatizacion: ["/dashboard", "/dashboard/produccion", "/dashboard/diseno"],
-            diseno: ["/dashboard", "/dashboard/diseno"],
-            produccion: ["/dashboard", "/dashboard/produccion"],
-            operador: ["/dashboard", "/dashboard/produccion"],
-            calidad: ["/dashboard", "/dashboard/calidad"],
-            almacen: ["/dashboard", "/dashboard/almacen"],
-        };
+        // Role-based route permissions imported from centralized config
+        const roleRouteAccess = ROLE_ROUTE_ACCESS;
 
         // Get user roles (array) and aggregate allowed routes
         const userRoles: string[] = profile.roles || ["pending"];

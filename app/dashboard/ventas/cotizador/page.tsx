@@ -296,12 +296,13 @@ function QuoteGeneratorContent() {
 
             newItems.push({
                 id: tempId,
-                description: upperName,
+                description: "", // Leave blank for the user
+                design_no: upperName, // Assignment here instead of description
                 quantity: 1,
                 unit: "PZA",
                 unit_price: 0,
                 total: 0,
-                drawing_url: URL.createObjectURL(file) + (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf') ? '#pdf' : '') // Hint for viewer
+                drawing_url: URL.createObjectURL(file) + (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf') ? '#pdf' : '')
             });
         });
 
@@ -1166,6 +1167,9 @@ function QuoteGeneratorContent() {
                                             <TableHead className="w-[40px]"></TableHead>
                                             <TableHead className="w-[60px] text-muted-foreground text-center">LOT</TableHead>
                                             <TableHead className="text-muted-foreground">Descripción</TableHead>
+                                            {formData.quote_type === 'pieces' && (
+                                                <TableHead className="w-[150px] text-muted-foreground">No. de Diseño</TableHead>
+                                            )}
                                             <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
                                             <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
                                             <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
@@ -1218,6 +1222,30 @@ function QuoteGeneratorContent() {
                                                         />
                                                     </div>
                                                 </TableCell>
+                                                {formData.quote_type === 'pieces' && (
+                                                    <TableCell className="w-[150px]">
+                                                        <div className="min-h-[32px] flex items-center justify-center">
+                                                            <textarea
+                                                                value={item.design_no || ""}
+                                                                onChange={(e) => updateItem(index, 'design_no', e.target.value.toUpperCase())}
+                                                                placeholder="EJ. D-101..."
+                                                                rows={1}
+                                                                className="w-full bg-transparent border-none shadow-none focus:ring-0 focus:outline-none px-0 text-foreground placeholder:text-muted-foreground font-bold uppercase text-center resize-none overflow-hidden min-h-[1.5em] py-1"
+                                                                ref={(el) => {
+                                                                    if (el) {
+                                                                        el.style.height = 'auto';
+                                                                        el.style.height = el.scrollHeight + 'px';
+                                                                    }
+                                                                }}
+                                                                onInput={(e) => {
+                                                                    const target = e.target as HTMLTextAreaElement;
+                                                                    target.style.height = 'auto';
+                                                                    target.style.height = target.scrollHeight + 'px';
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </TableCell>
+                                                )}
                                                 <TableCell>
                                                     <div className="flex items-center justify-center">
                                                         <Input
@@ -1310,7 +1338,7 @@ function QuoteGeneratorContent() {
                                                                 size="icon"
                                                                 onClick={() => {
                                                                     setViewerUrl(item.drawing_url || null);
-                                                                    setViewerTitle(item.description || "Plano sin nombre");
+                                                                    setViewerTitle(item.description || item.design_no || "Plano sin nombre");
                                                                 }}
                                                                 id={index === 0 ? "quote-view-drawing-btn" : undefined}
                                                                 className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
@@ -1545,6 +1573,26 @@ function QuoteGeneratorContent() {
                     setViewerUrl(null);
                     setViewerTitle("");
                 }}
+                onNext={() => {
+                    const attachments = items.filter(i => i.drawing_url);
+                    const currentIdx = attachments.findIndex(i => i.drawing_url === viewerUrl);
+                    if (currentIdx !== -1 && currentIdx < attachments.length - 1) {
+                        const nextItem = attachments[currentIdx + 1];
+                        setViewerUrl(nextItem.drawing_url!);
+                        setViewerTitle(nextItem.description || nextItem.design_no || "Sin nombre");
+                    }
+                }}
+                onPrevious={() => {
+                    const attachments = items.filter(i => i.drawing_url);
+                    const currentIdx = attachments.findIndex(i => i.drawing_url === viewerUrl);
+                    if (currentIdx > 0) {
+                        const prevItem = attachments[currentIdx - 1];
+                        setViewerUrl(prevItem.drawing_url!);
+                        setViewerTitle(prevItem.description || prevItem.design_no || "Sin nombre");
+                    }
+                }}
+                hasNext={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) < items.filter(i => i.drawing_url).length - 1}
+                hasPrevious={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) > 0}
             />
         </div>
     );

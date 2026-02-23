@@ -5,7 +5,24 @@ import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
 export function ThemeToggle() {
+    const [mounted, setMounted] = React.useState(false)
     const { setTheme, theme } = useTheme()
+
+    // Evitar errores de hidratación esperando a que el cliente esté montado
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    if (!mounted) {
+        return (
+            <button
+                className="relative p-2 rounded-full hover:bg-muted transition-colors opacity-0"
+                aria-hidden="true"
+            >
+                <Sun className="h-[1.2rem] w-[1.2rem]" />
+            </button>
+        )
+    }
 
     return (
         <button

@@ -2,6 +2,9 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { ConvertQuoteToProjectSchema, UpdateProjectSchema, UpdateProductionOrderSchema } from "@/lib/validations/sales";
+import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 // --- CREATE ACTIONS ---
 
@@ -350,14 +353,8 @@ export async function deleteQuote(id: string, reason: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    // 1. Storage Cleanup - Delete all files associated with this quote
-    try {
-        await deleteQuoteFiles(id);
-    } catch (e) {
-        console.error("Error deleting storage files for quote:", e);
-        // We continue even if storage cleanup fails to ensure DB inconsistency is avoided
-    }
-
+    // Solo hacemos el soft delete (cambio de estado).
+    // La eliminación física de archivos será manejada por un Webhook de DB (Hard Delete).
     const { error } = await supabase
         .from("sales_quotes")
         .update({
@@ -372,27 +369,48 @@ export async function deleteQuote(id: string, reason: string) {
 }
 
 /**
- * Deletes all files in the storage bucket for a specific quote.
+ * Deletes all files in the storage bucket for a specific quote, including item assets.
+ * This version uses the Service Role Key to bypass RLS policies and ensure deletion.
+ * It strictly deletes the `quotes/{quoteId}/` folder to avoid deleting shared catalog images.
  */
 export async function deleteQuoteFiles(quoteId: string) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    // Usar el Service Role Key para tener privilegios de borrado absolutos y saltarse RLS
+    const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    // List all files in quotes/{quoteId}/
-    const { data: files, error: listError } = await supabase.storage
-        .from("quotes")
-        .list(quoteId);
+    console.log(`[STORAGE] >>> INICIANDO LIMPIEZA DE CARPETA COTIZACIÓN: ${quoteId} (ADMIN)`);
 
-    if (listError) return; // If bucket or folder doesn't exist, nothing to do
-
-    if (files && files.length > 0) {
-        const filesToRemove = files.map((f) => `${quoteId}/${f.name}`);
-        const { error: removeError } = await supabase.storage
+    // 1. Intentar limpiar la CARPETA entera en el bucket 'quotes' (Basado en el ID de la cotización)
+    try {
+        console.log(`[STORAGE] Listando archivos en 'quotes/${quoteId}'...`);
+        const { data: files, error: listError } = await supabaseAdmin.storage
             .from("quotes")
-            .remove(filesToRemove);
+            .list(quoteId);
 
-        if (removeError) throw new Error("Error cleaning up storage: " + removeError.message);
+        if (listError) {
+            console.error(`[STORAGE] [!] Error al listar 'quotes/${quoteId}':`, listError.message);
+        } else if (files && files.length > 0) {
+            const filesToRemove = files.map((f) => `${quoteId}/${f.name}`);
+            console.log(`[STORAGE] Encontrados ${files.length} archivos en carpeta. Borrando uno a uno para mayor seguridad...`);
+
+            for (const path of filesToRemove) {
+                const { error: removeError } = await supabaseAdmin.storage.from("quotes").remove([path]);
+                if (removeError) {
+                    console.error(`[STORAGE] [FALLO] No se pudo borrar ${path} en 'quotes':`, removeError.message);
+                } else {
+                    console.log(`[STORAGE] [OK] Borrado exitoso: quotes/${path}`);
+                }
+            }
+        } else {
+            console.log(`[STORAGE] No se encontraron archivos directos en la carpeta 'quotes/${quoteId}'.`);
+        }
+    } catch (e: any) {
+        console.error("[STORAGE] [CRITICO] Excepción en limpieza de carpeta 'quotes':", e.message);
     }
+
+    console.log(`[STORAGE] <<< FINALIZADA LIMPIEZA PARA COTIZACIÓN: ${quoteId}`);
 }
 
 export async function getNextProjectCode(clientPrefix: string) {
@@ -420,94 +438,115 @@ export async function getNextProjectCode(clientPrefix: string) {
     return `${clientPrefix}-${String(nextNum).padStart(4, '0')}`;
 }
 
-export async function convertQuoteToProject(quoteId: string, projectName?: string) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+export async function convertQuoteToProject(
+    quoteId: string,
+    projectName?: string
+) {
+    try {
+        // Zod validation
+        const parsedData = ConvertQuoteToProjectSchema.safeParse({
+            quote_id: quoteId,
+            client_prefix: "TEMP",
+            company_name: "TEMP",
+        });
 
-    // 1. Get Quote and Items
-    const quote = await getQuoteById(quoteId);
-    if (!quote) throw new Error("Quote not found");
-    if (quote.status === "approved") throw new Error("Quote already approved");
-
-    // 2. Get Client Prefix
-    const { data: client, error: clientError } = await supabase
-        .from("sales_clients")
-        .select("name, prefix")
-        .eq("id", quote.client_id)
-        .single();
-
-    if (clientError || !client) throw new Error("Client prefix not found");
-
-    const projectCode = await getNextProjectCode(client.prefix);
-    const finalProjectName = projectName || `COT-${quote.quote_number}`;
-
-    // 3. Get Contact Name
-    const { data: contact, error: contactError } = await supabase
-        .from("sales_contacts")
-        .select("name")
-        .eq("id", quote.contact_id)
-        .single();
-
-    if (contactError) throw new Error("Contact name not found: " + contactError.message);
-
-    // 4. Create Project
-    const { data: project, error: projectError } = await supabase
-        .from("projects")
-        .insert({
-            code: projectCode,
-            name: finalProjectName,
-            company: client.name,
-            company_id: quote.client_id,
-            requestor: contact.name, // Store Name in requestor
-            requestor_id: quote.contact_id, // Store ID in new column
-            start_date: new Date().toISOString().split('T')[0],
-            delivery_date: quote.delivery_date,
-            status: "active"
-        })
-        .select("id")
-        .single();
-
-    if (projectError) throw new Error("Error creating project: " + projectError.message);
-
-    // 5. Transform Quote Items to Production Orders
-    let parentCounter = 0;
-    let childCounter = 0;
-
-    const productionOrders = quote.items.map((item: any) => {
-        if (!item.is_sub_item) {
-            parentCounter++;
-            childCounter = 0;
-        } else {
-            childCounter++;
+        if (!parsedData.success) {
+            console.error("Validation error converting quote:", parsedData.error);
+            return { success: false, error: "Datos de entrada inválidos." };
         }
 
-        const lotPart = String(parentCounter).padStart(2, '0');
-        const subPart = String(childCounter).padStart(2, '0');
-        const partCode = `${projectCode}-${lotPart}.${subPart}`;
+        const cookieStore = await cookies();
+        const supabase = createClient(cookieStore);
 
-        return {
-            project_id: project.id,
-            part_code: partCode,
-            part_name: item.description,
-            quantity: item.quantity,
-            material: "POR DEFINIR", // Default
-            genral_status: "D0-PUNTO DE RE-ORDEN", // Default start status
-            design_no: item.design_no,
-            drawing_url: item.drawing_url,
-            unit: item.unit
-        };
-    });
+        // 1. Get Quote and Items
+        const quote = await getQuoteById(quoteId);
+        if (!quote) throw new Error("Quote not found");
+        if (quote.status === QUOTE_STATUS.APPROVED) throw new Error("Quote already approved");
 
-    if (productionOrders.length > 0) {
-        const { error: itemsError } = await supabase.from("production_orders").insert(productionOrders);
-        if (itemsError) throw new Error("Error creating project items: " + itemsError.message);
+        // 2. Get Client Prefix
+        const { data: client, error: clientError } = await supabase
+            .from("sales_clients")
+            .select("name, prefix")
+            .eq("id", quote.client_id)
+            .single();
+
+        if (clientError || !client) throw new Error("Client prefix not found");
+
+        const projectCode = await getNextProjectCode(client.prefix);
+        const finalProjectName = projectName || `COT-${quote.quote_number}`;
+
+        // 3. Get Contact Name
+        const { data: contact, error: contactError } = await supabase
+            .from("sales_contacts")
+            .select("name")
+            .eq("id", quote.contact_id)
+            .single();
+
+        if (contactError) throw new Error("Contact name not found: " + contactError.message);
+
+        // 4. Create Project
+        const { data: project, error: projectError } = await supabase
+            .from("projects")
+            .insert({
+                code: projectCode,
+                name: finalProjectName,
+                company: client.name,
+                company_id: quote.client_id,
+                requestor: contact.name, // Store Name in requestor
+                requestor_id: quote.contact_id, // Store ID in new column
+                start_date: new Date().toISOString().split('T')[0],
+                delivery_date: quote.delivery_date,
+                status: "active"
+            })
+            .select("id")
+            .single();
+
+        if (projectError) throw new Error("Error creating project: " + projectError.message);
+
+        // 5. Transform Quote Items to Production Orders
+        let parentCounter = 0;
+        let childCounter = 0;
+
+        const productionOrders = quote.items.map((item: any) => {
+            if (!item.is_sub_item) {
+                parentCounter++;
+                childCounter = 0;
+            } else {
+                childCounter++;
+            }
+
+            const lotPart = String(parentCounter).padStart(2, '0');
+            const subPart = String(childCounter).padStart(2, '0');
+            const partCode = `${projectCode}-${lotPart}.${subPart}`;
+
+            return {
+                project_id: project.id,
+                part_code: partCode,
+                part_name: item.description,
+                quantity: item.quantity,
+                material: "POR DEFINIR", // Default
+                genral_status: ITEM_STATUS.RE_ORDER_POINT, // Default start status uses constant
+                design_no: item.design_no,
+                drawing_url: item.drawing_url,
+                unit: item.unit
+            };
+        });
+
+        if (productionOrders.length > 0) {
+            const { error: itemsError } = await supabase.from("production_orders").insert(productionOrders);
+            if (itemsError) throw new Error("Error creating project items: " + itemsError.message);
+        }
+
+        // 6. Mark Quote as Approved
+        const { error: updateError } = await supabase.from("sales_quotes").update({ status: QUOTE_STATUS.APPROVED }).eq("id", quoteId);
+        if (updateError) throw new Error("Error updating quote status: " + updateError.message);
+
+        return { success: true, projectCode, projectId: project.id };
     }
-
-    // 6. Mark Quote as Approved
-    const { error: updateError } = await supabase.from("sales_quotes").update({ status: 'approved' }).eq("id", quoteId);
-    if (updateError) throw new Error("Error updating quote status: " + updateError.message);
-
-    return { success: true, projectCode, projectId: project.id };
+    catch (e: any) {
+        console.error("Error converting quote to project:", e);
+        return { success: false, error: e.message };
+    }
 }
 
 export async function updateQuoteStatus(id: string, status: string) {
@@ -532,41 +571,59 @@ export async function updateProject(id: string, data: {
     requestor?: string;
     requestor_id?: string;
 }) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    try {
+        const parsedData = UpdateProjectSchema.safeParse({ id, ...data });
+        if (!parsedData.success) {
+            console.error("Validation error in updateProject:", parsedData.error);
+            return { success: false, error: "Datos del proyecto requeridos o inválidos." };
+        }
 
-    const { error } = await supabase
-        .from("projects")
-        .update(data)
-        .eq("id", id);
+        const cookieStore = await cookies();
+        const supabase = createClient(cookieStore);
 
-    if (error) throw new Error(error.message);
-    return { success: true };
+        const { error } = await supabase
+            .from("projects")
+            .update(data)
+            .eq("id", id);
+
+        if (error) throw new Error(error.message);
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error updating project:", e);
+        return { success: false, error: e.message };
+    }
 }
 
 export async function updateProductionOrder(id: string, data: {
     part_name?: string;
-    quantity?: number;
     material?: string;
-    material_id?: string;
+    quantity?: number;
     genral_status?: string;
-    status_id?: string;
-    unit?: string;
-    treatment?: string;
     treatment_id?: string | null;
-    design_no?: string;
-    urgencia?: boolean;
-    drawing_url?: string;
-    image?: string;
+    treatment_name?: string | null;
+    urgency_level?: string | null;
+    image?: string | null;
+    drawing_url?: string | null;
 }) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    try {
+        const parsedData = UpdateProductionOrderSchema.safeParse({ id, ...data });
+        if (!parsedData.success) {
+            console.error("Validation error in updateProductionOrder:", parsedData.error);
+            return { success: false, error: "Datos de la partida requeridos o inválidos." };
+        }
 
-    const { error } = await supabase
-        .from("production_orders")
-        .update(data)
-        .eq("id", id);
+        const cookieStore = await cookies();
+        const supabase = createClient(cookieStore);
 
-    if (error) throw new Error(error.message);
-    return { success: true };
+        const { error } = await supabase
+            .from("production_orders")
+            .update(data)
+            .eq("id", id);
+
+        if (error) throw new Error(error.message);
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error updating production order:", e);
+        return { success: false, error: e.message };
+    }
 }
