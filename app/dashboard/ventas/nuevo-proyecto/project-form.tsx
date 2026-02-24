@@ -11,7 +11,7 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { useTour } from "@/hooks/use-tour";
 import { cn } from "@/lib/utils";
-/* removed duplicate imports */
+import { SharedItemsTable, SharedItemProps } from "../components/shared-items-table";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -52,6 +52,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dropzone } from "@/components/sales/dropzone";
 import { createClient } from "@/utils/supabase/client";
 import { DrawingViewer } from "@/components/sales/drawing-viewer";
+import { ComboboxCreatable } from "@/components/sales/combobox-creatable";
+import { createMaterialEntry, createTreatmentEntry } from "@/app/dashboard/ventas/actions";
 
 
 interface ProjectFormProps {
@@ -59,7 +61,9 @@ interface ProjectFormProps {
     contacts: { id: string; name: string; client_id?: string }[];
     units: { id: string; name: string }[];
     materials: { id: string; name: string }[];
+    treatments: { id: string; name: string }[];
     initialDate: Date;
+    initialQuote?: any;
 }
 
 interface GeneratedItem {
@@ -69,14 +73,18 @@ interface GeneratedItem {
     description: string;
     quantity: number;
     unit: string;
-    designNo: string;
+    design_no: string;
     material: string;
+    material_id?: string;
+    treatment_id?: string;
+    treatment_name?: string;
     url: string;
     thumbnail?: string;
     fileId?: string;
     mimeType?: string; // Added for better format detection
     is_sub_item?: boolean;
     isDemo?: boolean;
+    part_name?: string;
 }
 
 interface StagingFile {
@@ -271,7 +279,7 @@ const AutoResizeTextarea = ({ value, onChange, placeholder, className, minHeight
     );
 };
 
-export function ProjectForm({ clients, contacts, units, materials, initialDate }: ProjectFormProps) {
+export function ProjectForm({ clients, contacts, units, materials, treatments, initialDate, initialQuote }: ProjectFormProps) {
     const { startTour } = useTour();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
@@ -279,6 +287,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     // Data State (mutable for new additions)
     const [clientList, setClientList] = useState(clients);
     const [allContacts, setAllContacts] = useState(contacts);
+    const [materialsList, setMaterialsList] = useState(materials.map(m => ({ value: m.id, label: m.name })));
+    const [treatmentsList, setTreatmentsList] = useState(treatments ? treatments.map(t => ({ value: t.id, label: t.name })) : []);
 
     // Form State
     const [selectedClient, setSelectedClient] = useState("");
@@ -335,8 +345,8 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
             // Populate Preview Table
             setGeneratedItems([
-                { id: 1, stableId: "demo-1", code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", designNo: "D-001", material: "Acero A36", url: "https://example.com/demo.pdf", isDemo: true, is_sub_item: false },
-                { id: 2, stableId: "demo-2", code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", designNo: "D-002", material: "Bronce", url: "", isDemo: true, is_sub_item: false }
+                { id: 1, stableId: "demo-1", code: "PRJ-260204-01.00", description: "Parte Superior Estructura", quantity: 2, unit: "PZA", design_no: "D-001", material: "Acero A36", url: "https://example.com/demo.pdf", isDemo: true, is_sub_item: false },
+                { id: 2, stableId: "demo-2", code: "PRJ-260204-02.00", description: "Buje de Bronce", quantity: 10, unit: "PZA", design_no: "D-002", material: "Bronce", url: "", isDemo: true, is_sub_item: false }
             ]);
             setShowPreview(true);
         }
@@ -451,6 +461,69 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
         }
     };
 
+    // Initialize from initialQuote if provided
+    useEffect(() => {
+        const initializeFromQuote = async () => {
+            if (initialQuote && !selectedClient && clientList.length > 0) {
+                const quoteClient = clientList.find(c => c.id === initialQuote.client_id);
+                if (quoteClient) {
+                    handleClientChange(quoteClient.id);
+
+                    // Fetch project code immediately if we have a client
+                    try {
+                        const fetchedCode = await getNextProjectCode(quoteClient.prefix || "PRJ");
+                        setProjectCode(fetchedCode);
+
+                        if (initialQuote.items && initialQuote.items.length > 0) {
+                            const quoteItemsAsGenerated: GeneratedItem[] = initialQuote.items.map((item: any, idx: number) => {
+                                return {
+                                    id: idx + 1,
+                                    stableId: `quote-${item.id}`,
+                                    code: ``, // Placeholder, will be sequenced below
+                                    quantity: item.quantity,
+                                    unit: item.unit || "PZA",
+                                    design_no: item.design_no || "",
+                                    material: item.material || "",
+                                    material_id: item.material_id || "",
+                                    treatment_id: item.treatment_id || "",
+                                    treatment_name: item.treatment || "", // Map 'treatment' from quote item to 'treatment_name'
+                                    url: item.drawing_url || "",
+                                    is_sub_item: item.is_sub_item || false,
+                                    part_name: item.part_name || "",
+                                    description: item.description || "",
+                                };
+                            });
+
+                            // Resequence with the real code prefix
+                            const sequenced = resequenceItems(quoteItemsAsGenerated, fetchedCode);
+                            setGeneratedItems(sequenced);
+                            setItemsToGenerate(sequenced.length);
+                            setShowPreview(true);
+
+                            // Auto-set project name if empty
+                            if (!projectName) {
+                                setProjectName(`PROYECTO DESDE COTIZACIÓN ${initialQuote.id}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Error initializing project code:", err);
+                        toast.error("Error al generar el código del proyecto.");
+                    }
+                }
+
+                if (initialQuote.contact_id) {
+                    setSelectedUser(initialQuote.contact_id);
+                }
+
+                if (initialQuote.delivery_date) {
+                    setDeliveryDate(new Date(initialQuote.delivery_date + 'T12:00:00Z'));
+                }
+            }
+        };
+
+        initializeFromQuote();
+    }, [initialQuote, clientList]);
+
     // Effect to sync itemsToGenerate with stagingFiles length
     useEffect(() => {
         if (stagingFiles.length > 0) {
@@ -500,11 +573,14 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         id: idx + 1,
                         stableId: `file-${f.id}-${idx}`,
                         code: `${nextCode}-${(idx + 1).toString().padStart(2, "0")}.00`,
+                        part_name: "",
                         description: "",
                         quantity: 1,
                         unit: "PZA",
-                        designNo: upperName,
+                        design_no: upperName,
                         material: "",
+                        treatment_id: "",
+                        treatment_name: "",
                         url: f.url,
                         fileId: f.id,
                         mimeType: f.mimeType,
@@ -531,11 +607,14 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                         id: i,
                         stableId: `manual-${i}-${Math.random().toString(36).substring(7)}`,
                         code: `${nextCode}-${suffix}.00`,
+                        part_name: "",
                         description: "",
                         quantity: 1,
                         unit: "PZA",
-                        designNo: "",
+                        design_no: "",
                         material: "",
+                        treatment_id: "",
+                        treatment_name: "",
                         url: "",
                         is_sub_item: false
                     });
@@ -705,11 +784,27 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
 
     const handleSave = async () => {
-        if (!projectCode || generatedItems.length === 0) return;
+        if (generatedItems.length === 0) {
+            toast.error("No hay partidas para guardar.");
+            return;
+        }
+
+        if (!projectCode) {
+            toast.error("El código de proyecto no se ha generado correctamente.");
+            return;
+        }
 
         // Validation
         if (!deliveryDate) {
             toast.error("La fecha de entrega es obligatoria.");
+            return;
+        }
+        if (!selectedClient) {
+            toast.error("Debe seleccionar un cliente.");
+            return;
+        }
+        if (!projectName) {
+            toast.error("El nombre del proyecto es obligatorio.");
             return;
         }
 
@@ -725,16 +820,21 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
                 requestor_id: selectedUser,
                 start_date: format(requestDate, "yyyy-MM-dd"),
                 delivery_date: format(deliveryDate, "yyyy-MM-dd"),
-                status: "active"
-            }, generatedItems.map(item => ({
-                part_code: item.code,
-                part_name: item.description,
+                status: "active",
+                source_quote_id: initialQuote?.id
+            }, generatedItems.map((item: any) => ({
+                part_code: item.code || "",
+                part_name: item.part_name || "",
+                description: item.description || "",
                 quantity: item.quantity,
-                material: item.material,
+                material: item.material || "",
+                material_id: item.material_id, // Passed from items array
+                treatment_id: item.treatment_id,
+                treatment_name: item.treatment_name, // Passed from items array
                 drawing_url: item.url.startsWith('blob:') ? "" : item.url, // Initially empty if it's a blob
                 image: "",
                 unit: item.unit,
-                design_no: item.designNo,
+                design_no: item.design_no,
                 is_sub_item: item.is_sub_item || false,
             })));
 
@@ -857,14 +957,26 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
     return (
         <div className="space-y-8 pb-20">
             <DashboardHeader
-                title="Nuevo Proyecto"
-                description="Generar cotización, códigos y partidas automáticamente."
+                title={initialQuote ? "Conversión a Proyecto" : "Nuevo Proyecto"}
+                description={initialQuote ? `Convirtiendo partes de COT-${initialQuote.quote_number}` : "Generar cotización, códigos y partidas automáticamente."}
                 icon={<FolderPlus className="w-8 h-8" />}
                 backUrl="/dashboard/ventas"
                 colorClass="text-red-500"
                 bgClass="bg-red-500/10"
                 onHelp={handleStartTour}
             />
+
+            {initialQuote && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-start gap-4 mb-8">
+                    <FolderPlus className="w-6 h-6 text-green-500 mt-0.5 flex-none" />
+                    <div>
+                        <h3 className="text-sm font-bold text-green-600 uppercase">Convirtiendo COT-{initialQuote.quote_number}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Ajusta los materiales, genera subpartidas de ser necesario y añade cualquier archivo pendiente. Al darle en "Guardar y Confirmar", esta cotización quedará marcada como aprobada automáticamente.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <motion.div initial="hidden" animate="visible" variants={fadeIn}>
                 <Card className="border-border/40 shadow-xl shadow-primary/5 relative rounded-2xl overflow-visible bg-card/80 backdrop-blur-sm">
@@ -1089,177 +1201,65 @@ export function ProjectForm({ clients, contacts, units, materials, initialDate }
 
                         <Card className="border-border/40 shadow-2xl overflow-hidden rounded-2xl bg-card" id="project-preview-table">
                             <div className="overflow-x-auto">
-                                <Table className="min-w-[1200px]">
-                                    <TableHeader className="bg-table-header-bg">
-                                        <TableRow className="hover:bg-transparent border-b-border/50">
-                                            <TableHead className="w-[30px]"></TableHead>
-                                            <TableHead className="w-[80px] text-muted-foreground text-center">Partida</TableHead>
-                                            <TableHead className="text-muted-foreground min-w-[300px]">Nombre de Pieza</TableHead>
-                                            <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
-                                            <TableHead className="w-[120px] text-muted-foreground text-center">U.M</TableHead>
-                                            <TableHead className="w-[150px] text-muted-foreground text-center">Nombre de Diseño</TableHead>
-                                            <TableHead className="w-[150px] text-muted-foreground text-center">Material</TableHead>
-                                            <TableHead className="w-[80px] text-muted-foreground text-center">Subp.</TableHead>
-                                            <TableHead className="w-[80px] text-muted-foreground text-center"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <Reorder.Group
-                                        axis="y"
-                                        values={generatedItems}
-                                        onReorder={(newItems) => setGeneratedItems(resequenceItems(newItems, projectCode || "PRJ"))}
-                                        as="tbody"
-                                    >
-                                        {generatedItems.map((item, idx) => (
-                                            <Reorder.Item
-                                                key={item.stableId}
-                                                value={item}
-                                                as="tr"
-                                                className={cn(
-                                                    "border-border/50 transition-colors bg-card",
-                                                    item.is_sub_item ? "bg-zinc-500/5" : "hover:bg-muted/50"
-                                                )}
-                                            >
-                                                <TableCell className="w-[30px] pr-0">
-                                                    <GripVertical className="w-4 h-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing hover:text-red-500 transition-colors grip-handle-tour" />
-                                                </TableCell>
-                                                <TableCell className={cn(
-                                                    "font-mono text-center font-bold w-[80px]",
-                                                    item.is_sub_item ? "text-red-500 text-xs" : "text-muted-foreground"
-                                                )}>
-                                                    {getLotNumber(idx, generatedItems)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className={cn("flex items-start gap-2", item.is_sub_item && "pl-6")}>
-                                                        {item.is_sub_item && <span className="text-red-500 mt-2">↳</span>}
-                                                        <Textarea
-                                                            placeholder="Ej. PLACA BASE..."
-                                                            value={item.description}
-                                                            onChange={(e) => {
-                                                                const newItems = [...generatedItems];
-                                                                newItems[idx].description = e.target.value.toUpperCase();
-                                                                setGeneratedItems(newItems);
-                                                            }}
-                                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase h-auto"
-                                                            rows={1}
-                                                            onInput={(e) => {
-                                                                const target = e.target as HTMLTextAreaElement;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = target.scrollHeight + 'px';
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="w-[120px] px-1 text-center">
-                                                    <Input
-                                                        type="number"
-                                                        value={item.quantity}
-                                                        onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value))}
-                                                        className={cn(ghostInputClass, "text-left w-[80px] mx-auto pl-4 pr-2")}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        value={item.unit}
-                                                        onValueChange={(val) => updateItem(item.id, "unit", val)}
-                                                    >
-                                                        <SelectTrigger className={ghostTriggerClass}>
-                                                            <SelectValue placeholder="Uni." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {units.map(u => (
-                                                                <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-1">
-                                                        {item.url && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => {
-                                                                    setViewerUrl(item.url);
-                                                                    setViewerTitle(`${item.code} - ${item.designNo}`);
-                                                                    // Helper to pass type to viewer
-                                                                    const type = (item.mimeType?.includes('pdf') ? 'pdf' : undefined) as "pdf" | undefined;
-                                                                    setViewerType(type);
-                                                                }}
-                                                                className="h-9 w-9 text-muted-foreground/40 hover:text-foreground hover:bg-muted shrink-0 rounded-full viewer-btn-tour"
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
-                                                        <AutoResizeTextarea
-                                                            value={item.designNo}
-                                                            onChange={(e: any) => updateItem(item.id, "designNo", e.target.value)}
-                                                            className={cn(ghostTextareaClass, "min-w-[150px] max-w-[350px]")}
-                                                            placeholder="-"
-                                                            minHeight="36px"
-                                                        />
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        value={item.material}
-                                                        onValueChange={(val) => updateItem(item.id, "material", val)}
-                                                    >
-                                                        <SelectTrigger className={ghostTriggerClass}>
-                                                            <SelectValue placeholder="Mat." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {materials.map(m => (
-                                                                <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center justify-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const newItems = [...generatedItems];
-                                                                newItems[idx].is_sub_item = !newItems[idx].is_sub_item;
-                                                                // Resequence everything to fix codes
-                                                                const resequenced = resequenceItems(newItems, projectCode || "PRJ");
-                                                                setGeneratedItems(resequenced);
-                                                            }}
-                                                            className={cn(
-                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner subitem-switch-tour",
-                                                                item.is_sub_item ? "bg-red-500" : "bg-zinc-300 dark:bg-zinc-700"
-                                                            )}
-                                                        >
-                                                            <div
-                                                                className={cn(
-                                                                    "w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
-                                                                    item.is_sub_item ? "translate-x-4" : "translate-x-0"
-                                                                )}
-                                                            />
-                                                        </button>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => {
-                                                                setGeneratedItems(prev => {
-                                                                    const updated = prev.filter((_, i) => i !== idx);
-                                                                    return resequenceItems(updated, projectCode || "PRJ");
-                                                                });
-                                                            }}
-                                                            className="h-8 w-8 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </Reorder.Item>
-                                        ))}
-                                    </Reorder.Group>
-                                </Table>
+                                <SharedItemsTable
+                                    mode="project"
+                                    quoteType="pieces"
+                                    items={generatedItems as unknown as SharedItemProps[]}
+                                    units={units.map(u => ({ value: u.name, label: u.name }))}
+                                    materials={materialsList}
+                                    treatments={treatmentsList}
+                                    onReorder={(newItems) => setGeneratedItems(resequenceItems(newItems as any, projectCode || "PRJ"))}
+                                    onUpdateItem={(indexOrId, data) => {
+                                        // SharedItemsTable passes 'id' if available, else 'index'
+                                        // For generatedItems, we match by id, or update by index depending
+                                        const updateRecord = (id: string | number, field: string, value: any) => {
+                                            const newItems = [...generatedItems];
+                                            const idx = newItems.findIndex(i => i.id === id);
+                                            if (idx !== -1) {
+                                                newItems[idx] = { ...newItems[idx], [field]: value };
+                                                setGeneratedItems(newItems);
+                                            }
+                                        }
+
+                                        Object.entries(data).forEach(([key, val]) => {
+                                            updateRecord(indexOrId, key, val);
+                                        });
+
+                                        // Ensure resequencing if sub_item swapped
+                                        if ('is_sub_item' in data) {
+                                            setGeneratedItems(prev => resequenceItems(prev, projectCode || "PRJ"));
+                                        }
+                                    }}
+                                    onDeleteItem={(indexOrId) => {
+                                        setGeneratedItems(prev => {
+                                            const updated = prev.filter(i => i.id !== indexOrId);
+                                            return resequenceItems(updated, projectCode || "PRJ");
+                                        });
+                                    }}
+                                    onCreateUnit={async (name) => {
+                                        // If units creation is needed
+                                        const upperName = name.toUpperCase();
+                                        return upperName;
+                                    }}
+                                    onCreateMaterial={async (name) => {
+                                        const upperName = name.toUpperCase();
+                                        const newId = await createMaterialEntry(upperName);
+                                        setMaterialsList([...materialsList, { value: newId, label: upperName }]);
+                                        return newId;
+                                    }}
+                                    onCreateTreatment={async (name) => {
+                                        const upperName = name.toUpperCase();
+                                        const newId = await createTreatmentEntry(upperName);
+                                        setTreatmentsList([...treatmentsList, { value: newId, label: upperName }]);
+                                        return newId;
+                                    }}
+                                    onViewDocument={(url, title) => {
+                                        setViewerUrl(url);
+                                        setViewerTitle(title || "Plano");
+                                    }}
+                                    formatCurrency={(val) => val.toString()}
+                                    getLotNumber={(idx) => getLotNumber(idx, generatedItems)}
+                                />
                             </div>
                         </Card>
 

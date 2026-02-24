@@ -1,6 +1,8 @@
 "use client";
 
-import { Box, Copy, FileEdit, FolderPlus, Loader2, Printer, Trash2, XCircle } from "lucide-react";
+import { useState } from "react";
+
+import { Box, Copy, FileEdit, FolderPlus, Loader2, Printer, Trash2, XCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +24,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DrawingViewer } from "./drawing-viewer";
 
 interface QuoteSummary {
     id: string;
@@ -145,7 +148,10 @@ export function ConvertQuoteDialog({
     projectNameInput,
     setProjectNameInput,
     convertingId,
-    onConvert
+    onConvert,
+    quoteItems, // NEW PROP
+    partNames, // NEW PROP
+    setPartNames // NEW PROP
 }: {
     quote: QuoteSummary | null;
     isOpen: boolean;
@@ -154,12 +160,17 @@ export function ConvertQuoteDialog({
     setProjectNameInput: (val: string) => void;
     convertingId: string | null;
     onConvert: () => void;
+    quoteItems: any[]; // NEW
+    partNames: Record<string, string>; // NEW
+    setPartNames: (val: Record<string, string>) => void; // NEW
 }) {
+    const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+
     if (!quote) return null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="bg-card border-border sm:max-w-[500px]">
+            <DialogContent className="bg-card border-border sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-green-500 font-bold uppercase flex items-center gap-2">
                         <FolderPlus className="w-5 h-5" />
@@ -170,7 +181,7 @@ export function ConvertQuoteDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-6 space-y-4">
+                <div className="py-4 space-y-6">
                     <div className="space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
                             Nombre del Proyecto <span className="text-red-500">*</span>
@@ -179,16 +190,57 @@ export function ConvertQuoteDialog({
                             placeholder="EJ. MOLDE DE INYECCIÓN - PROYECTO X"
                             value={projectNameInput}
                             onChange={(e) => setProjectNameInput(e.target.value.toUpperCase())}
-                            className="bg-background border-border focus:border-green-500 transition-colors uppercase font-bold"
+                            className="bg-background border-border flex-1 uppercase font-bold text-sm"
                             autoFocus
                         />
                     </div>
 
-                    <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-2 text-xs">
+                    {quoteItems.length > 0 && (
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1 border-b border-border pb-1">
+                                Nombrar Partidas de Producción
+                            </label>
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 rounded-md border border-border/50 p-3 bg-muted/10">
+                                {quoteItems.map((item, index) => (
+                                    <div key={item.id} className="flex gap-3 items-start">
+                                        <div className="flex-none flex items-center justify-center w-7 h-7 text-xs font-bold text-muted-foreground bg-background rounded-md border border-border mt-1 transition-colors">
+                                            {index + 1}
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] text-muted-foreground line-clamp-1 italic mr-2" title={item.description}>
+                                                    Original: {item.description}
+                                                </span>
+                                                {item.drawing_url && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setViewerUrl(item.drawing_url)}
+                                                        className="flex-none flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-bold uppercase transition-colors bg-transparent border-none p-0 cursor-pointer"
+                                                        title="Ver plano en visor interno"
+                                                    >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                        Ver Plano
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <Input
+                                                placeholder="NOMBRE DE PARTIDA EN PRODUCCIÓN"
+                                                value={partNames[item.id] || ""}
+                                                onChange={(e) => setPartNames({ ...partNames, [item.id]: e.target.value.toUpperCase() })}
+                                                className="bg-background border-border text-xs uppercase font-bold focus:border-green-500 transition-colors h-8"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-muted/30 p-3 rounded-lg border border-border space-y-1 text-xs">
                         <p className="font-bold text-muted-foreground uppercase">Este proceso realizará:</p>
-                        <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                        <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
                             <li>Generación automática de folio de proyecto.</li>
-                            <li>Migración de partidas a producción.</li>
+                            <li>Migración de partidas a producción con los nombres especificados.</li>
                             <li>Marca la cotización como <span className="text-green-500 font-bold">APROBADA</span>.</li>
                         </ul>
                     </div>
@@ -218,6 +270,11 @@ export function ConvertQuoteDialog({
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
+            <DrawingViewer
+                url={viewerUrl}
+                onClose={() => setViewerUrl(null)}
+            />
         </Dialog>
     );
 }

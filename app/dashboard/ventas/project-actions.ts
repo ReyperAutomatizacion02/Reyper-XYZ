@@ -61,6 +61,7 @@ export async function createProjectAndItems(
         start_date: string;
         delivery_date: string;
         status: string;
+        source_quote_id?: string;
     },
     items: Array<{
         part_code: string;
@@ -69,9 +70,14 @@ export async function createProjectAndItems(
         unit?: string;
         design_no?: string;
         material?: string;
+        material_id?: string;
+        treatment_id?: string;
+        treatment_name?: string;
+        treatment?: string;
         image?: string;
         drawing_url?: string;
         is_sub_item?: boolean;
+        description?: string;
     }>
 ) {
     const cookieStore = await cookies();
@@ -83,7 +89,8 @@ export async function createProjectAndItems(
         .insert({
             code: projectData.code,
             name: projectData.name,
-            company: projectData.company_name, // Mapping client name to text column
+            company: projectData.company_name,
+            company_id: projectData.client_id, // Added company_id
             requestor: projectData.requestor,
             requestor_id: projectData.requestor_id,
             start_date: projectData.start_date,
@@ -106,12 +113,17 @@ export async function createProjectAndItems(
             part_name: item.part_name,
             quantity: item.quantity,
             material: item.material,
+            material_id: item.material_id,
+            treatment_id: item.treatment_id,
+            treatment: item.treatment_name || item.treatment, // Ensure we check both names
+            description: item.description,
             image: item.image,
             drawing_url: item.drawing_url,
             unit: item.unit,
             design_no: item.design_no,
             is_sub_item: item.is_sub_item || false,
             genral_status: "A0-NUEVO PROYECTO",
+            status_id: '3f454811-5b77-4b11-ab75-458e20c5ae6e', // Fixed status ID
         }));
 
         const { error: itemsError } = await supabase
@@ -123,6 +135,20 @@ export async function createProjectAndItems(
             await supabase.from("projects").delete().eq("id", project.id);
             console.error("Error creating items:", itemsError);
             throw new Error(`Error al crear partidas: ${itemsError.message}`);
+        }
+    }
+
+    // 3. Update Quote Status if this project comes from a quote
+    if (projectData.source_quote_id) {
+        const { error: quoteUpdateError } = await supabase
+            .from("sales_quotes")
+            .update({ status: 'approved' })
+            .eq("id", projectData.source_quote_id);
+
+        if (quoteUpdateError) {
+            console.error("Error updating quote status:", quoteUpdateError);
+            // We don't throw error to not fail the project creation, 
+            // but we log it. It could be handled via webhook or manually.
         }
     }
 

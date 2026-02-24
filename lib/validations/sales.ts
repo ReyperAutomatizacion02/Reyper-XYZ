@@ -4,9 +4,12 @@ import { z } from "zod";
 export const ItemSchema = z.object({
     id: z.string().optional(),
     part_code: z.string().min(1, "El código de partida es obligatorio"),
-    part_name: z.string().min(1, "El nombre de partida es obligatorio"),
+    description: z.string().min(1, "La descripción es obligatoria"), // Added for quote items
+    part_name: z.string().optional().nullable(),
     quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
-    material: z.string().min(1, "El material es obligatorio"),
+    material: z.string().optional().nullable(),
+    treatment_id: z.string().optional().nullable(),
+    treatment_name: z.string().optional().nullable(),
     genral_status: z.string().min(1, "El estatus general es obligatorio"),
 });
 
@@ -32,6 +35,10 @@ export const ConvertQuoteToProjectSchema = z.object({
     quote_id: z.string().uuid("ID de cotización inválido"),
     client_prefix: z.string().min(1, "El prefijo del cliente es obligatorio"),
     company_name: z.string().min(1, "El nombre de la empresa es obligatorio"), // This might be dynamically matched, but good to validate
+    partNames: z.array(z.object({
+        quoteItemId: z.string(),
+        name: z.string()
+    })).optional(),
 });
 
 // Schema for updating a project's global info

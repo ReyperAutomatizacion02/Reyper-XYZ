@@ -98,6 +98,22 @@ export async function createUnitEntry(name: string) {
     return data?.id;
 }
 
+export async function createMaterialEntry(name: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data, error } = await supabase.from("sales_materials").insert({ name }).select("id").single();
+    if (error) throw new Error(error.message);
+    return data?.id;
+}
+
+export async function createTreatmentEntry(name: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data, error } = await supabase.from("production_treatments").insert({ name }).select("id").single();
+    if (error) throw new Error(error.message);
+    return data?.id;
+}
+
 export async function saveQuote(quoteData: any, items: any[]) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -440,7 +456,8 @@ export async function getNextProjectCode(clientPrefix: string) {
 
 export async function convertQuoteToProject(
     quoteId: string,
-    projectName?: string
+    projectName?: string,
+    partNames?: { quoteItemId: string, name: string }[] // NEW PARAM
 ) {
     try {
         // Zod validation
@@ -519,10 +536,16 @@ export async function convertQuoteToProject(
             const subPart = String(childCounter).padStart(2, '0');
             const partCode = `${projectCode}-${lotPart}.${subPart}`;
 
+            // Find custom name if provided, else use description
+            const customPartNameObj = partNames?.find(pn => pn.quoteItemId === item.id);
+            const finalPartName = customPartNameObj?.name && customPartNameObj.name.trim() !== ""
+                ? customPartNameObj.name
+                : item.description;
+
             return {
                 project_id: project.id,
                 part_code: partCode,
-                part_name: item.description,
+                part_name: finalPartName, // USE CUSTOM OR FALLBACK
                 quantity: item.quantity,
                 material: "POR DEFINIR", // Default
                 genral_status: ITEM_STATUS.RE_ORDER_POINT, // Default start status uses constant

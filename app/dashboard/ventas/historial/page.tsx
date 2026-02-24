@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { pdf } from "@react-pdf/renderer";
-import { CancelQuoteDialog, ConvertQuoteDialog, DeleteQuoteDialog } from "@/components/sales/quote-action-dialogs";
+import { CancelQuoteDialog, DeleteQuoteDialog } from "@/components/sales/quote-action-dialogs";
 import { QuoteHistoryFilters } from "@/components/sales/quote-history-filters";
 
 interface QuoteSummary {
@@ -84,10 +84,6 @@ export default function QuoteHistoryPage() {
     const [positions, setPositions] = useState<{ id: string, name: string }[]>([]);
     const [areas, setAreas] = useState<{ id: string, name: string }[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-    const [convertingId, setConvertingId] = useState<string | null>(null);
-    const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
-    const [projectNameInput, setProjectNameInput] = useState("");
-    const [quoteToConvert, setQuoteToConvert] = useState<QuoteSummary | null>(null);
 
     // Global dialog states for better performance
     const [quoteToDelete, setQuoteToDelete] = useState<QuoteSummary | null>(null);
@@ -190,29 +186,6 @@ export default function QuoteHistoryPage() {
         }
     };
 
-    const handleConvertToProject = async () => {
-        if (!quoteToConvert || !projectNameInput.trim()) return;
-
-        setConvertingId(quoteToConvert.id);
-        try {
-            const result = await convertQuoteToProject(quoteToConvert.id, projectNameInput.trim().toUpperCase());
-            toast.success(`Cotización convertida a proyecto: ${result.projectCode}`);
-            setIsConvertDialogOpen(false);
-            setProjectNameInput("");
-            setQuoteToConvert(null);
-            loadData();
-        } catch (error: any) {
-            toast.error("Error al convertir: " + error.message);
-        } finally {
-            setConvertingId(null);
-        }
-    };
-
-    const openConvertDialog = (quote: QuoteSummary) => {
-        setQuoteToConvert(quote);
-        setProjectNameInput(`COT-${quote.quote_number} - ${quote.client?.name || ""}`);
-        setIsConvertDialogOpen(true);
-    };
 
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -438,16 +411,16 @@ export default function QuoteHistoryPage() {
                                         <TableCell>
                                             <div className="flex items-center justify-center gap-2">
                                                 {q.status === 'active' && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        disabled={convertingId === q.id}
-                                                        className="h-8 w-8 p-0 text-green-500 hover:bg-green-500/10"
-                                                        title="Convertir a Proyecto"
-                                                        onClick={() => openConvertDialog(q)}
-                                                    >
-                                                        {convertingId === q.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                                                    </Button>
+                                                    <Link href={`/dashboard/ventas/nuevo-proyecto?quoteId=${q.id}`}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0 text-green-500 hover:bg-green-500/10"
+                                                            title="Convertir a Proyecto"
+                                                        >
+                                                            <FolderPlus className="w-4 h-4" />
+                                                        </Button>
+                                                    </Link>
                                                 )}
 
                                                 {q.status === 'active' && (
@@ -516,15 +489,6 @@ export default function QuoteHistoryPage() {
                 </div>
             </Card>
 
-            <ConvertQuoteDialog
-                quote={quoteToConvert}
-                isOpen={isConvertDialogOpen}
-                onOpenChange={setIsConvertDialogOpen}
-                projectNameInput={projectNameInput}
-                setProjectNameInput={setProjectNameInput}
-                convertingId={convertingId}
-                onConvert={handleConvertToProject}
-            />
 
             <DeleteQuoteDialog
                 quote={quoteToDelete}

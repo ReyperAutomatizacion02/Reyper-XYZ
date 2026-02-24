@@ -11,6 +11,7 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import { SharedItemsTable, SharedItemProps } from "../components/shared-items-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -59,6 +61,8 @@ import {
     createPositionEntry,
     createAreaEntry,
     createUnitEntry,
+    createMaterialEntry,
+    createTreatmentEntry,
     getCatalogData,
     saveQuote,
     getQuoteById,
@@ -141,6 +145,11 @@ function DateSelector({
 type QuoteItem = {
     id: string; // Temporary ID for UI
     description: string;
+    part_name?: string;
+    material?: string;
+    material_id?: string;
+    treatment_id?: string;
+    treatment_name?: string;
     quantity: number;
     unit: string;
     unit_price: number;
@@ -194,8 +203,10 @@ function QuoteGeneratorContent() {
     const [allContacts, setAllContacts] = useState<{ id: string, name: string, client_id?: string | null }[]>([]);
     const [positions, setPositions] = useState<Option[]>([]);
     const [areas, setAreas] = useState<Option[]>([]);
-    const dropzoneRef = useRef<HTMLInputElement>(null);
     const [units, setUnits] = useState<{ value: string; label: string }[]>([]);
+    const [materials, setMaterials] = useState<Option[]>([]);
+    const [treatments, setTreatments] = useState<Option[]>([]);
+    const dropzoneRef = useRef<HTMLInputElement>(null);
 
     // Form State
     const [formData, setFormData] = useState<IQuoteForm>({
@@ -222,7 +233,7 @@ function QuoteGeneratorContent() {
 
     // Items State
     const [items, setItems] = useState<QuoteItem[]>([
-        { id: "1", description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+        { id: "1", description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
     ]);
 
     // Totals
@@ -297,6 +308,9 @@ function QuoteGeneratorContent() {
             newItems.push({
                 id: tempId,
                 description: "", // Leave blank for the user
+                part_name: "",
+                material: "",
+                treatment_id: "",
                 design_no: upperName, // Assignment here instead of description
                 quantity: 1,
                 unit: "PZA",
@@ -368,6 +382,23 @@ function QuoteGeneratorContent() {
         }).format(val);
     };
 
+    const getLotNumber = (index: number) => {
+        let parentCount = 0;
+        let childCount = 0;
+        for (let i = 0; i <= index; i++) {
+            if (!items[i].is_sub_item) {
+                parentCount++;
+                childCount = 0;
+            } else {
+                childCount++;
+            }
+        }
+        if (items[index].is_sub_item) {
+            return `${parentCount}.${childCount}`;
+        }
+        return `${parentCount}`;
+    };
+
     // Form Validation Logic
     const getValidationErrors = () => {
         const errors: string[] = [];
@@ -382,12 +413,40 @@ function QuoteGeneratorContent() {
         if (items.length === 0) {
             errors.push("Debe haber al menos 1 partida");
         } else {
+            const missingPartNames: string[] = [];
+            const missingMaterials: string[] = [];
+            const missingTreatments: string[] = [];
+            const invalidQuantities: string[] = [];
+            const invalidPrices: string[] = [];
+
             items.forEach((item, idx) => {
-                const itemNum = idx + 1;
-                if (!item.description.trim()) errors.push(`Descripción vacía en el LOT ${itemNum}`);
-                if (item.quantity <= 0) errors.push(`Cantidad inválida en el LOT ${itemNum}`);
-                if (item.unit_price <= 0) errors.push(`Precio Unitario inválido o vacío en el LOT ${itemNum}`);
+                const lot = getLotNumber(idx);
+                // description is now optional, removed validation
+
+                if (formData.quote_type === 'pieces') {
+                    if (!item.part_name?.trim()) missingPartNames.push(lot);
+                    if (!item.material?.trim()) missingMaterials.push(lot);
+                    if (!item.treatment_id?.trim()) missingTreatments.push(lot);
+                }
+                if (item.quantity <= 0) invalidQuantities.push(lot);
+                if (item.unit_price <= 0) invalidPrices.push(lot);
             });
+
+            if (missingPartNames.length > 0) {
+                errors.push(`Nombre de Pieza vacío: Partida ${missingPartNames.join(', ')}`);
+            }
+            if (missingMaterials.length > 0) {
+                errors.push(`Material vacío: Partida ${missingMaterials.join(', ')}`);
+            }
+            if (missingTreatments.length > 0) {
+                errors.push(`Tratamiento vacío: Partida ${missingTreatments.join(', ')}`);
+            }
+            if (invalidQuantities.length > 0) {
+                errors.push(`Cantidad inválida: Partida ${invalidQuantities.join(', ')}`);
+            }
+            if (invalidPrices.length > 0) {
+                errors.push(`Precio Unitario inválido o vacío: Partida ${invalidPrices.join(', ')}`);
+            }
         }
         return errors;
     };
@@ -404,6 +463,8 @@ function QuoteGeneratorContent() {
                 setPositions(catalog.positions.map(c => ({ value: c.id, label: c.name })));
                 setAreas(catalog.areas.map(c => ({ value: c.id, label: c.name })));
                 setUnits(catalog.units.map(c => ({ value: c.name, label: c.name })));
+                setMaterials(catalog.materials.map(c => ({ value: c.id, label: c.name })));
+                setTreatments(catalog.treatments.map(c => ({ value: c.id, label: c.name })));
 
                 if (editingId) {
                     const existing = await getQuoteById(editingId);
@@ -429,6 +490,11 @@ function QuoteGeneratorContent() {
                     setItems(existing.items.map((i: any) => ({
                         id: Math.random().toString(),
                         description: i.description,
+                        part_name: i.part_name || "",
+                        material: i.material || "",
+                        material_id: i.material_id || "",
+                        treatment_id: i.treatment_id || "",
+                        treatment_name: i.treatment || i.treatment_name || "",
                         quantity: i.quantity,
                         unit: i.unit,
                         unit_price: i.unit_price,
@@ -472,7 +538,7 @@ function QuoteGeneratorContent() {
         setIsDirty(true);
         setItems([
             ...items,
-            { id: Math.random().toString(), description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+            { id: Math.random().toString(), description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
         ]);
     };
 
@@ -497,6 +563,9 @@ function QuoteGeneratorContent() {
             const resetItem: QuoteItem = {
                 id: Math.random().toString(36).substr(2, 9),
                 description: '',
+                part_name: '',
+                material: '',
+                treatment_id: '',
                 quantity: 1,
                 unit: 'PZA',
                 unit_price: 0,
@@ -536,42 +605,25 @@ function QuoteGeneratorContent() {
     };
 
     // Logic: Update Item
-    const updateItem = (index: number, field: keyof QuoteItem, value: any) => {
+    const updateItem = (index: number, updates: Partial<QuoteItem>) => {
         setIsDirty(true);
-        const newItems = [...items];
-        const item = { ...newItems[index] };
+        setItems(prevItems => {
+            const newItems = [...prevItems];
+            const item = { ...newItems[index], ...updates };
 
-        // Force uppercase for description
-        if (field === 'description' && typeof value === 'string') {
-            value = value.toUpperCase();
-        }
-
-        (item as any)[field] = value;
-
-        // Recalculate row total
-        if (field === "quantity" || field === "unit_price") {
-            item.total = item.quantity * item.unit_price;
-        }
-
-        newItems[index] = item; // Update the item in the array
-        setItems(newItems);
-    };
-
-    const getLotNumber = (index: number) => {
-        let parentCount = 0;
-        let childCount = 0;
-        for (let i = 0; i <= index; i++) {
-            if (!items[i].is_sub_item) {
-                parentCount++;
-                childCount = 0;
-            } else {
-                childCount++;
+            // Force uppercase for description if updated
+            if (updates.description !== undefined && typeof updates.description === 'string') {
+                item.description = updates.description.toUpperCase();
             }
-        }
-        if (items[index].is_sub_item) {
-            return `${parentCount}.${childCount}`;
-        }
-        return `${parentCount}`;
+
+            // Recalculate row total
+            if (updates.quantity !== undefined || updates.unit_price !== undefined) {
+                item.total = item.quantity * item.unit_price;
+            }
+
+            newItems[index] = item;
+            return newItems;
+        });
     };
 
     // Logic: Full Reset (Nuevo) - Clears everything including ID/Folio to start fresh
@@ -593,7 +645,7 @@ function QuoteGeneratorContent() {
             tax_rate: 16
         });
         setItems([
-            { id: "1", description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+            { id: "1", description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
         ]);
         setSavedQuote(null);
         setIsDirty(false);
@@ -653,6 +705,11 @@ function QuoteGeneratorContent() {
             // Prepare Items for DB (remove UI id, keep others)
             const dbItems = items.map(i => ({
                 description: i.description,
+                part_name: i.part_name || "",
+                material: i.material || "",
+                material_id: i.material_id || null,
+                treatment: i.treatment_name || "",
+                treatment_id: i.treatment_id || null,
                 quantity: i.quantity,
                 unit: i.unit,
                 unit_price: i.unit_price,
@@ -1161,207 +1218,41 @@ function QuoteGeneratorContent() {
                     >
                         <div id="quote-items-section" className="relative group/table p-0 flex flex-col min-h-full">
                             <div className="overflow-x-auto flex-1">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow className="border-border hover:bg-muted/50">
-                                            <TableHead className="w-[40px]"></TableHead>
-                                            <TableHead className="w-[60px] text-muted-foreground text-center">LOT</TableHead>
-                                            <TableHead className="text-muted-foreground">Descripción</TableHead>
-                                            {formData.quote_type === 'pieces' && (
-                                                <TableHead className="w-[150px] text-muted-foreground">No. de Diseño</TableHead>
-                                            )}
-                                            <TableHead className="w-[120px] text-muted-foreground text-center">Cant</TableHead>
-                                            <TableHead className="w-[100px] text-muted-foreground text-center">U.M</TableHead>
-                                            <TableHead className="w-[150px] text-muted-foreground text-right">Precio Unit.</TableHead>
-                                            <TableHead className="w-[150px] text-muted-foreground text-right">Total</TableHead>
-                                            <TableHead className="w-[80px] text-muted-foreground text-center">Subp.</TableHead>
-                                            <TableHead className="w-[100px] text-muted-foreground"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <Reorder.Group axis="y" values={items} onReorder={setItems} as="tbody" className="contents">
-                                        {items.map((item, index) => (
-                                            <Reorder.Item
-                                                key={item.id}
-                                                value={item}
-                                                as="tr"
-                                                className={cn(
-                                                    "border-border hover:bg-muted/50 transition-colors bg-card",
-                                                    item.is_sub_item && "bg-zinc-50/30 dark:bg-zinc-900/10"
-                                                )}
-                                            >
-                                                <TableCell className="w-[40px] cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors p-0 text-center">
-                                                    <div id={index === 0 ? "quote-item-grip" : undefined} className="flex justify-center items-center h-full">
-                                                        <GripVertical className="w-4 h-4" />
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className={cn(
-                                                    "font-mono text-center font-bold",
-                                                    item.is_sub_item ? "text-red-500 text-xs" : "text-muted-foreground"
-                                                )}>
-                                                    {getLotNumber(index)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className={cn("flex items-start gap-2", item.is_sub_item && "pl-6")}>
-                                                        {item.is_sub_item && <span className="text-red-500 mt-2">↳</span>}
-                                                        <Textarea
-                                                            value={item.description}
-                                                            onChange={(e) => updateItem(index, 'description', e.target.value)}
-                                                            placeholder="DESCRIPCIÓN DETALLADA DEL ARTÍCULO..."
-                                                            className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-foreground placeholder:text-muted-foreground min-h-[40px] resize-none overflow-hidden uppercase"
-                                                            ref={(el) => {
-                                                                if (el) {
-                                                                    el.style.height = 'auto';
-                                                                    el.style.height = el.scrollHeight + 'px';
-                                                                }
-                                                            }}
-                                                            onInput={(e) => {
-                                                                const target = e.target as HTMLTextAreaElement;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = target.scrollHeight + 'px';
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </TableCell>
-                                                {formData.quote_type === 'pieces' && (
-                                                    <TableCell className="w-[150px]">
-                                                        <div className="min-h-[32px] flex items-center justify-center">
-                                                            <textarea
-                                                                value={item.design_no || ""}
-                                                                onChange={(e) => updateItem(index, 'design_no', e.target.value.toUpperCase())}
-                                                                placeholder="EJ. D-101..."
-                                                                rows={1}
-                                                                className="w-full bg-transparent border-none shadow-none focus:ring-0 focus:outline-none px-0 text-foreground placeholder:text-muted-foreground font-bold uppercase text-center resize-none overflow-hidden min-h-[1.5em] py-1"
-                                                                ref={(el) => {
-                                                                    if (el) {
-                                                                        el.style.height = 'auto';
-                                                                        el.style.height = el.scrollHeight + 'px';
-                                                                    }
-                                                                }}
-                                                                onInput={(e) => {
-                                                                    const target = e.target as HTMLTextAreaElement;
-                                                                    target.style.height = 'auto';
-                                                                    target.style.height = target.scrollHeight + 'px';
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </TableCell>
-                                                )}
-                                                <TableCell>
-                                                    <div className="flex items-center justify-center">
-                                                        <Input
-                                                            type="number"
-                                                            min={1}
-                                                            value={item.quantity}
-                                                            onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                                                            className="w-20 bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-center text-foreground"
-                                                        />
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex justify-center">
-                                                        <ComboboxCreatable
-                                                            options={units}
-                                                            value={item.unit}
-                                                            onSelect={(val) => {
-                                                                // Find label for the value if needed, or just use val if we store name directly
-                                                                updateItem(index, 'unit', val);
-                                                            }}
-                                                            onCreate={async (name) => {
-                                                                const upperName = name.toUpperCase();
-                                                                await createUnitEntry(upperName);
-                                                                setUnits([...units, { value: upperName, label: upperName }]);
-                                                                return upperName;
-                                                            }}
-                                                            createLabel="Crear U.M."
-                                                            placeholder="U.M."
-                                                            searchPlaceholder="Buscar unidad..."
-                                                            className="w-24 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-center"
-                                                        />
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Input
-                                                        type="text"
-                                                        defaultValue={item.unit_price === 0 ? "" : formatCurrency(item.unit_price)}
-                                                        key={`${item.id}-${item.unit_price}`}
-                                                        onBlur={(e) => {
-                                                            const rawValue = e.target.value.replace(/,/g, '');
-                                                            if (!rawValue) {
-                                                                updateItem(index, 'unit_price', 0);
-                                                                return;
-                                                            }
-                                                            const numericValue = parseFloat(rawValue);
-                                                            if (isNaN(numericValue)) {
-                                                                updateItem(index, 'unit_price', 0);
-                                                                return;
-                                                            }
-                                                            updateItem(index, 'unit_price', numericValue);
-                                                        }}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            if (/[^0-9.,]/.test(val)) {
-                                                                e.target.value = val.replace(/[^0-9.,]/g, '');
-                                                            }
-                                                        }}
-                                                        placeholder="0.00"
-                                                        className="bg-transparent border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 text-right text-foreground font-mono"
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-foreground">
-                                                    ${formatCurrency(item.total)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center justify-center">
-                                                        <button
-                                                            id={index === 0 ? "quote-subitem-toggle" : undefined}
-                                                            type="button"
-                                                            onClick={() => updateItem(index, 'is_sub_item', !item.is_sub_item)}
-                                                            className={cn(
-                                                                "w-10 h-6 rounded-full transition-colors relative flex items-center px-1 shadow-inner",
-                                                                item.is_sub_item ? "bg-red-500" : "bg-zinc-300 dark:bg-zinc-700"
-                                                            )}
-                                                        >
-                                                            <div
-                                                                className={cn(
-                                                                    "w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
-                                                                    item.is_sub_item ? "translate-x-4" : "translate-x-0"
-                                                                )}
-                                                            />
-                                                        </button>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {item.drawing_url && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => {
-                                                                    setViewerUrl(item.drawing_url || null);
-                                                                    setViewerTitle(item.description || item.design_no || "Plano sin nombre");
-                                                                }}
-                                                                id={index === 0 ? "quote-view-drawing-btn" : undefined}
-                                                                className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                                                                title="Ver Plano"
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => removeItem(index)}
-                                                            className="h-8 w-8 p-0 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
-                                                            title="Eliminar"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </Reorder.Item>
-                                        ))}
-                                    </Reorder.Group>
-                                </Table>
+                                <SharedItemsTable
+                                    mode="quote"
+                                    quoteType={formData.quote_type}
+                                    items={items as SharedItemProps[]}
+                                    units={units}
+                                    materials={materials}
+                                    treatments={treatments}
+                                    onReorder={(newItems) => setItems(newItems as unknown as QuoteItem[])}
+                                    onUpdateItem={(indexOrId, data) => updateItem(indexOrId as number, data as Partial<QuoteItem>)}
+                                    onDeleteItem={(indexOrId) => removeItem(indexOrId as number)}
+                                    onCreateUnit={async (name) => {
+                                        const upperName = name.toUpperCase();
+                                        await createUnitEntry(upperName);
+                                        setUnits([...units, { value: upperName, label: upperName }]);
+                                        return upperName;
+                                    }}
+                                    onCreateMaterial={async (name) => {
+                                        const upperName = name.toUpperCase();
+                                        const newId = await createMaterialEntry(upperName);
+                                        setMaterials([...materials, { value: newId, label: upperName }]);
+                                        return newId;
+                                    }}
+                                    onCreateTreatment={async (name) => {
+                                        const upperName = name.toUpperCase();
+                                        const newId = await createTreatmentEntry(upperName);
+                                        setTreatments([...treatments, { value: newId, label: upperName }]);
+                                        return newId;
+                                    }}
+                                    onViewDocument={(url, title) => {
+                                        setViewerUrl(url);
+                                        setViewerTitle(title || "Plano sin nombre");
+                                    }}
+                                    formatCurrency={formatCurrency}
+                                    getLotNumber={getLotNumber}
+                                />
                             </div>
 
                             <div id="quote-items-footer" className="p-4 border-t border-border flex flex-col gap-4">
@@ -1399,10 +1290,10 @@ function QuoteGeneratorContent() {
                         </div>
                     </Dropzone>
                 </CardContent>
-            </Card>
+            </Card >
 
             {/* Totals Section */}
-            <div className="flex flex-col items-end gap-6">
+            < div className="flex flex-col items-end gap-6" >
                 <Card id="quote-totals-section" className="w-full md:w-[350px] bg-card border-border">
                     <CardContent className="pt-6 space-y-4">
                         {validationErrors.length > 0 && (
@@ -1540,10 +1431,10 @@ function QuoteGeneratorContent() {
                         )}
                     </div>
                 </div>
-            </div>
+            </div >
 
             {/* Confirmation Modal for Back Bridge */}
-            <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+            < AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm} >
                 <AlertDialogContent className="bg-card border-border">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Salir sin guardar?</AlertDialogTitle>
@@ -1564,7 +1455,7 @@ function QuoteGeneratorContent() {
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog>
+            </AlertDialog >
 
             <DrawingViewer
                 url={viewerUrl}
@@ -1594,6 +1485,6 @@ function QuoteGeneratorContent() {
                 hasNext={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) < items.filter(i => i.drawing_url).length - 1}
                 hasPrevious={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) > 0}
             />
-        </div>
+        </div >
     );
 }

@@ -301,42 +301,80 @@ export type Database = {
                 Row: {
                     created_at: string
                     description: string
+                    design_no: string | null
+                    drawing_url: string | null
                     id: string
+                    is_sub_item: boolean | null
+                    material: string | null
+                    material_id: string | null
+                    part_name: string | null
                     quantity: number | null
                     quote_id: string | null
                     sort_order: number | null
                     total_price: number | null
+                    treatment: string | null
+                    treatment_id: string | null
                     unit: string | null
                     unit_price: number | null
                 }
                 Insert: {
                     created_at?: string
                     description: string
+                    design_no?: string | null
+                    drawing_url?: string | null
                     id?: string
+                    is_sub_item?: boolean | null
+                    material?: string | null
+                    material_id?: string | null
+                    part_name?: string | null
                     quantity?: number | null
                     quote_id?: string | null
                     sort_order?: number | null
                     total_price?: number | null
+                    treatment?: string | null
+                    treatment_id?: string | null
                     unit?: string | null
                     unit_price?: number | null
                 }
                 Update: {
                     created_at?: string
                     description?: string
+                    design_no?: string | null
+                    drawing_url?: string | null
                     id?: string
+                    is_sub_item?: boolean | null
+                    material?: string | null
+                    material_id?: string | null
+                    part_name?: string | null
                     quantity?: number | null
                     quote_id?: string | null
                     sort_order?: number | null
                     total_price?: number | null
+                    treatment?: string | null
+                    treatment_id?: string | null
                     unit?: string | null
                     unit_price?: number | null
                 }
                 Relationships: [
                     {
+                        foreignKeyName: "sales_quote_items_material_id_fkey"
+                        columns: ["material_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_materials"
+                        referencedColumns: ["id"]
+                    },
+                    {
                         foreignKeyName: "sales_quote_items_quote_id_fkey"
                         columns: ["quote_id"]
                         isOneToOne: false
                         referencedRelation: "sales_quotes"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "sales_quote_items_treatment_id_fkey"
+                        columns: ["treatment_id"]
+                        isOneToOne: false
+                        referencedRelation: "production_treatments"
                         referencedColumns: ["id"]
                     },
                 ]
