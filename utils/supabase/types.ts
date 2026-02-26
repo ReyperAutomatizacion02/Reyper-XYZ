@@ -7,8 +7,94 @@ export type Json =
     | Json[]
 
 export type Database = {
+    // Allows to automatically instantiate createClient with right options
+    // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+    __InternalSupabase: {
+        PostgrestVersion: "14.1"
+    }
     public: {
         Tables: {
+            employees: {
+                Row: {
+                    created_at: string | null
+                    department: string | null
+                    employee_number: string | null
+                    full_name: string
+                    id: string
+                    is_active: boolean | null
+                    is_operator: boolean | null
+                    position: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    created_at?: string | null
+                    department?: string | null
+                    employee_number?: string | null
+                    full_name: string
+                    id?: string
+                    is_active?: boolean | null
+                    is_operator?: boolean | null
+                    position?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    created_at?: string | null
+                    department?: string | null
+                    employee_number?: string | null
+                    full_name?: string
+                    id?: string
+                    is_active?: boolean | null
+                    is_operator?: boolean | null
+                    position?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: []
+            }
+            inventory_items: {
+                Row: {
+                    category_name: string | null
+                    category_prefix: string | null
+                    created_at: string
+                    description: string | null
+                    id: string
+                    key: string
+                    last_updated_at: string
+                    location: string | null
+                    metadata: Json | null
+                    min_stock: number
+                    name: string
+                    stock_quantity: number
+                }
+                Insert: {
+                    category_name?: string | null
+                    category_prefix?: string | null
+                    created_at?: string
+                    description?: string | null
+                    id?: string
+                    key: string
+                    last_updated_at?: string
+                    location?: string | null
+                    metadata?: Json | null
+                    min_stock?: number
+                    name: string
+                    stock_quantity?: number
+                }
+                Update: {
+                    category_name?: string | null
+                    category_prefix?: string | null
+                    created_at?: string
+                    description?: string | null
+                    id?: string
+                    key?: string
+                    last_updated_at?: string
+                    location?: string | null
+                    metadata?: Json | null
+                    min_stock?: number
+                    name?: string
+                    stock_quantity?: number
+                }
+                Relationships: []
+            }
             machines: {
                 Row: {
                     created_at: string | null
@@ -85,95 +171,130 @@ export type Database = {
             }
             planning_scenarios: {
                 Row: {
-                    id: string
-                    name: string
-                    strategy: string
-                    config: Json
-                    tasks: Json
-                    skipped: Json
-                    metrics: Json
-                    created_by: string | null
-                    created_at: string
                     applied_at: string | null
+                    config: Json
+                    created_at: string
+                    created_by: string | null
+                    id: string
+                    metrics: Json
+                    name: string
+                    skipped: Json
+                    strategy: string
+                    tasks: Json
                 }
                 Insert: {
-                    id?: string
-                    name: string
-                    strategy: string
-                    config: Json
-                    tasks: Json
-                    skipped?: Json
-                    metrics: Json
-                    created_by?: string | null
-                    created_at?: string
                     applied_at?: string | null
+                    config: Json
+                    created_at?: string
+                    created_by?: string | null
+                    id?: string
+                    metrics?: Json
+                    name: string
+                    skipped?: Json
+                    strategy: string
+                    tasks?: Json
                 }
                 Update: {
-                    id?: string
-                    name?: string
-                    strategy?: string
-                    config?: Json
-                    tasks?: Json
-                    skipped?: Json
-                    metrics?: Json
-                    created_by?: string | null
-                    created_at?: string
                     applied_at?: string | null
+                    config?: Json
+                    created_at?: string
+                    created_by?: string | null
+                    id?: string
+                    metrics?: Json
+                    name?: string
+                    skipped?: Json
+                    strategy?: string
+                    tasks?: Json
                 }
-                Relationships: [
-                    {
-                        foreignKeyName: "planning_scenarios_created_by_fkey"
-                        columns: ["created_by"]
-                        isOneToOne: false
-                        referencedRelation: "users"
-                        referencedColumns: ["id"]
-                    },
-                ]
+                Relationships: []
             }
             production_orders: {
                 Row: {
                     created_at: string | null
+                    description: string | null
+                    design_no: string | null
+                    drawing_url: string | null
+                    evaluation: Json | null
                     genral_status: string | null
                     id: string
                     image: string | null
+                    is_sub_item: boolean | null
                     last_edited_at: string | null
                     material: string | null
                     material_confirmation: string | null
+                    material_id: string | null
+                    model_url: string | null
                     notion_id: string | null
                     part_code: string
                     part_name: string | null
                     project_id: string | null
                     quantity: number | null
+                    status_id: string | null
+                    treatment: string | null
+                    treatment_id: string | null
+                    unit: string | null
+                    urgencia: boolean | null
                 }
                 Insert: {
                     created_at?: string | null
+                    description?: string | null
+                    design_no?: string | null
+                    drawing_url?: string | null
+                    evaluation?: Json | null
                     genral_status?: string | null
                     id?: string
                     image?: string | null
+                    is_sub_item?: boolean | null
                     last_edited_at?: string | null
                     material?: string | null
                     material_confirmation?: string | null
+                    material_id?: string | null
+                    model_url?: string | null
                     notion_id?: string | null
                     part_code: string
                     part_name?: string | null
                     project_id?: string | null
                     quantity?: number | null
+                    status_id?: string | null
+                    treatment?: string | null
+                    treatment_id?: string | null
+                    unit?: string | null
+                    urgencia?: boolean | null
                 }
                 Update: {
                     created_at?: string | null
+                    description?: string | null
+                    design_no?: string | null
+                    drawing_url?: string | null
+                    evaluation?: Json | null
                     genral_status?: string | null
                     id?: string
                     image?: string | null
+                    is_sub_item?: boolean | null
                     last_edited_at?: string | null
                     material?: string | null
                     material_confirmation?: string | null
+                    material_id?: string | null
+                    model_url?: string | null
                     notion_id?: string | null
                     part_code?: string
                     part_name?: string | null
                     project_id?: string | null
                     quantity?: number | null
+                    status_id?: string | null
+                    treatment?: string | null
+                    treatment_id?: string | null
+                    unit?: string | null
+                    urgencia?: boolean | null
                 }
                 Relationships: [
+                    {
+                        foreignKeyName: "production_orders_material_id_fkey"
+                        columns: ["material_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_materials"
+                        referencedColumns: ["id"]
+                    },
                     {
                         foreignKeyName: "production_orders_project_id_fkey"
                         columns: ["project_id"]
@@ -181,12 +302,63 @@ export type Database = {
                         referencedRelation: "projects"
                         referencedColumns: ["id"]
                     },
+                    {
+                        foreignKeyName: "production_orders_status_id_fkey"
+                        columns: ["status_id"]
+                        isOneToOne: false
+                        referencedRelation: "production_statuses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "production_orders_treatment_id_fkey"
+                        columns: ["treatment_id"]
+                        isOneToOne: false
+                        referencedRelation: "production_treatments"
+                        referencedColumns: ["id"]
+                    },
                 ]
+            }
+            production_statuses: {
+                Row: {
+                    created_at: string | null
+                    id: string
+                    name: string
+                }
+                Insert: {
+                    created_at?: string | null
+                    id?: string
+                    name: string
+                }
+                Update: {
+                    created_at?: string | null
+                    id?: string
+                    name?: string
+                }
+                Relationships: []
+            }
+            production_treatments: {
+                Row: {
+                    created_at: string
+                    id: string
+                    name: string
+                }
+                Insert: {
+                    created_at?: string
+                    id?: string
+                    name: string
+                }
+                Update: {
+                    created_at?: string
+                    id?: string
+                    name?: string
+                }
+                Relationships: []
             }
             projects: {
                 Row: {
                     code: string
                     company: string | null
+                    company_id: string | null
                     created_at: string | null
                     delivery_date: string | null
                     id: string
@@ -194,12 +366,14 @@ export type Database = {
                     name: string | null
                     notion_id: string | null
                     requestor: string | null
+                    requestor_id: string | null
                     start_date: string | null
                     status: string | null
                 }
                 Insert: {
                     code: string
                     company?: string | null
+                    company_id?: string | null
                     created_at?: string | null
                     delivery_date?: string | null
                     id?: string
@@ -207,12 +381,14 @@ export type Database = {
                     name?: string | null
                     notion_id?: string | null
                     requestor?: string | null
+                    requestor_id?: string | null
                     start_date?: string | null
                     status?: string | null
                 }
                 Update: {
                     code?: string
                     company?: string | null
+                    company_id?: string | null
                     created_at?: string | null
                     delivery_date?: string | null
                     id?: string
@@ -220,10 +396,26 @@ export type Database = {
                     name?: string | null
                     notion_id?: string | null
                     requestor?: string | null
+                    requestor_id?: string | null
                     start_date?: string | null
                     status?: string | null
                 }
-                Relationships: []
+                Relationships: [
+                    {
+                        foreignKeyName: "projects_company_id_fkey"
+                        columns: ["company_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_clients"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "projects_requestor_id_fkey"
+                        columns: ["requestor_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_contacts"
+                        referencedColumns: ["id"]
+                    },
+                ]
             }
             sales_areas: {
                 Row: {
@@ -245,35 +437,76 @@ export type Database = {
             }
             sales_clients: {
                 Row: {
+                    business_name: string | null
                     created_at: string
                     id: string
+                    is_active: boolean | null
                     name: string
+                    prefix: string | null
                 }
                 Insert: {
+                    business_name?: string | null
                     created_at?: string
                     id?: string
+                    is_active?: boolean | null
                     name: string
+                    prefix?: string | null
                 }
                 Update: {
+                    business_name?: string | null
                     created_at?: string
                     id?: string
-                    name?: string
+                    is_active?: boolean | null
+                    name: string
+                    prefix?: string | null
                 }
                 Relationships: []
             }
             sales_contacts: {
                 Row: {
+                    client_id: string | null
                     created_at: string
+                    id: string
+                    is_active: boolean | null
+                    name: string
+                }
+                Insert: {
+                    client_id?: string | null
+                    created_at?: string
+                    id?: string
+                    is_active?: boolean | null
+                    name: string
+                }
+                Update: {
+                    client_id?: string | null
+                    created_at?: string
+                    id?: string
+                    is_active?: boolean | null
+                    name?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "sales_contacts_client_id_fkey"
+                        columns: ["client_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_clients"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            sales_materials: {
+                Row: {
+                    created_at: string | null
                     id: string
                     name: string
                 }
                 Insert: {
-                    created_at?: string
+                    created_at?: string | null
                     id?: string
                     name: string
                 }
                 Update: {
-                    created_at?: string
+                    created_at?: string | null
                     id?: string
                     name?: string
                 }
@@ -338,7 +571,7 @@ export type Database = {
                 }
                 Update: {
                     created_at?: string
-                    description?: string
+                    description: string
                     design_no?: string | null
                     drawing_url?: string | null
                     id?: string
@@ -390,12 +623,15 @@ export type Database = {
                     deleted_reason: string | null
                     delivery_date: string | null
                     id: string
+                    is_converted: boolean | null
                     issue_date: string | null
                     part_no: string | null
                     payment_terms_days: number | null
                     position_id: string | null
+                    project_id: string | null
                     quote_as: string | null
-                    quote_number: number | null
+                    quote_number: number
+                    quote_type: string | null
                     requisition_no: string | null
                     status: string | null
                     subtotal: number | null
@@ -415,12 +651,15 @@ export type Database = {
                     deleted_reason?: string | null
                     delivery_date?: string | null
                     id?: string
+                    is_converted?: boolean | null
                     issue_date?: string | null
                     part_no?: string | null
                     payment_terms_days?: number | null
                     position_id?: string | null
+                    project_id?: string | null
                     quote_as?: string | null
-                    quote_number?: number | null
+                    quote_number?: number
+                    quote_type?: string | null
                     requisition_no?: string | null
                     status?: string | null
                     subtotal?: number | null
@@ -440,12 +679,15 @@ export type Database = {
                     deleted_reason?: string | null
                     delivery_date?: string | null
                     id?: string
+                    is_converted?: boolean | null
                     issue_date?: string | null
                     part_no?: string | null
                     payment_terms_days?: number | null
                     position_id?: string | null
+                    project_id?: string | null
                     quote_as?: string | null
-                    quote_number?: number | null
+                    quote_number?: number
+                    quote_type?: string | null
                     requisition_no?: string | null
                     status?: string | null
                     subtotal?: number | null
@@ -484,6 +726,13 @@ export type Database = {
                         referencedRelation: "sales_positions"
                         referencedColumns: ["id"]
                     },
+                    {
+                        foreignKeyName: "sales_quotes_project_id_fkey"
+                        columns: ["project_id"]
+                        isOneToOne: false
+                        referencedRelation: "projects"
+                        referencedColumns: ["id"]
+                    },
                 ]
             }
             sales_units: {
@@ -504,12 +753,84 @@ export type Database = {
                 }
                 Relationships: []
             }
+            system_updates: {
+                Row: {
+                    author_avatar: string | null
+                    author_name: string | null
+                    category: string | null
+                    created_at: string | null
+                    github_url: string | null
+                    id: string
+                    sha: string
+                    summary: string | null
+                    title: string
+                }
+                Insert: {
+                    author_avatar?: string | null
+                    author_name?: string | null
+                    category?: string | null
+                    created_at?: string | null
+                    github_url?: string | null
+                    id?: string
+                    sha: string
+                    summary?: string | null
+                    title: string
+                }
+                Update: {
+                    author_avatar?: string | null
+                    author_name?: string | null
+                    category?: string | null
+                    created_at?: string | null
+                    github_url?: string | null
+                    id?: string
+                    sha?: string
+                    summary?: string | null
+                    title?: string
+                }
+                Relationships: []
+            }
+            user_profiles: {
+                Row: {
+                    created_at: string | null
+                    full_name: string | null
+                    id: string
+                    is_approved: boolean | null
+                    operator_name: string | null
+                    preferences: Json | null
+                    roles: string[] | null
+                    updated_at: string | null
+                    username: string | null
+                }
+                Insert: {
+                    created_at?: string | null
+                    full_name?: string | null
+                    id: string
+                    is_approved?: boolean | null
+                    operator_name?: string | null
+                    preferences?: Json | null
+                    roles?: string[] | null
+                    updated_at?: string | null
+                    username?: string | null
+                }
+                Update: {
+                    created_at?: string | null
+                    full_name?: string | null
+                    id?: string
+                    is_approved?: boolean | null
+                    operator_name?: string | null
+                    preferences?: Json | null
+                    roles?: string[] | null
+                    updated_at?: string | null
+                    username?: string | null
+                }
+                Relationships: []
+            }
         }
         Views: {
             [_ in never]: never
         }
         Functions: {
-            [_ in never]: never
+            is_admin: { Args: never; Returns: boolean }
         }
         Enums: {
             [_ in never]: never
@@ -520,27 +841,33 @@ export type Database = {
     }
 }
 
-type PublicSchema = Database["public"]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-    PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+    DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends {
+        schema: keyof DatabaseWithoutInternals
+    }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
             Row: infer R
         }
     ? R
     : never
-    : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
             Row: infer R
         }
     ? R
@@ -548,20 +875,24 @@ export type Tables<
     : never
 
 export type TablesInsert<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends {
+        schema: keyof DatabaseWithoutInternals
+    }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
         Insert: infer I
     }
     ? I
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
     }
     ? I
@@ -569,20 +900,24 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends {
+        schema: keyof DatabaseWithoutInternals
+    }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
         Update: infer U
     }
     ? U
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
     }
     ? U
@@ -590,29 +925,41 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-    PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-    EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+    DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+    EnumName extends DefaultSchemaEnumNameOrOptions extends {
+        schema: keyof DatabaseWithoutInternals
+    }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-    : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+    : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
     PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
     CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-        schema: keyof Database
+        schema: keyof DatabaseWithoutInternals
     }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+    : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+    public: {
+        Enums: {},
+    },
+} as const

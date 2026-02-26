@@ -27,7 +27,7 @@ export interface GanttSVGProps {
     initialOrders: Order[];
     // initialTasks: PlanningTask[]; // Removed
     optimisticTasks: PlanningTask[]; // Added
-    setOptimisticTasks: React.Dispatch<React.SetStateAction<PlanningTask[]>>; // Added
+    setOptimisticTasks: (value: React.SetStateAction<PlanningTask[]>) => void;
     searchQuery: string;
     viewMode: "hour" | "day" | "week";
     isFullscreen: boolean;

@@ -194,6 +194,48 @@
   background-color: #991b1b;
 }
 
+/* Markdown Typography (prose-reyper) */
+.prose-reyper h1 {
+  @apply text-2xl font-black mt-8 mb-4 text-foreground border-b pb-2 border-border;
+  display: block;
+}
+.prose-reyper h2 {
+  @apply text-xl font-bold mt-6 mb-3 text-foreground;
+  display: block;
+}
+.prose-reyper h3 {
+  @apply text-lg font-bold mt-4 mb-2 text-foreground;
+  display: block;
+}
+.prose-reyper p {
+  @apply mb-4 leading-relaxed text-muted-foreground;
+  display: block;
+}
+.prose-reyper strong {
+  @apply font-bold text-foreground;
+}
+.prose-reyper ul {
+  @apply list-disc pl-6 mb-4 space-y-1;
+}
+.prose-reyper ol {
+  @apply list-decimal pl-6 mb-4 space-y-1;
+}
+.prose-reyper li {
+  @apply text-muted-foreground;
+}
+.prose-reyper code {
+  @apply px-1.5 py-0.5 rounded bg-muted font-mono text-xs text-red-600 dark:text-red-400;
+}
+.prose-reyper blockquote {
+  @apply border-l-4 border-red-600 pl-4 italic my-6 text-muted-foreground bg-red-600/5 py-2 rounded-r;
+}
+.prose-reyper a {
+  @apply text-red-600 hover:underline font-medium;
+}
+.prose-reyper hr {
+  @apply my-8 border-border;
+}
+
 /* Dark Theme */
 .driverjs-theme-dark .driver-popover.driverjs-theme {
   background-color: #1e1e1e;

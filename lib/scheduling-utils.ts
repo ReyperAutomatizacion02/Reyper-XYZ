@@ -1,7 +1,7 @@
 import moment from "moment";
 import { Database } from "@/utils/supabase/types";
 
-export type Order = Database["public"]["Tables"]["production_orders"]["Row"] & { urgencia?: boolean };
+export type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 export type PlanningTask = Database["public"]["Tables"]["planning"]["Row"];
 
 export interface EvaluationStep {

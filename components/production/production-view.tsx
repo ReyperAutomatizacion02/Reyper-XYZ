@@ -92,7 +92,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
-type Order = Database["public"]["Tables"]["production_orders"]["Row"] & { urgencia?: boolean };
+type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
     production_orders: Order | null;
     isDraft?: boolean;
@@ -1772,7 +1772,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                     // Update local state immediately for reactivity
                     setLocalOrders(prev => prev.map(o =>
                         o.id === selectedOrderForEval?.id
-                            ? { ...o, evaluation: newSteps, urgencia: urg }
+                            ? { ...o, evaluation: newSteps as any, urgencia: urg ?? null }
                             : o
                     ));
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { UserCircle } from "lucide-react";
+import { UserCircle, Sparkles } from "lucide-react";
 import { GeneralTour } from "./general-tour";
+import { Button } from "./ui/button";
 import { createClient } from "@/utils/supabase/server"; // Use server client to get user if server component
 import { cookies } from "next/headers";
 import { MobileToggle } from "./mobile-toggle";
@@ -26,6 +27,16 @@ export default async function AppNavbar() {
 
             <div className="flex items-center gap-2 md:gap-4">
                 <div className="hidden sm:flex items-center gap-2">
+                    <Link href="/dashboard/actualizaciones">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full text-muted-foreground hover:text-red-600 hover:bg-red-500/10 transition-all group"
+                            title="Novedades y Actualizaciones"
+                        >
+                            <Sparkles className="w-5 h-5 transition-transform group-hover:scale-110 group-hover:rotate-12" />
+                        </Button>
+                    </Link>
                     <GeneralTour />
                     <ThemeToggle />
                 </div>

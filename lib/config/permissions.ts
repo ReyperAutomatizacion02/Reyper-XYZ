@@ -8,18 +8,18 @@
  */
 export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
     admin: ["*"],
-    administracion: ["/dashboard", "/dashboard/admin"],
-    recursos_humanos: ["/dashboard", "/dashboard/rrhh"],
-    contabilidad: ["/dashboard", "/dashboard/contabilidad"],
-    compras: ["/dashboard", "/dashboard/compras"],
-    ventas: ["/dashboard", "/dashboard/ventas"],
+    administracion: ["/dashboard", "/dashboard/admin", "/dashboard/actualizaciones"],
+    recursos_humanos: ["/dashboard", "/dashboard/rrhh", "/dashboard/actualizaciones"],
+    contabilidad: ["/dashboard", "/dashboard/contabilidad", "/dashboard/actualizaciones"],
+    compras: ["/dashboard", "/dashboard/compras", "/dashboard/actualizaciones"],
+    ventas: ["/dashboard", "/dashboard/ventas", "/dashboard/actualizaciones"],
     // Automatizacion gets access to Produccion and Diseno
-    automatizacion: ["/dashboard", "/dashboard/produccion", "/dashboard/diseno"],
-    diseno: ["/dashboard", "/dashboard/diseno"],
-    produccion: ["/dashboard", "/dashboard/produccion"],
-    operador: ["/dashboard", "/dashboard/produccion"],
-    calidad: ["/dashboard", "/dashboard/calidad"],
-    almacen: ["/dashboard", "/dashboard/almacen"],
+    automatizacion: ["/dashboard", "/dashboard/produccion", "/dashboard/diseno", "/dashboard/actualizaciones"],
+    diseno: ["/dashboard", "/dashboard/diseno", "/dashboard/actualizaciones"],
+    produccion: ["/dashboard", "/dashboard/produccion", "/dashboard/actualizaciones"],
+    operador: ["/dashboard", "/dashboard/produccion", "/dashboard/actualizaciones"],
+    calidad: ["/dashboard", "/dashboard/calidad", "/dashboard/actualizaciones"],
+    almacen: ["/dashboard", "/dashboard/almacen", "/dashboard/actualizaciones"],
 };
 
 /**
