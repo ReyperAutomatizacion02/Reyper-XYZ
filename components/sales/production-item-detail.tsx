@@ -28,8 +28,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { DrawingViewer } from "./drawing-viewer";
 import { toast } from "sonner";
-import { updateProductionOrder, getCatalogData } from "@/app/dashboard/ventas/actions";
+import { updateProductionOrder, getCatalogData, createMaterialEntry, createTreatmentEntry } from "@/app/dashboard/ventas/actions";
 import { uploadPartAsset } from "@/app/dashboard/ventas/upload-client";
+import { ComboboxCreatable, Option } from "./combobox-creatable";
 
 interface ProductionItemDetailProps {
     item: any;
@@ -214,16 +215,13 @@ export function ProductionItemDetail({
                     {isEditing ? (
                         <div className="flex-1 max-w-[220px] space-y-1 animate-in fade-in slide-in-from-left-2 duration-300">
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Estatus del Proyecto</label>
-                            <Select value={editStatus} onValueChange={setEditStatus}>
-                                <SelectTrigger className="h-9 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase text-[11px]">
-                                    <SelectValue placeholder="Seleccionar Estatus" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl overflow-hidden border-slate-200">
-                                    {statuses.map(s => (
-                                        <SelectItem key={s.id} value={s.name} className="uppercase font-bold text-[11px]">{s.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <ComboboxCreatable
+                                options={statuses.map(s => ({ value: s.name, label: s.name }))}
+                                value={editStatus}
+                                onSelect={setEditStatus}
+                                placeholder="Seleccionar Estatus"
+                                className="h-9 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-[11px]"
+                            />
                         </div>
                     ) : (
                         <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-[9px] uppercase tracking-wider px-2.5 py-1 pointer-events-none shadow-sm shadow-black/5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
@@ -303,21 +301,21 @@ export function ProductionItemDetail({
                                 {/* Hybrid Controls for Editing */}
                                 <Button
                                     size="sm"
-                                    className="h-8 px-4 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-32"
+                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-40"
                                     onClick={() => drawingInputRef.current?.click()}
                                     disabled={isUploading === 'drawing'}
                                 >
-                                    {isUploading === 'drawing' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Upload className="w-3.5 h-3.5 mr-2" />}
+                                    {isUploading === 'drawing' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <FileText className="w-3.5 h-3.5 mr-2" />}
                                     {currentDrawing ? "Sustituir Plano" : "Subir Plano"}
                                 </Button>
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-4 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-32"
+                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-40"
                                     onClick={() => imageInputRef.current?.click()}
                                     disabled={isUploading === 'image'}
                                 >
-                                    {isUploading === 'image' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Upload className="w-3.5 h-3.5 mr-2" />}
+                                    {isUploading === 'image' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <ImageIcon className="w-3.5 h-3.5 mr-2" />}
                                     {currentImage ? "Sustituir Imagen" : "Subir Imagen"}
                                 </Button>
                             </>
@@ -385,16 +383,23 @@ export function ProductionItemDetail({
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Material</label>
                     </div>
                     {isEditing ? (
-                        <Select value={editMaterial} onValueChange={setEditMaterial}>
-                            <SelectTrigger className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase">
-                                <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl overflow-hidden border-slate-200">
-                                {materials.map(m => (
-                                    <SelectItem key={m.id} value={m.name} className="uppercase font-bold text-xs">{m.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <ComboboxCreatable
+                            options={materials.map(m => ({ value: m.name, label: m.name }))}
+                            value={editMaterial}
+                            onSelect={setEditMaterial}
+                            onCreate={async (val) => {
+                                const res = await createMaterialEntry(val);
+                                if (res.success && res.id) {
+                                    // Refresh catalogs
+                                    const data = await getCatalogData();
+                                    setMaterials(data.materials || []);
+                                    return val; // Use name as value to match existing logic
+                                }
+                                return null;
+                            }}
+                            placeholder="Seleccionar..."
+                            className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
+                        />
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                             <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">{item.material || "No asignado"}</span>
@@ -409,17 +414,27 @@ export function ProductionItemDetail({
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tratamiento</label>
                     </div>
                     {isEditing ? (
-                        <Select value={editTreatmentId} onValueChange={setEditTreatmentId}>
-                            <SelectTrigger className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase">
-                                <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl overflow-hidden border-slate-200">
-                                <SelectItem value="none" className="uppercase font-bold text-xs">Sin tratamiento</SelectItem>
-                                {treatments.map(t => (
-                                    <SelectItem key={t.id} value={t.id} className="uppercase font-bold text-xs">{t.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <ComboboxCreatable
+                            options={[
+                                { value: "none", label: "SIN TRATAMIENTO" },
+                                ...treatments.map(t => ({ value: t.id, label: t.name }))
+                            ]}
+                            value={editTreatmentId}
+                            onSelect={setEditTreatmentId}
+                            onCreate={async (val) => {
+                                const res = await createTreatmentEntry(val);
+                                if (res.success && res.id) {
+                                    // Refresh catalogs
+                                    const data = await getCatalogData();
+                                    const treatmentList = (data as any).treatments || [];
+                                    setTreatments(treatmentList);
+                                    return res.id;
+                                }
+                                return null;
+                            }}
+                            placeholder="Seleccionar..."
+                            className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
+                        />
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                             <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">{item.treatment_name || item.treatment || "Sin tratamiento"}</span>
@@ -447,9 +462,6 @@ export function ProductionItemDetail({
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 )}
-                                <div className="p-1 text-slate-300">
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                </div>
                             </div>
                         </div>
                     ) : (

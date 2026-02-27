@@ -72,6 +72,14 @@ export function ComboboxCreatable({
         }
     };
 
+    const sortedOptions = React.useMemo(() => {
+        if (!value) return options;
+        const selected = options.find(opt => opt.value === value);
+        if (!selected) return options;
+        const others = options.filter(opt => opt.value !== value);
+        return [selected, ...others];
+    }, [options, value]);
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -117,7 +125,7 @@ export function ComboboxCreatable({
                             )}
                         </CommandEmpty>
                         <CommandGroup>
-                            {options.map((option) => (
+                            {sortedOptions.map((option) => (
                                 <CommandItem
                                     key={option.value}
                                     value={option.label} // Use label for search filtering
