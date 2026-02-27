@@ -13,9 +13,9 @@ export async function uploadPartAsset(file: File, path: string): Promise<string 
     try {
         const supabase = createClient();
 
-        // Validar tamaño (máx 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error("El archivo excede el límite de 5MB");
+        // Validar tamaño (máx 15MB)
+        if (file.size > 15 * 1024 * 1024) {
+            toast.error("El archivo excede el límite de 15MB");
             return null;
         }
 

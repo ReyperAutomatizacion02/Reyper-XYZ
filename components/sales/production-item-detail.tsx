@@ -16,7 +16,9 @@ import {
     ExternalLink,
     ChevronLeft,
     ChevronRight,
-    Check,
+    RotateCcw,
+    Box,
+    FileCode,
     Hash,
     Layers,
     FlaskConical
@@ -27,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { DrawingViewer } from "./drawing-viewer";
+import { ModelViewerModal } from "./model-viewer-modal";
 import { toast } from "sonner";
 import { updateProductionOrder, getCatalogData, createMaterialEntry, createTreatmentEntry } from "@/app/dashboard/ventas/actions";
 import { uploadPartAsset } from "@/app/dashboard/ventas/upload-client";
@@ -53,6 +56,8 @@ export function ProductionItemDetail({
     const [editUrgency, setEditUrgency] = useState(item.urgencia || item.urgency_level === "Urgente" || false);
     const [editImage, setEditImage] = useState(item.image || "");
     const [editDrawingUrl, setEditDrawingUrl] = useState(item.drawing_url || "");
+    const [editModelUrl, setEditModelUrl] = useState(item.model_url || "");
+    const [editRenderUrl, setEditRenderUrl] = useState(item.render_url || "");
     const [editTreatmentId, setEditTreatmentId] = useState(item.treatment_id || "none");
 
     // Catalog States
@@ -65,9 +70,11 @@ export function ProductionItemDetail({
     const [isUploading, setIsUploading] = useState<string | null>(null); // 'image' or 'drawing'
     const [visorUrl, setVisorUrl] = useState<string | null>(null);
     const [visorType, setVisorType] = useState<"image" | "pdf">();
+    const [is3DOpen, setIs3DOpen] = useState(false);
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const drawingInputRef = useRef<HTMLInputElement>(null);
+    const renderInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         async function loadCatalogs() {
@@ -93,6 +100,8 @@ export function ProductionItemDetail({
         setEditUrgency(item.urgencia || item.urgency_level === "Urgente" || false);
         setEditImage(item.image || "");
         setEditDrawingUrl(item.drawing_url || "");
+        setEditModelUrl(item.model_url || "");
+        setEditRenderUrl(item.render_url || "");
         setEditTreatmentId(item.treatment_id || "none");
     }, [item]);
 
@@ -104,10 +113,12 @@ export function ProductionItemDetail({
                 quantity: editQuantity,
                 material: editMaterial,
                 genral_status: editStatus,
-                urgency_level: editUrgency ? "Urgente" : "Normal",
+                urgencia: editUrgency,
                 treatment_id: editTreatmentId === "none" ? null : editTreatmentId,
                 image: editImage,
-                drawing_url: editDrawingUrl
+                drawing_url: editDrawingUrl,
+                model_url: editModelUrl,
+                render_url: editRenderUrl
             });
 
             if (result.success) {
@@ -124,7 +135,7 @@ export function ProductionItemDetail({
         }
     };
 
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'drawing') => {
+    const handleUploadAsset = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'drawing') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -159,6 +170,35 @@ export function ProductionItemDetail({
         toast.info("Vínculo de plano removido");
     };
 
+    const handleUploadRender = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Check extension
+        const ext = file.name.split('.').pop()?.toLowerCase();
+        if (ext !== 'glb' && ext !== 'gltf') {
+            toast.error("Por favor sube un archivo con extensión .glb o .gltf");
+            return;
+        }
+
+        setIsUploading('render');
+        const toastId = toast.loading("Subiendo render 3D...");
+
+        try {
+            const publicUrl = await uploadPartAsset(file, 'renders');
+
+            if (publicUrl) {
+                setEditRenderUrl(publicUrl);
+                toast.success("Render 3D cargado correctamente", { id: toastId });
+            }
+        } catch (error) {
+            toast.error("Error al procesar el render", { id: toastId });
+        } finally {
+            setIsUploading(null);
+            if (e.target) e.target.value = '';
+        }
+    };
+
     const openVisor = (url: string, type: "image" | "pdf") => {
         setVisorUrl(url);
         setVisorType(type);
@@ -179,14 +219,14 @@ export function ProductionItemDetail({
                 ref={imageInputRef}
                 className="hidden"
                 accept="image/*"
-                onChange={(e) => handleFileSelect(e, 'image')}
+                onChange={(e) => handleUploadAsset(e, 'image')}
             />
             <input
                 type="file"
                 ref={drawingInputRef}
                 className="hidden"
                 accept="application/pdf,image/*"
-                onChange={(e) => handleFileSelect(e, 'drawing')}
+                onChange={(e) => handleUploadAsset(e, 'drawing')}
             />
 
             {/* Name, Status and Urgency Header Area */}
@@ -295,13 +335,37 @@ export function ProductionItemDetail({
                     )}
 
                     {/* Overlay Controls */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity p-4 z-10 bg-black/50 backdrop-blur-[2px]">
-                        {isEditing ? (
-                            <>
-                                {/* Hybrid Controls for Editing */}
+                    {isEditing ? (
+                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 z-20">
+                            {/* Input for Image */}
+                            <Input
+                                type="file"
+                                ref={imageInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => handleUploadAsset(e, 'image')}
+                            />
+                            {/* Input for Drawing */}
+                            <Input
+                                type="file"
+                                ref={drawingInputRef}
+                                className="hidden"
+                                accept=".pdf,image/*"
+                                onChange={(e) => handleUploadAsset(e, 'drawing')}
+                            />
+                            {/* Input for Render */}
+                            <Input
+                                type="file"
+                                ref={renderInputRef}
+                                className="hidden"
+                                accept=".glb,.gltf"
+                                onChange={handleUploadRender}
+                            />
+
+                            <div className="flex flex-col gap-1.5 px-4 w-full items-center">
                                 <Button
                                     size="sm"
-                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-40"
+                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-full max-w-[160px]"
                                     onClick={() => drawingInputRef.current?.click()}
                                     disabled={isUploading === 'drawing'}
                                 >
@@ -311,45 +375,68 @@ export function ProductionItemDetail({
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-40"
+                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-full max-w-[160px]"
                                     onClick={() => imageInputRef.current?.click()}
                                     disabled={isUploading === 'image'}
                                 >
                                     {isUploading === 'image' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <ImageIcon className="w-3.5 h-3.5 mr-2" />}
                                     {currentImage ? "Sustituir Imagen" : "Subir Imagen"}
                                 </Button>
-                            </>
-                        ) : (
-                            <>
-                                {/* View Buttons for Read Only */}
-                                {currentDrawing && (
-                                    <Button
-                                        size="sm"
-                                        className="h-8 px-5 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-28"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openVisor(currentDrawing, isDrawingDrive ? "pdf" : "image");
-                                        }}
-                                    >
-                                        <FileText className="w-3.5 h-3.5 mr-2" /> Plano
-                                    </Button>
-                                )}
-                                {currentImage && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8 px-5 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-28"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            openVisor(currentImage, isImageDrive ? "pdf" : "image");
-                                        }}
-                                    >
-                                        <ImageIcon className="w-3.5 h-3.5 mr-2" /> Imagen
-                                    </Button>
-                                )}
-                            </>
-                        )}
-                    </div>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-6 text-[10px] font-bold uppercase bg-slate-800 hover:bg-slate-700 text-white border-none shadow-xl rounded-lg w-full max-w-[160px]"
+                                    onClick={() => renderInputRef.current?.click()}
+                                    disabled={isUploading === 'render'}
+                                >
+                                    {isUploading === 'render' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Box className="w-3.5 h-3.5 mr-2" />}
+                                    {editRenderUrl ? "Sustituir Render" : "Subir Render"}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 z-20">
+                            {/* View Buttons for Read Only */}
+                            {currentDrawing && (
+                                <Button
+                                    size="sm"
+                                    className="h-8 px-5 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-32"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openVisor(currentDrawing, isDrawingDrive ? "pdf" : "image");
+                                    }}
+                                >
+                                    <FileText className="w-3.5 h-3.5 mr-2" /> Plano
+                                </Button>
+                            )}
+                            {currentImage && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-5 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-32"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openVisor(currentImage, isImageDrive ? "pdf" : "image");
+                                    }}
+                                >
+                                    <ImageIcon className="w-3.5 h-3.5 mr-2" /> Imagen
+                                </Button>
+                            )}
+                            {item.render_url && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-5 text-[10px] font-bold uppercase bg-slate-800 hover:bg-slate-700 text-white border-none shadow-xl rounded-lg w-32"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIs3DOpen(true);
+                                    }}
+                                >
+                                    <Box className="w-3.5 h-3.5 mr-2" /> Visor 3D
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -483,6 +570,90 @@ export function ProductionItemDetail({
                         </div>
                     )}
                 </div>
+
+                {/* CAD source (.step) */}
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <FileCode className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Diseño CAD (.step)</label>
+                    </div>
+                    {isEditing ? (
+                        <div className="relative group">
+                            <Input
+                                value={editModelUrl}
+                                onChange={(e) => setEditModelUrl(e.target.value)}
+                                placeholder="URL del archivo .step (G-Drive u otro)"
+                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl pr-10 text-[11px] font-medium"
+                            />
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                {editModelUrl && (
+                                    <button onClick={() => setEditModelUrl("")} className="text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            className={cn(
+                                "flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 transition-all",
+                                item.model_url ? "hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer active:scale-[0.98]" : "opacity-60"
+                            )}
+                            onClick={() => {
+                                if (item.model_url) {
+                                    window.open(item.model_url, '_blank', 'noopener,noreferrer');
+                                }
+                            }}
+                        >
+                            <span className={`text-[11px] font-bold uppercase truncate max-w-[150px] ${item.model_url ? "text-slate-700 dark:text-slate-200" : "text-slate-400"}`}>
+                                {item.model_url ? "Descargar CAD" : "Sin CAD"}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* 3D Render (.glb) */}
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <Box className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Render 3D (.glb)</label>
+                    </div>
+                    {isEditing ? (
+                        <div className="space-y-2">
+                            <div className="relative group">
+                                <Input
+                                    value={editRenderUrl}
+                                    onChange={(e) => setEditRenderUrl(e.target.value)}
+                                    placeholder="URL del archivo .glb o .gltf"
+                                    className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl pr-10 text-[11px] font-medium"
+                                />
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                    {editRenderUrl && (
+                                        <button onClick={() => setEditRenderUrl("")} className="text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            className={cn(
+                                "flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 transition-all",
+                                item.render_url ? "hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer active:scale-[0.98]" : "opacity-60"
+                            )}
+                            onClick={() => {
+                                if (item.render_url) {
+                                    setIs3DOpen(true);
+                                }
+                            }}
+                        >
+                            <span className={`text-[11px] font-bold uppercase truncate max-w-[150px] ${item.render_url ? "text-[#EC1C21]" : "text-slate-400"}`}>
+                                {item.render_url ? "Ver diseño 3D" : "Sin Render"}
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Save Action Hidden Trigger */}
@@ -497,6 +668,14 @@ export function ProductionItemDetail({
                 url={visorUrl ?? ""}
                 title={editName || item.part_name}
                 type={visorType}
+            />
+
+            {/* 3D Model Viewer Modal */}
+            <ModelViewerModal
+                isOpen={is3DOpen}
+                onClose={() => setIs3DOpen(false)}
+                url={item.render_url || ""}
+                title={item.part_name}
             />
         </div>
     );

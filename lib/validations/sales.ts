@@ -60,5 +60,7 @@ export const UpdateProductionOrderSchema = z.object({
     genral_status: z.string().min(1, "El estatus es obligatorio"),
     treatment_id: z.string().nullable().optional(), // Treatment can be null if not selected
     treatment_name: z.string().nullable().optional(),
-    urgency_level: z.string().nullable().optional(), // Eg. 'Normal', 'Urgente'
+    urgencia: z.boolean().optional(),
+    model_url: z.string().nullable().optional(),
+    render_url: z.string().nullable().optional(),
 });
