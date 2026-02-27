@@ -138,7 +138,7 @@ export function ProjectHeaderForm({
         : contacts;
 
     return (
-        <div className="flex flex-col pb-6 px-4 mt-2 border-b border-border">
+        <div className="flex flex-col pb-6 px-6 mt-2 border-b border-border">
             {/* Top row with Badge and Edit Button */}
             <div className="flex items-center justify-between w-full mb-5">
                 <Badge variant="secondary" className="bg-red-50 text-red-600 hover:bg-red-100 border-none px-3.5 py-1 font-mono text-sm font-bold tracking-widest shadow-none rounded-xl">
@@ -172,7 +172,7 @@ export function ProjectHeaderForm({
                             variant="outline"
                             size="sm"
                             onClick={() => onToggleEdit(true)}
-                            className="h-8 text-xs font-bold uppercase tracking-wider text-slate-500 border-slate-200 hover:bg-slate-50 bg-white dark:bg-slate-900 rounded-lg"
+                            className="h-8 text-[10px] font-bold uppercase tracking-widest text-red-600 border-red-100 hover:bg-red-50 bg-white dark:bg-slate-950 rounded-lg transition-all"
                         >
                             EDITAR
                         </Button>
@@ -187,151 +187,160 @@ export function ProjectHeaderForm({
             </div>
 
             {/* Project Details Area */}
-            <div className="flex flex-col gap-4">
+            <div className={cn("flex flex-col gap-4", isEditing && "bg-slate-50/50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 mt-2")}>
                 {isEditing ? (
-                    <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase h-auto py-1 px-3 -ml-3 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shadow-inner focus-visible:ring-1 focus-visible:ring-[#EC1C21]/50"
-                        placeholder="Nombre del Proyecto"
-                    />
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Nombre del Proyecto</label>
+                        <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="text-lg font-bold uppercase h-11 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-[#EC1C21] rounded-xl shadow-sm"
+                            placeholder="Nombre del Proyecto"
+                        />
+                    </div>
                 ) : (
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase mt-1">
+                    <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase mt-1">
                         {project.name}
                     </h1>
                 )}
 
-                <div className="flex flex-col gap-3.5 mt-1">
+                <div className={cn("flex flex-col gap-3.5", !isEditing && "mt-1")}>
                     {/* Empresa */}
-                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                        <Building2 className="w-5 h-5 shrink-0 opacity-70" />
-                        {isEditing ? (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        className={cn(
-                                            "w-full max-w-sm justify-between bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 h-8 px-3 font-semibold uppercase tracking-wide text-[13px]",
-                                            !editCompanyId && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <span className="truncate">
-                                            {editCompanyId
-                                                ? clients.find((client) => client.id === editCompanyId)?.name
-                                                : "Seleccionar empresa..."}
-                                        </span>
-                                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[300px] p-0" align="start">
-                                    <Command>
-                                        <CommandInput placeholder="Buscar empresa..." />
-                                        <CommandList>
-                                            <CommandEmpty>No se encontró empresa.</CommandEmpty>
-                                            <CommandGroup>
-                                                {clients.map((client) => (
-                                                    <CommandItem
-                                                        key={client.id}
-                                                        value={client.name}
-                                                        onSelect={() => {
-                                                            setEditCompanyId(client.id);
-                                                            setEditCompany(client.name);
-                                                            setEditRequestorId("");
-                                                            setEditRequestor("");
-                                                        }}
-                                                    >
-                                                        <CheckIcon
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                client.id === editCompanyId ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                        />
-                                                        {client.name}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                        ) : (
-                            <span className="text-[15px] font-medium uppercase tracking-wide">{project.company}</span>
-                        )}
+                    <div className="flex flex-col gap-1.5 text-slate-500 dark:text-slate-400">
+                        {isEditing && <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Empresa / Cliente</label>}
+                        <div className="flex items-center gap-3">
+                            <Building2 className={cn("w-5 h-5 shrink-0 opacity-70", isEditing && "w-4 h-4 text-[#EC1C21] opacity-100")} />
+                            {isEditing ? (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            className={cn(
+                                                "w-full justify-between bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 font-bold uppercase tracking-wide text-[12px] rounded-xl",
+                                                !editCompanyId && "text-muted-foreground"
+                                            )}
+                                        >
+                                            <span className="truncate">
+                                                {editCompanyId
+                                                    ? clients.find((client) => client.id === editCompanyId)?.name
+                                                    : "Seleccionar empresa..."}
+                                            </span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[300px] p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar empresa..." />
+                                            <CommandList>
+                                                <CommandEmpty>No se encontró empresa.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {clients.map((client) => (
+                                                        <CommandItem
+                                                            key={client.id}
+                                                            value={client.name}
+                                                            onSelect={() => {
+                                                                setEditCompanyId(client.id);
+                                                                setEditCompany(client.name);
+                                                                setEditRequestorId("");
+                                                                setEditRequestor("");
+                                                            }}
+                                                        >
+                                                            <CheckIcon
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    client.id === editCompanyId ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {client.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            ) : (
+                                <span className="text-[15px] font-medium uppercase tracking-wide">{project.company}</span>
+                            )}
+                        </div>
                     </div>
 
                     {/* Solicita (Contacto) */}
-                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                        <User className="w-5 h-5 shrink-0 opacity-70" />
-                        {isEditing ? (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        disabled={!editCompanyId}
-                                        className={cn(
-                                            "w-full max-w-sm justify-between bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 h-8 px-3 font-semibold uppercase tracking-wide text-[13px]",
-                                            !editRequestorId && "text-muted-foreground"
-                                        )}
-                                    >
-                                        <span className="truncate">
-                                            {editRequestorId
-                                                ? contacts.find((c) => c.id === editRequestorId)?.name
-                                                : "Seleccionar contacto..."}
-                                        </span>
-                                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[300px] p-0" align="start">
-                                    <Command>
-                                        <CommandInput placeholder="Buscar contacto..." />
-                                        <CommandList>
-                                            <CommandEmpty>No se encontró contacto.</CommandEmpty>
-                                            <CommandGroup>
-                                                {filteredContacts.map((contact) => (
-                                                    <CommandItem
-                                                        key={contact.id}
-                                                        value={contact.name}
-                                                        onSelect={() => {
-                                                            setEditRequestorId(contact.id);
-                                                            setEditRequestor(contact.name);
-                                                        }}
-                                                    >
-                                                        <CheckIcon
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                contact.id === editRequestorId ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                        />
-                                                        {contact.name}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                        ) : (
-                            <span className="text-[15px] font-medium uppercase tracking-wide">{project.requestor}</span>
-                        )}
+                    <div className="flex flex-col gap-1.5 text-slate-500 dark:text-slate-400">
+                        {isEditing && <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Contacto Solicitante</label>}
+                        <div className="flex items-center gap-3">
+                            <User className={cn("w-5 h-5 shrink-0 opacity-70", isEditing && "w-4 h-4 text-[#EC1C21] opacity-100")} />
+                            {isEditing ? (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            disabled={!editCompanyId}
+                                            className={cn(
+                                                "w-full justify-between bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 font-bold uppercase tracking-wide text-[12px] rounded-xl",
+                                                !editRequestorId && "text-muted-foreground"
+                                            )}
+                                        >
+                                            <span className="truncate">
+                                                {editRequestorId
+                                                    ? contacts.find((c) => c.id === editRequestorId)?.name
+                                                    : "Seleccionar contacto..."}
+                                            </span>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[300px] p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar contacto..." />
+                                            <CommandList>
+                                                <CommandEmpty>No se encontró contacto.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {filteredContacts.map((contact) => (
+                                                        <CommandItem
+                                                            key={contact.id}
+                                                            value={contact.name}
+                                                            onSelect={() => {
+                                                                setEditRequestorId(contact.id);
+                                                                setEditRequestor(contact.name);
+                                                            }}
+                                                        >
+                                                            <CheckIcon
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    contact.id === editRequestorId ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {contact.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            ) : (
+                                <span className="text-[15px] font-medium uppercase tracking-wide">{project.requestor}</span>
+                            )}
+                        </div>
                     </div>
 
                     {/* Dates (Only visible in edit mode here, since display is on Tiempos block) */}
                     {isEditing && (
-                        <div className="flex flex-col sm:flex-row gap-4 mt-2">
-                            <div className="flex-1 max-w-[200px]">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Inicio</label>
+                        <div className="flex flex-col sm:flex-row gap-4 mt-2 pt-4 border-t border-slate-200/60 dark:border-slate-800/60">
+                            <div className="flex-1">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1.5 ml-1">Fecha Inicio</label>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
                                             variant={"outline"}
                                             className={cn(
-                                                "w-full justify-start text-left font-bold capitalize bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 h-8 px-3 text-[12px]",
+                                                "w-full justify-start text-left font-bold capitalize bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 text-[12px] rounded-xl",
                                                 !editStartDate && "text-muted-foreground"
                                             )}
                                         >
-                                            <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                                            <CalendarIcon className="mr-2 h-4 w-4 text-[#EC1C21]" />
                                             {editStartDate ? format(editStartDate, "dd MMM yyyy", { locale: es }) : <span>Seleccionar</span>}
                                         </Button>
                                     </PopoverTrigger>
@@ -346,18 +355,18 @@ export function ProjectHeaderForm({
                                 </Popover>
                             </div>
 
-                            <div className="flex-1 max-w-[200px]">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-[#EC1C21]/60 block mb-1">Entrega</label>
+                            <div className="flex-1">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-[#EC1C21]/60 block mb-1.5 ml-1">Fecha Entrega</label>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
                                             variant={"outline"}
                                             className={cn(
-                                                "w-full justify-start text-left font-bold capitalize bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 h-8 px-3 text-[12px] text-[#EC1C21]",
+                                                "w-full justify-start text-left font-bold capitalize bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 text-[12px] text-[#EC1C21] rounded-xl",
                                                 !editDeliveryDate && "text-muted-foreground"
                                             )}
                                         >
-                                            <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                                            <CalendarIcon className="mr-2 h-4 w-4 text-[#EC1C21]" />
                                             {editDeliveryDate ? format(editDeliveryDate, "dd MMM yyyy", { locale: es }) : <span>Seleccionar</span>}
                                         </Button>
                                     </PopoverTrigger>

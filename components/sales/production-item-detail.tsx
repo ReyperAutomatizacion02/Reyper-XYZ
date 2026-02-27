@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 import {
     Package,
     Building2,
@@ -15,7 +16,10 @@ import {
     ExternalLink,
     ChevronLeft,
     ChevronRight,
-    Check
+    Check,
+    Hash,
+    Layers,
+    FlaskConical
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -355,8 +359,11 @@ export function ProductionItemDetail({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 mt-2">
 
                 {/* Quantity */}
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Cantidad</label>
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <Hash className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cantidad</label>
+                    </div>
                     {isEditing ? (
                         <Input
                             type="number"
@@ -366,15 +373,17 @@ export function ProductionItemDetail({
                         />
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <Package className="w-4 h-4 text-[#EC1C21]" />
-                            <span className="font-bold text-slate-700 dark:text-slate-200">{item.quantity} unidades</span>
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{item.quantity} unidades</span>
                         </div>
                     )}
                 </div>
 
                 {/* Material */}
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Material</label>
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <Layers className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Material</label>
+                    </div>
                     {isEditing ? (
                         <Select value={editMaterial} onValueChange={setEditMaterial}>
                             <SelectTrigger className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase">
@@ -388,15 +397,17 @@ export function ProductionItemDetail({
                         </Select>
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <Building2 className="w-4 h-4 text-[#EC1C21]" />
-                            <span className="font-bold text-slate-700 dark:text-slate-200 uppercase">{item.material || "No asignado"}</span>
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">{item.material || "No asignado"}</span>
                         </div>
                     )}
                 </div>
 
                 {/* Treatment */}
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Tratamiento</label>
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <FlaskConical className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tratamiento</label>
+                    </div>
                     {isEditing ? (
                         <Select value={editTreatmentId} onValueChange={setEditTreatmentId}>
                             <SelectTrigger className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase">
@@ -411,15 +422,17 @@ export function ProductionItemDetail({
                         </Select>
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <AlertCircle className="w-4 h-4 text-[#EC1C21]" />
-                            <span className="font-bold text-slate-700 dark:text-slate-200 uppercase">{item.treatment_name || item.treatment || "Sin tratamiento"}</span>
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">{item.treatment_name || item.treatment || "Sin tratamiento"}</span>
                         </div>
                     )}
                 </div>
 
                 {/* Drawing / Plano URL */}
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Vínculo de Plano (URL)</label>
+                <div className="space-y-1.5 text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <ExternalLink className="w-3 h-3 text-[#EC1C21]" />
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Vínculo de Plano (URL)</label>
+                    </div>
                     {isEditing ? (
                         <div className="relative group">
                             <Input
@@ -440,9 +453,19 @@ export function ProductionItemDetail({
                             </div>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <FileText className={`w-4 h-4 ${currentDrawing ? "text-[#EC1C21]" : "text-slate-300"}`} />
-                            <span className={`text-[11px] font-bold uppercase truncate max-w-[120px] ${currentDrawing ? "text-slate-700 dark:text-slate-200" : "text-slate-400"}`}>
+                        <div
+                            className={cn(
+                                "flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 transition-all",
+                                currentDrawing ? "hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer active:scale-[0.98]" : "opacity-60"
+                            )}
+                            onClick={() => {
+                                if (currentDrawing) {
+                                    window.open(currentDrawing, '_blank', 'noopener,noreferrer');
+                                }
+                            }}
+                            title={currentDrawing ? "Click para abrir plano en una nueva pestaña" : "Sin plano vinculado"}
+                        >
+                            <span className={`text-[11px] font-bold uppercase truncate max-w-[150px] ${currentDrawing ? "text-slate-700 dark:text-slate-200" : "text-slate-400"}`}>
                                 {currentDrawing ? (isDrawingDrive ? "Plano G-Drive" : "Plano Vinculado") : "Sin Plano"}
                             </span>
                         </div>

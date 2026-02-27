@@ -203,67 +203,69 @@ export function ProjectDetailsPanel({
                                                 contacts={contacts}
                                             />
 
-                                            <div className="p-5 space-y-8 flex-1">
-                                                <div className="flex flex-col gap-3">
-                                                    <div className="flex items-center gap-2 text-slate-500 pl-1">
-                                                        <Calendar className="w-4 h-4" />
-                                                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Tiempos</span>
-                                                    </div>
-                                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                                                        <div className="flex justify-between items-start mb-6">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Inicio</span>
-                                                                <span className="text-[15px] font-bold text-slate-900 dark:text-white capitalize">
-                                                                    {format(parseLocalDate(project.start_date) || new Date(), "dd MMM yyyy", { locale: es })}
-                                                                </span>
+                                            {!isEditing && (
+                                                <div className="p-5 space-y-8 flex-1">
+                                                    <div className="flex flex-col gap-3">
+                                                        <div className="flex items-center gap-2 text-slate-500 pl-1">
+                                                            <Calendar className="w-4 h-4" />
+                                                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Tiempos</span>
+                                                        </div>
+                                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                                                            <div className="flex justify-between items-start mb-6">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Inicio</span>
+                                                                    <span className="text-[15px] font-bold text-slate-900 dark:text-white capitalize">
+                                                                        {format(parseLocalDate(project.start_date) || new Date(), "dd MMM yyyy", { locale: es })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex flex-col text-right">
+                                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Entrega</span>
+                                                                    <span className="text-[15px] font-bold text-[#EC1C21] capitalize">
+                                                                        {format(parseLocalDate(project.delivery_date) || new Date(), "dd MMM yyyy", { locale: es })}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex flex-col text-right">
-                                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Entrega</span>
-                                                                <span className="text-[15px] font-bold text-[#EC1C21] capitalize">
-                                                                    {format(parseLocalDate(project.delivery_date) || new Date(), "dd MMM yyyy", { locale: es })}
-                                                                </span>
+                                                            <div className="flex flex-col gap-2">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">Progreso de tiempo</span>
+                                                                    <span className="text-[11px] font-bold text-slate-900 dark:text-white">{Math.round(progress)}%</span>
+                                                                </div>
+                                                                <Progress value={progress} className="h-1.5 [&>div]:bg-[#EC1C21] bg-slate-100 dark:bg-slate-800" />
                                                             </div>
                                                         </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-[11px] font-bold text-slate-900 dark:text-white">Progreso de tiempo</span>
-                                                                <span className="text-[11px] font-bold text-slate-900 dark:text-white">{Math.round(progress)}%</span>
-                                                            </div>
-                                                            <Progress value={progress} className="h-1.5 [&>div]:bg-[#EC1C21] bg-slate-100 dark:bg-slate-800" />
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-4">
+                                                        <div className="flex items-center gap-2 text-slate-500 pl-1 mb-1">
+                                                            <Package className="w-4 h-4" />
+                                                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Partidas ({items.length})</span>
+                                                        </div>
+
+                                                        <div className="space-y-4">
+                                                            {loading ? (
+                                                                <div className="flex justify-center p-8">
+                                                                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                                                </div>
+                                                            ) : items.length === 0 ? (
+                                                                <div className="text-center p-8 text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
+                                                                    <Package className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                                                    <p>No hay partidas registradas</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 gap-2.5">
+                                                                    {items.map((item) => (
+                                                                        <ProductionItemSummary
+                                                                            key={item.id}
+                                                                            item={item}
+                                                                            onClick={() => setSelectedItem(item)}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
-
-                                                <div className="flex flex-col gap-4">
-                                                    <div className="flex items-center gap-2 text-slate-500 pl-1 mb-1">
-                                                        <Package className="w-4 h-4" />
-                                                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Partidas ({items.length})</span>
-                                                    </div>
-
-                                                    <div className="space-y-4">
-                                                        {loading ? (
-                                                            <div className="flex justify-center p-8">
-                                                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                                                            </div>
-                                                        ) : items.length === 0 ? (
-                                                            <div className="text-center p-8 text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
-                                                                <Package className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                                                                <p>No hay partidas registradas</p>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="grid grid-cols-1 gap-2.5">
-                                                                {items.map((item) => (
-                                                                    <ProductionItemSummary
-                                                                        key={item.id}
-                                                                        item={item}
-                                                                        onClick={() => setSelectedItem(item)}
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="flex flex-col flex-1 h-full bg-slate-50/50 dark:bg-slate-900/10">
@@ -368,7 +370,7 @@ export function ProjectDetailsPanel({
                                             </div>
 
                                             {/* Item Detail Component Content */}
-                                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+                                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
                                                 <ProductionItemDetail
                                                     key={selectedItem.id}
                                                     item={selectedItem}
