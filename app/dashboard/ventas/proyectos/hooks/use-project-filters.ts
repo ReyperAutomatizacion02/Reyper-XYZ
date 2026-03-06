@@ -8,15 +8,21 @@ export interface ProjectFilters {
         from: Date | undefined;
         to: Date | undefined;
     } | undefined;
+    viewMode: 'grid' | 'table';
+    sortBy: 'code' | 'name' | 'delivery_date' | 'progress' | 'parts_count';
+    sortOrder: 'asc' | 'desc' | 'none';
 }
 
-const STORAGE_KEY = "reyper_project_filters_v1";
+const STORAGE_KEY = "reyper_project_filters_v2";
 
 const DEFAULT_FILTERS: ProjectFilters = {
     clients: [],
     requestors: [],
     status: [],
-    dateRange: undefined
+    dateRange: undefined,
+    viewMode: 'grid',
+    sortBy: 'delivery_date',
+    sortOrder: 'asc'
 };
 
 export function useProjectFilters() {
@@ -53,6 +59,24 @@ export function useProjectFilters() {
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
+    const toggleSort = (field: ProjectFilters['sortBy']) => {
+        setFilters(prev => {
+            const isSameField = prev.sortBy === field;
+            let nextOrder: ProjectFilters['sortOrder'] = 'asc';
+
+            if (isSameField) {
+                if (prev.sortOrder === 'asc') nextOrder = 'desc';
+                else if (prev.sortOrder === 'desc') nextOrder = 'asc'; // Cycle back to asc
+            }
+
+            return {
+                ...prev,
+                sortBy: field,
+                sortOrder: nextOrder
+            };
+        });
+    };
+
     const resetFilters = () => {
         setFilters(DEFAULT_FILTERS);
         localStorage.removeItem(STORAGE_KEY);
@@ -68,6 +92,7 @@ export function useProjectFilters() {
     return {
         filters,
         updateFilter,
+        toggleSort,
         resetFilters,
         activeFilterCount,
         isLoaded

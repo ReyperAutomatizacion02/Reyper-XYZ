@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn, isValidImageSrc } from "@/lib/utils";
 import {
     Package,
     Building2,
@@ -11,7 +11,6 @@ import {
     FileText,
     Eye,
     Upload,
-    Trash2,
     Loader2,
     ExternalLink,
     ChevronLeft,
@@ -160,15 +159,7 @@ export function ProductionItemDetail({
         }
     };
 
-    const handleDeleteImage = () => {
-        setEditImage("");
-        toast.info("Imagen removida");
-    };
 
-    const handleDeleteDrawing = () => {
-        setEditDrawingUrl("");
-        toast.info("Vínculo de plano removido");
-    };
 
     const handleUploadRender = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -307,11 +298,11 @@ export function ProductionItemDetail({
                 <div
                     className="w-full max-w-[280px] aspect-video relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center border border-slate-200/50 dark:border-slate-700/50 shadow-inner group transition-all"
                 >
-                    {(currentImage || currentDrawing) ? (
+                    {(isValidImageSrc(currentImage) || currentDrawing) ? (
                         <>
-                            {currentImage && !isImageDrive ? (
+                            {isValidImageSrc(currentImage) && !isImageDrive ? (
                                 <Image
-                                    src={currentImage}
+                                    src={currentImage!}
                                     alt={editName || item.part_name || "Imagen de partida"}
                                     fill
                                     className="object-cover opacity-90 group-hover:opacity-40 transition-opacity duration-300"
@@ -458,7 +449,9 @@ export function ProductionItemDetail({
                         />
                     ) : (
                         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{item.quantity} unidades</span>
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                {item.quantity} {item.quantity === 1 ? "unidad" : "unidades"}
+                            </span>
                         </div>
                     )}
                 </div>
@@ -539,17 +532,10 @@ export function ProductionItemDetail({
                         <div className="relative group">
                             <Input
                                 value={editDrawingUrl}
-                                onChange={(e) => setEditDrawingUrl(e.target.value)}
+                                readOnly={true}
                                 placeholder="URL del Plano (G-Drive u otro)"
-                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl pr-10 text-[11px] font-medium"
+                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl text-[11px] font-medium cursor-default"
                             />
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                {editDrawingUrl && (
-                                    <button onClick={handleDeleteDrawing} className="text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors">
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-                            </div>
                         </div>
                     ) : (
                         <div
@@ -581,17 +567,10 @@ export function ProductionItemDetail({
                         <div className="relative group">
                             <Input
                                 value={editModelUrl}
-                                onChange={(e) => setEditModelUrl(e.target.value)}
+                                readOnly={true}
                                 placeholder="URL del archivo .step (G-Drive u otro)"
-                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl pr-10 text-[11px] font-medium"
+                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl text-[11px] font-medium cursor-default"
                             />
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                {editModelUrl && (
-                                    <button onClick={() => setEditModelUrl("")} className="text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors">
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-                            </div>
                         </div>
                     ) : (
                         <div
@@ -623,17 +602,10 @@ export function ProductionItemDetail({
                             <div className="relative group">
                                 <Input
                                     value={editRenderUrl}
-                                    onChange={(e) => setEditRenderUrl(e.target.value)}
+                                    readOnly={true}
                                     placeholder="URL del archivo .glb o .gltf"
-                                    className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl pr-10 text-[11px] font-medium"
+                                    className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl text-[11px] font-medium cursor-default"
                                 />
-                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                    {editRenderUrl && (
-                                        <button onClick={() => setEditRenderUrl("")} className="text-red-500 hover:bg-red-50 p-1 rounded-md transition-colors">
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                </div>
                             </div>
                         </div>
                     ) : (

@@ -3,6 +3,7 @@
 import { Package, Calendar, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
+import { cn, isValidImageSrc } from "@/lib/utils";
 
 interface ProductionItemSummaryProps {
     item: any;
@@ -10,6 +11,9 @@ interface ProductionItemSummaryProps {
 }
 
 export function ProductionItemSummary({ item, onClick }: ProductionItemSummaryProps) {
+    const imageSource = item.image;
+    const hasValidImage = isValidImageSrc(imageSource);
+
     return (
         <div
             onClick={onClick}
@@ -17,9 +21,9 @@ export function ProductionItemSummary({ item, onClick }: ProductionItemSummaryPr
         >
             {/* Thumbnail */}
             <div className="w-28 aspect-video shrink-0 relative rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200/50 dark:border-slate-700/50 group-hover:border-[#EC1C21]/20 transition-colors">
-                {item.image || item.drawing_url ? (
+                {hasValidImage ? (
                     <Image
-                        src={item.image || item.drawing_url}
+                        src={imageSource}
                         alt="Plano"
                         fill
                         className="object-cover opacity-90 group-hover:opacity-100 transition-opacity"

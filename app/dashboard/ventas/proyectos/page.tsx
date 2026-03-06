@@ -2,18 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { FolderKanban, Search, Calendar, User2, Building2, AlertCircle } from "lucide-react";
+import { FolderKanban, Search, Calendar, User2, Building2, AlertCircle, LayoutGrid, List, ArrowUpWideNarrow } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getActiveProjects, getFilterOptions, getCatalogData } from "../actions";
 import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
-import Link from "next/link";
 import { ProjectDetailsPanel } from "@/components/sales/project-details-panel";
 import { ProjectsFilter } from "@/components/sales/projects-filter";
+import { ProjectsTable } from "@/components/sales/projects-table";
 import { useProjectFilters } from "./hooks/use-project-filters";
 import { useTour } from "@/hooks/use-tour";
 
@@ -32,6 +34,8 @@ interface Project {
 }
 
 export default function ActiveProjectsPage() {
+    const { filters, updateFilter, toggleSort, resetFilters, activeFilterCount, isLoaded } = useProjectFilters();
+
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -47,9 +51,6 @@ export default function ActiveProjectsPage() {
         treatments: { id: string, name: string }[]
     }>({ clients: [], contacts: [], materials: [], statuses: [], treatments: [] });
 
-    // Custom hook for filters
-    const { filters, updateFilter, resetFilters, activeFilterCount } = useProjectFilters();
-
     const fetchProjects = async () => {
         try {
             const [projectsData, optionsData, catalogData] = await Promise.all([
@@ -60,6 +61,12 @@ export default function ActiveProjectsPage() {
             setProjects(projectsData as any);
             setFilterOptions(optionsData as any);
             setCatalog(catalogData as any);
+
+            // Sync selected project if it exists
+            if (selectedProject) {
+                const updated = (projectsData as any[]).find(p => p.id === selectedProject.id);
+                if (updated) setSelectedProject(updated);
+            }
         } catch (error: any) {
             toast.error("Error al cargar datos: " + error.message);
         } finally {
@@ -85,12 +92,22 @@ export default function ActiveProjectsPage() {
 
         // Urgency color based on days remaining
         const daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-        let dateColor = "text-green-600 dark:text-green-500/80";
-        if (daysRemaining < 0) dateColor = "text-red-700 dark:text-red-400 font-bold"; // Overdue
-        else if (daysRemaining <= 7) dateColor = "text-red-500 dark:text-red-400 font-bold"; // Urgent
-        else if (daysRemaining <= 15) dateColor = "text-yellow-600 dark:text-yellow-500/80"; // Warning
 
-        return { progress, dateColor, daysRemaining };
+        let dateColor = "text-green-600 dark:text-green-500/80";
+        let statusBg = "bg-green-500";
+
+        if (daysRemaining < 0) {
+            dateColor = "text-[#EC1C21]"; // Overdue
+            statusBg = "bg-[#EC1C21]";
+        } else if (daysRemaining <= 7) {
+            dateColor = "text-[#EC1C21]"; // Urgent
+            statusBg = "bg-[#EC1C21]";
+        } else if (daysRemaining <= 15) {
+            dateColor = "text-orange-500"; // Warning
+            statusBg = "bg-orange-500";
+        }
+
+        return { progress, dateColor, statusBg, daysRemaining };
     };
 
     // --- HELP TOUR HANDLER ---
@@ -132,7 +149,7 @@ export default function ActiveProjectsPage() {
                 popover: { title: "Filtros Avanzados", description: "Filtra por Cliente, Solicitante, Estatus (A tiempo/Retrasado) o Rango de Fechas.", side: "bottom" }
             },
             {
-                element: "#active-project-card-0",
+                element: `#active-project-card-0`,
                 popover: { title: "Tarjeta de Proyecto", description: "Haz clic en cualquier tarjeta para ver el detalle completo.", side: "right", align: "center" }
             },
             // Side Panel Steps
@@ -192,9 +209,35 @@ export default function ActiveProjectsPage() {
         return true;
     });
 
+    // Sort Logic
+    const sortedProjects = [...filteredProjects].sort((a, b) => {
+        const field = filters.sortBy;
+        const order = filters.sortOrder === 'desc' ? -1 : 1;
 
+        if (field === 'delivery_date') {
+            const dateA = new Date(a.delivery_date).getTime();
+            const dateB = new Date(b.delivery_date).getTime();
+            return (dateA - dateB) * order;
+        }
+
+        if (field === 'progress') {
+            const progA = getProjectStatus(a.start_date, a.delivery_date).progress;
+            const progB = getProjectStatus(b.start_date, b.delivery_date).progress;
+            return (progA - progB) * order;
+        }
+
+        if (field === 'parts_count') {
+            return ((a.parts_count || 0) - (b.parts_count || 0)) * order;
+        }
+
+        const valA = (a as any)[field]?.toString().toLowerCase() || "";
+        const valB = (b as any)[field]?.toString().toLowerCase() || "";
+        return valA.localeCompare(valB) * order;
+    });
 
     if (loading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Cargando proyectos activos...</div>;
+
+    const viewMode = filters.viewMode;
 
     return (
         <div className={`space-y-6 max-w-7xl mx-auto pb-20 transition-all duration-300 ${selectedProject ? "mr-12 xl:mr-[500px]" : ""}`}>
@@ -208,7 +251,7 @@ export default function ActiveProjectsPage() {
                 onHelp={handleStartTour}
             />
 
-            {/* Filters */}
+            {/* Toolbar */}
             <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1 max-w-md" id="active-projects-search">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -219,7 +262,8 @@ export default function ActiveProjectsPage() {
                         className="pl-10 bg-background/50 border-border focus:border-orange-500 transition-all shadow-sm"
                     />
                 </div>
-                <div id="active-projects-filters">
+
+                <div id="active-projects-filters" className="flex items-center gap-2">
                     <ProjectsFilter
                         filters={filters}
                         options={filterOptions}
@@ -227,92 +271,174 @@ export default function ActiveProjectsPage() {
                         onReset={resetFilters}
                         activeCount={activeFilterCount}
                     />
+
+                    {/* Sort Dropdown for Grid View */}
+                    {viewMode === 'grid' && (
+                        <Select value={filters.sortBy} onValueChange={(v) => toggleSort(v as any)}>
+                            <SelectTrigger className="w-[180px] bg-background/50 border-border h-10 px-3">
+                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <ArrowUpWideNarrow className="w-3.5 h-3.5" />
+                                    <span>Orden: {
+                                        filters.sortBy === 'delivery_date' ? 'Entrega' :
+                                            filters.sortBy === 'name' ? 'Nombre' :
+                                                filters.sortBy === 'code' ? 'Código' :
+                                                    filters.sortBy === 'progress' ? 'Progreso' : 'Partidas'
+                                    }</span>
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                <SelectItem value="delivery_date">Fecha Entrega</SelectItem>
+                                <SelectItem value="code">Código</SelectItem>
+                                <SelectItem value="name">Nombre Proyecto</SelectItem>
+                                <SelectItem value="progress">Progreso</SelectItem>
+                                <SelectItem value="parts_count">Cantidad Partidas</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-2 bg-muted/40 p-1 rounded-xl border border-border/50 self-end lg:self-center">
+                    <Tabs value={viewMode} onValueChange={(v) => updateFilter('viewMode', v)} className="w-auto">
+                        <TabsList className="bg-transparent h-8 p-0 gap-1 child:rounded-lg">
+                            <TabsTrigger
+                                value="grid"
+                                className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-orange-600"
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+                                Cuadrícula
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="table"
+                                className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-orange-600"
+                            >
+                                <List className="w-3.5 h-3.5 mr-1.5" />
+                                Tabla
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
                 </div>
             </div>
 
-            {/* Projects Grid */}
-            {filteredProjects.length === 0 ? (
+            {/* Content Area */}
+            {sortedProjects.length === 0 ? (
                 <div className="text-center py-20 bg-muted/20 rounded-xl border border-dashed border-border">
                     <FolderKanban className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
                     <p className="text-muted-foreground font-medium">No se encontraron proyectos activos.</p>
                 </div>
-            ) : (
+            ) : viewMode === 'grid' ? (
                 <div className={`grid gap-6 md:grid-cols-2 ${selectedProject ? "lg:grid-cols-1 xl:grid-cols-2" : "lg:grid-cols-3"} transition-all duration-300`}>
-                    {filteredProjects.map((project, index) => {
-                        const { progress, dateColor, daysRemaining } = getProjectStatus(project.start_date, project.delivery_date);
+                    {sortedProjects.map((project, index) => {
+                        const { progress, dateColor, statusBg, daysRemaining } = getProjectStatus(project.start_date, project.delivery_date);
 
                         return (
-                            <Card
-                                key={project.id}
-                                id={index === 0 ? "active-project-card-0" : undefined}
-                                onClick={() => setSelectedProject(project)}
-                                className={`group cursor-pointer hover:shadow-lg transition-all duration-300 border-border overflow-hidden ${selectedProject?.id === project.id
-                                    ? "ring-2 ring-primary/50 border-primary bg-card/80 dark:bg-card/40 shadow-md scale-[1.02]"
-                                    : "bg-card/40 dark:bg-card/20 backdrop-blur-sm"
-                                    }`}
-                            >
-                                <CardHeader className="pb-3 relative">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <Badge variant="outline" className="bg-red-500/5 text-red-600 dark:text-red-400 border-none shadow-none px-2 py-0.5 h-auto font-mono font-bold tracking-wider backdrop-blur-md">
-                                            {project.code}
-                                        </Badge>
-                                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-[10px] uppercase tracking-widest px-1">
-                                            <span className="relative flex h-1.5 w-1.5">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400"></span>
-                                            </span>
-                                            {project.parts_count || 0} {project.parts_count === 1 ? 'partida' : 'partidas'}
+                            <div key={project.id} id={`active-project-card-${index}`}>
+                                <Card
+                                    className={cn(
+                                        "group cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative overflow-hidden bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm flex flex-col h-full",
+                                        selectedProject?.id === project.id ? "ring-2 ring-orange-500 border-transparent shadow-lg" : "border-border/40 text-slate-800"
+                                    )}
+                                    onClick={() => setSelectedProject(project)}
+                                >
+                                    <CardHeader className="p-5 pb-2">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <Badge variant="outline" className="bg-red-50 dark:bg-red-950/20 text-[#EC1C21] border-[#EC1C21]/20 font-mono font-bold tracking-widest px-2.5 py-1">
+                                                {project.code}
+                                            </Badge>
+                                            <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-none font-black text-[9px] uppercase tracking-wider px-2 py-0.5">
+                                                {project.parts_count || 0} {project.parts_count === 1 ? 'PARTIDA' : 'PARTIDAS'}
+                                            </Badge>
                                         </div>
-                                    </div>
-                                    <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[3.5rem]">
-                                        {project.name}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4 text-sm pb-6">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center text-muted-foreground">
-                                            <Building2 className="w-4 h-4 mr-2 text-muted-foreground/40 dark:text-muted-foreground/20" />
-                                            <span className="font-medium text-foreground">{project.company}</span>
+                                        <CardTitle className={cn(
+                                            "text-base uppercase font-black line-clamp-1 transition-colors",
+                                            project.name ? "text-slate-800 dark:text-slate-100 group-hover:text-orange-600" : "text-slate-400 dark:text-slate-500 opacity-40"
+                                        )}>
+                                            {project.name || "SIN NOMBRE"}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-5 pt-2 flex flex-col flex-grow">
+                                        <div className="grid grid-cols-2 gap-4 mb-4 mt-2">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-widest">Cliente</span>
+                                                <div className={cn(
+                                                    "flex items-center gap-2 text-xs font-bold",
+                                                    project.company ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500 opacity-40"
+                                                )}>
+                                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                                        <Building2 className="w-3 h-3 text-slate-400" />
+                                                    </div>
+                                                    <span className="truncate uppercase">{project.company || "SIN CLIENTE"}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-widest">Solicitante</span>
+                                                <div className={cn(
+                                                    "flex items-center gap-2 text-xs font-bold",
+                                                    project.requestor ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500 opacity-40"
+                                                )}>
+                                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                                        <User2 className="w-3 h-3 text-slate-400" />
+                                                    </div>
+                                                    <span className="truncate uppercase">{project.requestor || "SIN SOLICITANTE"}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center text-muted-foreground">
-                                            <User2 className="w-4 h-4 mr-2 text-muted-foreground/40 dark:text-muted-foreground/20" />
-                                            <span className="truncate">{project.requestor}</span>
-                                        </div>
-                                    </div>
 
-                                    <div className="pt-2 border-t border-border/50">
-                                        <div className="flex justify-between items-center mb-2 text-xs">
-                                            <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                <Calendar className="w-3.5 h-3.5" />
-                                                Inicio: <span className="text-foreground font-medium">{parseLocalDate(project.start_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
+                                        <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                                            <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 tracking-widest">
+                                                <div className="flex flex-col gap-1">
+                                                    <span>Solicitud</span>
+                                                    <span className={cn(
+                                                        "font-black",
+                                                        project.start_date ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500 opacity-40 text-[9px]"
+                                                    )}>
+                                                        {project.start_date
+                                                            ? parseLocalDate(project.start_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                            : "SIN FECHA"}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col gap-1 text-right">
+                                                    <span>Entrega</span>
+                                                    <span className={cn(
+                                                        "font-black",
+                                                        project.delivery_date ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500 opacity-40 text-[9px]"
+                                                    )}>
+                                                        {project.delivery_date
+                                                            ? parseLocalDate(project.delivery_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                            : "SIN FECHA"}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className={dateColor}>
-                                                    Entrega: {parseLocalDate(project.delivery_date)?.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-                                                </span>
+
+                                            <div className="space-y-2">
+                                                <Progress
+                                                    value={progress}
+                                                    className="h-2 bg-slate-100 dark:bg-slate-800"
+                                                    indicatorClassName={statusBg}
+                                                />
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black font-mono text-slate-400">{Math.round(progress)}% COMPLETADO</span>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                                        {daysRemaining < 0 ? 'Retrasado' : daysRemaining === 0 ? 'Vence hoy' : `${daysRemaining} días restantes`}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="relative pt-1">
-                                            <div className="flex justify-between text-[10px] mb-1 font-semibold text-muted-foreground">
-                                                <span>Progreso estimado</span>
-                                                <span>{Math.round(progress)}%</span>
-                                            </div>
-                                            <Progress value={progress} className="h-2 bg-muted transition-all" indicatorClassName={daysRemaining < 7 ? "bg-red-500 dark:bg-red-600/80" : "bg-primary dark:bg-primary/80"} />
-                                        </div>
-                                        {daysRemaining < 0 && (
-                                            <p className="text-[10px] text-red-600 dark:text-red-400 font-bold mt-1 flex items-center justify-end opacity-90">
-                                                <AlertCircle className="w-3 h-3 mr-1" />
-                                                RETRASADO ({Math.abs(daysRemaining)} días)
-                                            </p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                    </CardContent>
+                                </Card>
+                            </div>
                         );
                     })}
                 </div>
-            )
-            }
+            ) : (
+                <ProjectsTable
+                    projects={sortedProjects}
+                    onSelectProject={setSelectedProject}
+                    selectedProjectId={selectedProject?.id}
+                    sortBy={filters.sortBy}
+                    sortOrder={filters.sortOrder}
+                    onSort={toggleSort}
+                />
+            )}
 
             <ProjectDetailsPanel
                 project={selectedProject}
@@ -325,6 +451,6 @@ export default function ActiveProjectsPage() {
                 statuses={catalog.statuses}
                 treatments={catalog.treatments}
             />
-        </div >
+        </div>
     );
 }

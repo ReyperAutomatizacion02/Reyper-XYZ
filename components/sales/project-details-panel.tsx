@@ -94,15 +94,14 @@ export function ProjectDetailsPanel({
     const [selectedItem, setSelectedItem] = useState<ProjectItem | null>(null);
 
     useEffect(() => {
-        if (project && isOpen) {
+        if (project?.id && isOpen) {
             loadItems(project.id);
-            setSelectedItem(null);
-        } else {
+        } else if (!isOpen) {
             setItems([]);
             setIsEditing(false);
             setSelectedItem(null);
         }
-    }, [project, isOpen]);
+    }, [project?.id, isOpen]);
 
     const handleSaveProject = async (data: {
         name: string;
@@ -149,7 +148,14 @@ export function ProjectDetailsPanel({
         setLoading(true);
         try {
             const data = await getProjectDetails(id);
-            setItems(data as any);
+            const itemsList = data as any[];
+            setItems(itemsList);
+
+            // Sync selected item if viewing detail
+            if (selectedItem) {
+                const updated = itemsList.find(i => i.id === selectedItem.id);
+                if (updated) setSelectedItem(updated);
+            }
         } catch (error: any) {
             toast.error("Error al cargar partidas: " + error.message);
         } finally {
@@ -378,6 +384,7 @@ export function ProjectDetailsPanel({
                                                     setIsEditing={setIsEditing}
                                                     onUpdate={() => {
                                                         loadItems(project.id);
+                                                        if (onProjectUpdated) onProjectUpdated();
                                                     }}
                                                 />
                                             </div>
