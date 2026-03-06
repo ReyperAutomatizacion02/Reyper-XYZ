@@ -217,14 +217,18 @@ export async function getActiveProjects() {
             delivery_date, 
             status,
             requestor_id,
-            company_id
+            company_id,
+            production_orders(id)
         `)
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
 
     if (error) throw new Error(error.message);
 
-    return data;
+    return (data as any[]).map(project => ({
+        ...project,
+        parts_count: project.production_orders?.length || 0
+    }));
 }
 
 export async function getFilterOptions() {

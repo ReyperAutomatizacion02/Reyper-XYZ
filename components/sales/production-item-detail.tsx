@@ -674,8 +674,8 @@ export function ProductionItemDetail({
             <ModelViewerModal
                 isOpen={is3DOpen}
                 onClose={() => setIs3DOpen(false)}
-                url={item.render_url || ""}
-                title={item.part_name}
+                url={editRenderUrl || ""}
+                title={editName || item.part_name}
             />
         </div>
     );

@@ -28,6 +28,7 @@ interface Project {
     start_date: string;
     delivery_date: string;
     status: string;
+    parts_count?: number;
 }
 
 export default function ActiveProjectsPage() {
@@ -260,7 +261,7 @@ export default function ActiveProjectsPage() {
                                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400"></span>
                                             </span>
-                                            En Progreso
+                                            {project.parts_count || 0} {project.parts_count === 1 ? 'partida' : 'partidas'}
                                         </div>
                                     </div>
                                     <CardTitle className="text-xl font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[3.5rem]">
