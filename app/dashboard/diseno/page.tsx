@@ -17,7 +17,7 @@ export default async function DisenoDashboardPage() {
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-8">
             <DashboardHeader
-                title="Diseño e Ingeniería"
+                title="Diseño"
                 description="Gestión de planos, modelos CAD y especificaciones técnicas"
                 icon={<PenTool className="w-8 h-8" />}
                 backUrl="/dashboard"

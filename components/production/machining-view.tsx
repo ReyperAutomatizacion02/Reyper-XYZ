@@ -195,7 +195,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
         <div className="h-[calc(100vh-64px)] w-full flex flex-col bg-background overflow-hidden font-sans">
             <div id="machining-header" className="px-6 pt-4 bg-card border-b border-border shadow-sm z-10">
                 <DashboardHeader
-                    title="MAQUINADOS"
+                    title="Maquinados"
                     description={`OPERADOR: ${operatorName}`}
                     icon={<Wrench className="w-8 h-8" />}
                     backUrl="/dashboard/produccion"

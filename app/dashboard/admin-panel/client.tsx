@@ -529,7 +529,7 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-8">
             <DashboardHeader
-                title="Panel de Administración"
+                title="Panel Admin"
                 description="Gestiona usuarios y colaboradores"
                 icon={<Shield className="w-8 h-8 text-primary" />}
                 children={

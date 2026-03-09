@@ -82,8 +82,8 @@ export function ClientPageContent({ initialClients, initialContacts }: ClientPag
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-8">
             <DashboardHeader
-                title="Gestión de Clientes y Usuarios"
-                description="Administra la base de datos de clientes y contactos para proyectos."
+                title="Clientes y Usuarios"
+                description="Gestión de base de datos de clientes y acceso de usuarios al sistema"
                 icon={<Users2 className="w-8 h-8" />}
                 backUrl="/dashboard/ventas"
                 colorClass="text-indigo-500"

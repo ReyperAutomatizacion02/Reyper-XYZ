@@ -950,7 +950,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             {!isFullscreen && (
                 <div className="px-6 pt-6 -mb-2">
                     <DashboardHeader
-                        title="Planeación de Producción"
+                        title="Planeación"
                         description="Planificador de maquinados con vista Gantt interactiva"
                         icon={<CalendarIcon className="w-8 h-8" />}
                         colorClass="text-red-500"

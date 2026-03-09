@@ -1015,8 +1015,8 @@ function QuoteGeneratorContent() {
         <div id="cotizador-top" className="space-y-6 max-w-7xl mx-auto pb-20">
             {/* Header / Nav */}
             <DashboardHeader
-                title="Generar Cotización"
-                description="Ventas / Nueva Cotización"
+                title="Nueva Cotización"
+                description="Generar una nueva cotización detallada para clientes"
                 icon={<FileText className="w-8 h-8" />}
                 onBack={handleBack}
                 colorClass="text-red-500"

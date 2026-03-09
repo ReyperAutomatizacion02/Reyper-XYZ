@@ -231,6 +231,45 @@ export async function getActiveProjects() {
     }));
 }
 
+export async function getAuditData() {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const { data: projects, error: projectsError } = await supabase
+        .from("projects")
+        .select(`
+            id, 
+            code, 
+            name, 
+            company, 
+            requestor, 
+            start_date, 
+            delivery_date, 
+            status,
+            requestor_id,
+            company_id,
+            production_orders (
+                id,
+                part_code,
+                part_name,
+                quantity,
+                genral_status,
+                material,
+                unit,
+                design_no,
+                drawing_url,
+                model_url,
+                render_url
+            )
+        `)
+        .eq("status", "active")
+        .order("delivery_date", { ascending: true });
+
+    if (projectsError) throw new Error(projectsError.message);
+
+    return projects;
+}
+
 export async function getFilterOptions() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

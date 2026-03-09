@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2, FolderKanban } from "lucide-react";
+import { FilePlus, ShoppingCart, ArrowRight, Clock, History, Users2, FolderKanban, ShieldCheck } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { ToolCard } from "@/components/tool-card";
 
@@ -43,6 +43,14 @@ const salesTools = [
         icon: FolderKanban,
         colorClass: "text-orange-500",
         bgClass: "bg-orange-500/10",
+    },
+    {
+        name: "Auditoría de Datos",
+        description: "Control de integridad y campos faltantes.",
+        href: "/dashboard/ventas/auditoria",
+        icon: ShieldCheck,
+        colorClass: "text-emerald-500",
+        bgClass: "bg-emerald-500/10",
     },
 ];
 
