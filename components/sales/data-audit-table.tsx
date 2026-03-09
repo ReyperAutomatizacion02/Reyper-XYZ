@@ -33,6 +33,9 @@ interface ProductionOrder {
     quantity: number;
     genral_status: string;
     material: string;
+    material_id?: string | null;
+    treatment?: string | null;
+    treatment_id?: string | null;
     unit: string;
     design_no: string;
 }
@@ -42,7 +45,9 @@ interface Project {
     code: string;
     name: string;
     company: string;
+    company_id?: string | null;
     requestor: string;
+    requestor_id?: string | null;
     start_date: string;
     delivery_date: string;
     status: string;
@@ -114,6 +119,11 @@ function ProjectRow({ project, isExpanded, onToggle, onSelect }: {
         isMissing(project.delivery_date) && "Fecha"
     ].filter(Boolean);
 
+    const unlinkedFields = [
+        (!isMissing(project.company) && !project.company_id) && "Cliente",
+        (!isMissing(project.requestor) && !project.requestor_id) && "Solicitante"
+    ].filter(Boolean);
+
     const scoreColor = project.integrityScore < 50 ? "bg-red-500" : project.integrityScore < 90 ? "bg-orange-500" : "bg-emerald-500";
 
     return (
@@ -153,19 +163,32 @@ function ProjectRow({ project, isExpanded, onToggle, onSelect }: {
                     </div>
                 </TableCell>
                 <TableCell className="text-center">
-                    {missingFields.length > 0 ? (
-                        <div className="flex flex-wrap justify-center gap-1">
-                            {missingFields.map(f => (
-                                <Badge key={f as string} className="bg-red-500/10 text-red-600 border-none text-[8px] uppercase font-black px-1.5 py-0">
-                                    {f}
-                                </Badge>
-                            ))}
-                        </div>
-                    ) : (
-                        <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] uppercase font-black px-1.5 py-0">
-                            Ok
-                        </Badge>
-                    )}
+                    <div className="flex flex-col items-center gap-1">
+                        {missingFields.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-1">
+                                {missingFields.map(f => (
+                                    <Badge key={f as string} className="bg-red-500/10 text-red-600 border-none text-[8px] uppercase font-black px-1.5 py-0">
+                                        Falta {f}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                        {unlinkedFields.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-1">
+                                {unlinkedFields.map(f => (
+                                    <Badge key={f as string} className="bg-orange-500/10 text-orange-600 border-none text-[8px] uppercase font-black px-1.5 py-0 flex items-center gap-1">
+                                        <AlertCircle className="w-2 h-2" />
+                                        {f} Sin Vincular
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                        {missingFields.length === 0 && unlinkedFields.length === 0 && (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] uppercase font-black px-1.5 py-0">
+                                Ok
+                            </Badge>
+                        )}
+                    </div>
                 </TableCell>
                 <TableCell className="text-right pr-6">
                     <button className="p-2 hover:bg-orange-500/10 hover:text-orange-600 rounded-lg transition-colors text-slate-400">
@@ -227,6 +250,7 @@ function ProjectRow({ project, isExpanded, onToggle, onSelect }: {
                                                         <TableHead className="py-2 h-auto text-[8px] font-black uppercase">Nombre de Partida</TableHead>
                                                         <TableHead className="py-2 h-auto text-[8px] font-black uppercase">Cant.</TableHead>
                                                         <TableHead className="py-2 h-auto text-[8px] font-black uppercase">Material</TableHead>
+                                                        <TableHead className="py-2 h-auto text-[8px] font-black uppercase">Tratamiento</TableHead>
                                                         <TableHead className="py-2 h-auto text-[8px] font-black uppercase text-right">Estatus</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
@@ -260,10 +284,32 @@ function ProjectRow({ project, isExpanded, onToggle, onSelect }: {
                                                                     )}>
                                                                         {item.material || "POR DEFINIR"}
                                                                     </span>
+                                                                    {!isMissing(item.material) && !item.material_id && (
+                                                                        <Badge className="bg-orange-500/10 text-orange-600 border-none text-[7px] uppercase font-black px-1 py-0">
+                                                                            Sin Vincular
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="py-2">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={cn(
+                                                                        "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                                                                        isMissing(item.treatment) || item.treatment === "SIN TRATAMIENTO" 
+                                                                            ? "bg-slate-50 dark:bg-slate-800 text-slate-400 border-transparent italic" 
+                                                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 border-transparent"
+                                                                    )}>
+                                                                        {item.treatment || "SIN TRATAMIENTO"}
+                                                                    </span>
+                                                                    {!isMissing(item.treatment) && item.treatment !== "SIN TRATAMIENTO" && !item.treatment_id && (
+                                                                        <Badge className="bg-orange-500/10 text-orange-600 border-none text-[7px] uppercase font-black px-1 py-0">
+                                                                            Sin Vincular
+                                                                        </Badge>
+                                                                    )}
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="py-2 text-right">
-                                                                {isMissing(item.part_name) || !item.quantity || isMissing(item.material) ? (
+                                                                {isMissing(item.part_name) || !item.quantity || isMissing(item.material) || (!isMissing(item.material) && !item.material_id) || (!isMissing(item.treatment) && item.treatment !== "SIN TRATAMIENTO" && !item.treatment_id) ? (
                                                                     <AlertCircle className="w-3.5 h-3.5 text-orange-500 ml-auto" />
                                                                 ) : (
                                                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 ml-auto" />

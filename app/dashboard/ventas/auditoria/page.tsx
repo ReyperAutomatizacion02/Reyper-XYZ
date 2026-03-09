@@ -33,8 +33,19 @@ export default function DataAuditPage() {
 
         // Proyecto (50 puntos base)
         if (project.name && project.name.trim() !== "" && project.name !== "SIN NOMBRE") score += 10;
-        if (project.company && project.company.trim() !== "" && project.company !== "SIN CLIENTE" && project.company !== "POR DEFINIR") score += 15;
-        if (project.requestor && project.requestor.trim() !== "" && project.requestor !== "SIN SOLICITANTE") score += 5;
+        
+        // Cliente (15 pts): 5 por texto, 10 por ID vinculado
+        if (project.company && project.company.trim() !== "" && project.company !== "SIN CLIENTE" && project.company !== "POR DEFINIR") {
+            score += 5;
+            if (project.company_id) score += 10;
+        }
+
+        // Solicitante (5 pts): 2 por texto, 3 por ID vinculado
+        if (project.requestor && project.requestor.trim() !== "" && project.requestor !== "SIN SOLICITANTE") {
+            score += 2;
+            if (project.requestor_id) score += 3;
+        }
+
         if (project.start_date) score += 10;
         if (project.delivery_date) score += 10;
 
@@ -46,9 +57,26 @@ export default function DataAuditPage() {
                 let itemScore = 0;
                 if (item.part_name && item.part_name.trim() !== "" && item.part_name !== "SIN NOMBRE") itemScore += 10;
                 if (item.quantity && item.quantity > 0) itemScore += 15;
-                if (item.material && item.material.trim() !== "" && item.material !== "POR DEFINIR") itemScore += 15;
+                
+                // Material (15 pts): 5 por texto, 10 por ID vinculado
+                if (item.material && item.material.trim() !== "" && item.material !== "POR DEFINIR") {
+                    itemScore += 5;
+                    if (item.material_id) itemScore += 10;
+                }
+                
                 if (item.design_no && item.design_no.trim() !== "") itemScore += 5;
                 if (item.unit && item.unit.trim() !== "") itemScore += 5;
+
+                // Tratamiento (5 pts): 2 por texto, 3 por ID vinculado o 5 si es "none"
+                if (item.treatment_id && item.treatment_id !== "none") {
+                    itemScore += 5;
+                } else if (item.treatment && item.treatment.trim() !== "" && item.treatment !== "SIN TRATAMIENTO") {
+                    itemScore += 2;
+                    if (item.treatment_id) itemScore += 3;
+                } else {
+                    itemScore += 5; // Default case (none or empty is usually ok if not required)
+                }
+
                 itemsTotalScore += itemScore;
             });
             score += (itemsTotalScore / items.length);
