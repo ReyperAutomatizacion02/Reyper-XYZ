@@ -183,7 +183,7 @@ export function ProjectDetailsPanel({
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 bottom-0 w-full max-w-[500px] bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16 overflow-hidden"
+                        className="fixed right-0 top-0 inset-y-0 w-full max-w-[500px] bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16 overflow-hidden"
                         id="project-details-panel"
                     >
                         <AnimatePresence mode="wait">

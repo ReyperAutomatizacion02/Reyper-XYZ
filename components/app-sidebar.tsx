@@ -132,7 +132,7 @@ export function AppSidebar() {
             <aside
                 id="app-sidebar"
                 className={cn(
-                    "h-screen bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col z-[9999] fixed lg:relative shadow-xl",
+                    "h-[100dvh] inset-y-0 bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col z-[9999] fixed lg:relative shadow-xl",
                     isCollapsed ? "lg:w-20" : "lg:w-72",
                     isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full lg:translate-x-0"
                 )}
