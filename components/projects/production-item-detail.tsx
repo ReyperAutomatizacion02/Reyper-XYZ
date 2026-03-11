@@ -69,8 +69,7 @@ export function ProductionItemDetail({
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState<string | null>(null); // 'image' or 'drawing'
     const [visorUrl, setVisorUrl] = useState<string | null>(null);
-    const [visorType, setVisorType] = useState<"image" | "pdf">();
-    const [is3DOpen, setIs3DOpen] = useState(false);
+    const [visorType, setVisorType] = useState<"image" | "pdf" | "3d">();
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const drawingInputRef = useRef<HTMLInputElement>(null);
@@ -189,7 +188,7 @@ export function ProductionItemDetail({
         }
     };
 
-    const openVisor = (url: string, type: "image" | "pdf") => {
+    const openVisor = (url: string, type: "image" | "pdf" | "3d") => {
         if (onViewDrawing) {
             onViewDrawing(url, editName || item.part_name);
         } else {
@@ -338,7 +337,7 @@ export function ProductionItemDetail({
                             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 z-20">
                                 {currentDrawing && <Button size="sm" className="h-8 px-5 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-32" onClick={() => openVisor(currentDrawing, isDrawingDrive ? "pdf" : "image")}><FileText className="w-3.5 h-3.5 mr-2" /> Plano</Button>}
                                 {currentImage && <Button size="sm" variant="outline" className="h-8 px-5 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-32" onClick={() => openVisor(currentImage, isImageDrive ? "pdf" : "image")}><ImageIcon className="w-3.5 h-3.5 mr-2" /> Imagen</Button>}
-                                {item.render_url && <Button size="sm" variant="outline" className="h-8 px-5 text-[10px] font-bold uppercase bg-slate-800 hover:bg-slate-700 text-white border-none shadow-xl rounded-lg w-32" onClick={() => setIs3DOpen(true)}><Box className="w-3.5 h-3.5 mr-2" /> Visor 3D</Button>}
+                                {item.render_url && <Button size="sm" variant="outline" className="h-8 px-5 text-[10px] font-bold uppercase bg-slate-800 hover:bg-slate-700 text-white border-none shadow-xl rounded-lg w-32" onClick={() => openVisor(item.render_url, "3d")}><Box className="w-3.5 h-3.5 mr-2" /> Visor 3D</Button>}
                             </div>
                         )}
                     </div>
@@ -450,7 +449,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes('render_url') && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="flex items-center gap-1.5 ml-1"><Box className="w-3 h-3 text-[#EC1C21]" /><label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Modelo 3D</label></div>
-                        <div className={cn("flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800", item.render_url ? "hover:bg-slate-100 cursor-pointer" : "opacity-60")} onClick={() => item.render_url && setIs3DOpen(true)}>
+                        <div className={cn("flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800", item.render_url ? "hover:bg-slate-100 cursor-pointer" : "opacity-60")} onClick={() => item.render_url && openVisor(item.render_url, "3d")}>
                             <span className="text-[11px] font-bold uppercase truncate">{item.render_url ? "Ver 3D" : "Sin 3D"}</span>
                         </div>
                     </div>
@@ -459,7 +458,6 @@ export function ProductionItemDetail({
 
             <button id="trigger-save-item" onClick={handleSave} className="hidden" />
             <DrawingViewer onClose={() => { setVisorUrl(null); setVisorType(undefined); }} url={visorUrl ?? ""} title={editName || item.part_name} type={visorType} />
-            <ModelViewerModal isOpen={is3DOpen} onClose={() => setIs3DOpen(false)} url={editRenderUrl || ""} title={editName || item.part_name} />
         </div>
     );
 }
