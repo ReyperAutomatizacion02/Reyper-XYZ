@@ -6,12 +6,15 @@ interface SidebarContextType {
     isMobileOpen: boolean;
     setIsMobileOpen: (open: boolean) => void;
     toggleMobile: () => void;
+    isCollapsed: boolean;
+    setIsCollapsed: (collapsed: boolean) => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     const toggleMobile = () => setIsMobileOpen((prev) => !prev);
 
@@ -33,7 +36,13 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     return (
-        <SidebarContext.Provider value={{ isMobileOpen, setIsMobileOpen, toggleMobile }}>
+        <SidebarContext.Provider value={{ 
+            isMobileOpen, 
+            setIsMobileOpen, 
+            toggleMobile,
+            isCollapsed,
+            setIsCollapsed
+        }}>
             {children}
         </SidebarContext.Provider>
     );

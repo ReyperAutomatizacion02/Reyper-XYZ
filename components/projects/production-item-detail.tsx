@@ -35,6 +35,7 @@ interface ProductionItemDetailProps {
     onUpdate?: () => void;
     hiddenFields?: string[];
     readOnlyFields?: string[];
+    onViewDrawing?: (url: string, title: string) => void;
 }
 
 export function ProductionItemDetail({
@@ -43,7 +44,8 @@ export function ProductionItemDetail({
     setIsEditing,
     onUpdate,
     hiddenFields = [],
-    readOnlyFields = []
+    readOnlyFields = [],
+    onViewDrawing
 }: ProductionItemDetailProps) {
     // Edit States
     const [editName, setEditName] = useState(item.part_name || "");
@@ -188,8 +190,12 @@ export function ProductionItemDetail({
     };
 
     const openVisor = (url: string, type: "image" | "pdf") => {
-        setVisorUrl(url);
-        setVisorType(type);
+        if (onViewDrawing) {
+            onViewDrawing(url, editName || item.part_name);
+        } else {
+            setVisorUrl(url);
+            setVisorType(type);
+        }
     };
 
     const currentImage = editImage || item.image;
@@ -311,9 +317,16 @@ export function ProductionItemDetail({
                         {/* Controls */}
                         {isEditing && !readOnlyFields.includes('assets') ? (
                             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2 z-20">
-                                <Button size="sm" className="h-8 px-6 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg w-full max-w-[160px]" onClick={() => drawingInputRef.current?.click()} disabled={isUploading === 'drawing'}>
-                                    {isUploading === 'drawing' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <FileText className="w-3.5 h-3.5 mr-2" />} Plano
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button size="sm" className="h-8 px-4 text-[10px] font-bold uppercase bg-[#EC1C21] hover:bg-[#D1181C] text-white shadow-xl rounded-lg flex-1" onClick={() => drawingInputRef.current?.click()} disabled={isUploading === 'drawing'}>
+                                        {isUploading === 'drawing' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Upload className="w-3.5 h-3.5 mr-2" />} Cargar Plano
+                                    </Button>
+                                    {currentDrawing && (
+                                        <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-white/90 hover:bg-white text-[#EC1C21]" onClick={() => openVisor(currentDrawing, isDrawingDrive ? "pdf" : "image")}>
+                                            <ExternalLink className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                </div>
                                 <Button size="sm" variant="outline" className="h-8 px-6 text-[10px] font-bold uppercase bg-white/90 hover:bg-white text-slate-900 border-none shadow-xl rounded-lg w-full max-w-[160px]" onClick={() => imageInputRef.current?.click()} disabled={isUploading === 'image'}>
                                     {isUploading === 'image' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <ImageIcon className="w-3.5 h-3.5 mr-2" />} Imagen
                                 </Button>
@@ -428,7 +441,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes('drawing_url') && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="flex items-center gap-1.5 ml-1"><ExternalLink className="w-3 h-3 text-[#EC1C21]" /><label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Plano (URL)</label></div>
-                        <div className={cn("flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800", currentDrawing ? "hover:bg-slate-100 cursor-pointer" : "opacity-60")} onClick={() => currentDrawing && window.open(currentDrawing, '_blank')}>
+                        <div className={cn("flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800", currentDrawing ? "hover:bg-slate-100 cursor-pointer" : "opacity-60")} onClick={() => currentDrawing && openVisor(currentDrawing, isDrawingDrive ? "pdf" : "image")}>
                             <span className="text-[11px] font-bold uppercase truncate">{currentDrawing ? "Ver Plano" : "Sin Plano"}</span>
                         </div>
                     </div>

@@ -48,22 +48,21 @@ export function AppSidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
-    const { isMobileOpen, setIsMobileOpen, toggleMobile } = useSidebar();
-
-    // User preferences for sidebar state
     const { getSidebarPrefs, updateSidebarPref, isLoading: prefsLoading } = useUserPreferences();
     const sidebarPrefs = getSidebarPrefs();
+    const { isMobileOpen, setIsMobileOpen, toggleMobile, isCollapsed, setIsCollapsed } = useSidebar();
 
-    // Use null to indicate "not yet initialized from prefs"
-    const [isCollapsed, setIsCollapsed] = useState<boolean | null>(null);
+    // Track initialization state
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Initialize isCollapsed from preferences once loaded
     useEffect(() => {
-        if (!prefsLoading && isCollapsed === null) {
+        if (!prefsLoading && !isInitialized) {
             // Use saved preference or default to false
             setIsCollapsed(sidebarPrefs.isCollapsed ?? false);
+            setIsInitialized(true);
         }
-    }, [prefsLoading, isCollapsed, sidebarPrefs.isCollapsed]);
+    }, [prefsLoading, isInitialized, sidebarPrefs.isCollapsed, setIsCollapsed]);
 
     // Save preference when isCollapsed changes (after initial load)
     const handleToggleCollapse = () => {
@@ -117,7 +116,7 @@ export function AppSidebar() {
     });
 
     // Show skeleton while preferences are loading
-    if (isCollapsed === null) {
+    if (!isInitialized) {
         return <SidebarSkeleton />;
     }
 

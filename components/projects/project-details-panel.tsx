@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { cn } from "@/utils/cn";
 import {
     X,
     Calendar,
@@ -30,6 +31,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ProjectHeaderForm } from "./project-header-form";
 import { ProductionItemDetail } from "./production-item-detail";
 import { ProductionItemSummary } from "./production-item-summary";
+import { useSidebar } from "@/components/sidebar-context";
+import { DrawingViewerContent } from "../sales/drawing-viewer";
 
 interface Project {
     id: string;
@@ -109,6 +112,8 @@ export function ProjectDetailsPanel({
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [selectedItem, setSelectedItem] = useState<ProjectItem | null>(null);
+    const [sideDrawing, setSideDrawing] = useState<{ url: string; title: string } | null>(null);
+    const { isCollapsed } = useSidebar();
 
     useEffect(() => {
         if (project?.id && isOpen) {
@@ -117,6 +122,7 @@ export function ProjectDetailsPanel({
             setItems([]);
             setIsEditing(false);
             setSelectedItem(null);
+            setSideDrawing(null);
         }
     }, [project?.id, isOpen]);
 
@@ -194,15 +200,39 @@ export function ProjectDetailsPanel({
         <AnimatePresence>
             {isOpen && (
                 <>
+                    {/* Side Drawing View Area (Outside of panel to avoid clipping) */}
+                    <AnimatePresence>
+                        {sideDrawing && (
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                className={cn(
+                                    "fixed top-16 bottom-0 right-[500px] bg-slate-100/90 backdrop-blur-sm border-r border-border z-[15] transition-all duration-300",
+                                    isCollapsed ? "left-[80px]" : "left-[288px]",
+                                    "max-lg:left-0"
+                                )}
+                            >
+                                <DrawingViewerContent
+                                    url={sideDrawing.url}
+                                    title={sideDrawing.title}
+                                    onClose={() => setSideDrawing(null)}
+                                    isInline
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {/* Panel */}
                     <motion.div
                         initial={{ x: "100%" }}
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 inset-y-0 w-full max-w-[500px] bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16 overflow-hidden"
+                        className="fixed right-0 top-0 inset-y-0 w-full max-w-[500px] bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16"
                         id="project-details-panel"
                     >
+
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={selectedItem ? "detail" : "list"}
@@ -411,6 +441,10 @@ export function ProjectDetailsPanel({
                                                     }}
                                                     hiddenFields={config.items?.hiddenFields}
                                                     readOnlyFields={config.items?.readOnlyFields}
+                                                    onViewDrawing={(url: string, title: string) => {
+                                                        console.log("Setting side drawing:", { url, title });
+                                                        setSideDrawing({ url, title });
+                                                    }}
                                                 />
                                             </div>
                                         </div>
