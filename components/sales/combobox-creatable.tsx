@@ -88,13 +88,15 @@ export function ComboboxCreatable({
                     role="combobox"
                     aria-expanded={open}
                     className={cn(
-                        "w-full justify-between bg-background border-input hover:bg-accent hover:text-accent-foreground",
+                        "w-full justify-between bg-background border-input hover:bg-accent hover:text-accent-foreground pr-3 px-3",
                         className // Allow overriding styles
                     )}
                     disabled={disabled}
                 >
-                    {selectedOption ? selectedOption.label : placeholder}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <span className="truncate flex-1 text-left">
+                        {selectedOption ? selectedOption.label : placeholder}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto min-w-[var(--radix-popover-trigger-width)] max-w-[400px] p-0">

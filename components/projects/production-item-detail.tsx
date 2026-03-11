@@ -390,12 +390,21 @@ export function ProductionItemDetail({
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Confirmación Material</label>
                         </div>
                         {isEditing && !readOnlyFields.includes('material_confirmation') ? (
-                            <Input
+                            <ComboboxCreatable
+                                options={materials.map(m => ({ value: m.name, label: m.name }))}
                                 value={editMaterialConfirmation}
-                                onChange={(e) => setEditMaterialConfirmation(e.target.value)}
-                                placeholder="Confirmación..."
-                                maxLength={100}
-                                className="h-10 bg-slate-50 border-slate-200 focus:ring-[#EC1C21] rounded-xl font-bold uppercase text-xs truncate"
+                                onSelect={setEditMaterialConfirmation}
+                                onCreate={async (val) => {
+                                    const res = await createMaterialEntry(val);
+                                    if (res.success && res.id) {
+                                        const data = await getCatalogData();
+                                        setMaterials(data.materials || []);
+                                        return val;
+                                    }
+                                    return null;
+                                }}
+                                placeholder="Seleccionar o crear..."
+                                className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
                             />
                         ) : (
                             <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
