@@ -13,9 +13,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getActiveProjects, getFilterOptions, getCatalogData } from "../actions";
 import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
-import { ProjectDetailsPanel } from "@/components/sales/project-details-panel";
-import { ProjectsFilter } from "@/components/sales/projects-filter";
-import { ProjectsTable } from "@/components/sales/projects-table";
+import { ProjectDetailsPanel } from "@/components/projects/project-details-panel";
+import { ProjectsFilter } from "@/components/projects/projects-filter";
+import { ProjectsTable } from "@/components/projects/projects-table";
 import { useProjectFilters } from "./hooks/use-project-filters";
 import { useTour } from "@/hooks/use-tour";
 

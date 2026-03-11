@@ -20,6 +20,7 @@ export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
     operador: ["/dashboard", "/dashboard/produccion", "/dashboard/actualizaciones"],
     calidad: ["/dashboard", "/dashboard/calidad", "/dashboard/actualizaciones"],
     almacen: ["/dashboard", "/dashboard/almacen", "/dashboard/actualizaciones"],
+    logistica: ["/dashboard", "/dashboard/logistica", "/dashboard/actualizaciones"],
 };
 
 /**

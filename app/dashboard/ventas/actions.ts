@@ -300,7 +300,7 @@ export async function getProjectDetails(projectId: string) {
 
     const { data: items, error } = await supabase
         .from("production_orders")
-        .select("id, part_code, part_name, quantity, genral_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url, model_url, render_url")
+        .select("id, part_code, part_name, quantity, genral_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url, model_url, render_url, material_confirmation")
         .eq("project_id", projectId)
         .order("part_code", { ascending: true });
 
@@ -676,6 +676,7 @@ export async function updateProductionOrder(id: string, data: {
     drawing_url?: string | null;
     model_url?: string | null;
     render_url?: string | null;
+    material_confirmation?: string | null;
 }) {
     try {
         const parsedData = UpdateProductionOrderSchema.safeParse({ id, ...data });

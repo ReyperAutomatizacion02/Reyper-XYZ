@@ -24,6 +24,7 @@ import {
     Package,
     Shield,
     X,
+    Truck,
 } from "lucide-react";
 import { ROLE_ROUTE_ACCESS } from "@/lib/config/permissions";
 
@@ -39,6 +40,7 @@ const sidebarItems = [
     { name: "Administración", href: "/dashboard/admin", icon: Briefcase },
     { name: "Almacén", href: "/dashboard/almacen", icon: Package },
     { name: "Calidad", href: "/dashboard/calidad", icon: ClipboardList },
+    { name: "Logística", href: "/dashboard/logistica", icon: Truck },
 ];
 
 export function AppSidebar() {

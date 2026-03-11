@@ -63,4 +63,5 @@ export const UpdateProductionOrderSchema = z.object({
     urgencia: z.boolean().optional(),
     model_url: z.string().nullable().optional(),
     render_url: z.string().nullable().optional(),
+    material_confirmation: z.string().nullable().optional(),
 });
