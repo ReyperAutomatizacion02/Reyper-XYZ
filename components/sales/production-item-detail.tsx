@@ -49,7 +49,7 @@ export function ProductionItemDetail({
 }: ProductionItemDetailProps) {
     // Edit States
     const [editName, setEditName] = useState(item.part_name || "");
-    const [editQuantity, setEditQuantity] = useState(item.quantity || 1);
+    const [editQuantity, setEditQuantity] = useState(item.quantity !== undefined && item.quantity !== null ? item.quantity : 1);
     const [editMaterial, setEditMaterial] = useState(item.material || "");
     const [editStatus, setEditStatus] = useState(item.genral_status || item.status || "");
     const [editUrgency, setEditUrgency] = useState(item.urgencia || item.urgency_level === "Urgente" || false);
@@ -93,7 +93,7 @@ export function ProductionItemDetail({
     // Sync local state when item changes
     useEffect(() => {
         setEditName(item.part_name || "");
-        setEditQuantity(item.quantity || 1);
+        setEditQuantity(item.quantity !== undefined && item.quantity !== null ? item.quantity : 1);
         setEditMaterial(item.material || "");
         setEditStatus(item.genral_status || item.status || "");
         setEditUrgency(item.urgencia || item.urgency_level === "Urgente" || false);

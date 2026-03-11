@@ -135,7 +135,7 @@ export default function DataAuditPage() {
     const criticalCount = rawProjects.filter(p => p.integrityScore < 60).length;
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-20">
+        <div className={cn("space-y-6 max-w-7xl mx-auto pb-20 transition-all duration-300", selectedProject ? "mr-12 xl:mr-[500px]" : "")}>
             <DashboardHeader
                 title="Auditoría de Datos"
                 description="Control de integridad y calidad administrativa de proyectos"
