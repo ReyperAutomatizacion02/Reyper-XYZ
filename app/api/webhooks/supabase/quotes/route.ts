@@ -10,8 +10,13 @@ export async function POST(request: Request) {
         const authHeader = request.headers.get('Authorization');
         const expectedToken = process.env.SUPABASE_WEBHOOK_SECRET;
 
-        // Si no hay token configurado en .env, permitimos por ahora pero avisamos (Idealmente siempre configurarlo)
-        if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+        // SEGURIDAD: Rechazar si el token no está configurado en el servidor
+        if (!expectedToken) {
+            console.error("[WEBHOOK] SUPABASE_WEBHOOK_SECRET no configurado. Rechazando request por seguridad.");
+            return new NextResponse('Server misconfigured', { status: 500 });
+        }
+
+        if (authHeader !== `Bearer ${expectedToken}`) {
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
