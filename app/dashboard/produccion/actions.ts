@@ -5,10 +5,14 @@ import moment from "moment";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/utils/logger";
+import { requireRole } from "@/lib/auth-guard";
+
+const PRODUCCION_ROLES = ["admin", "produccion", "automatizacion", "operador"];
 
 export async function updateTaskSchedule(taskId: string, start: string, end: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .update({
@@ -28,6 +32,7 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
 export async function scheduleNewTask(orderId: string, machineId: string, start: string, durationHours: number = 2) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     // Get machine name because the Notion-synced table uses names
     const { data: machine } = await supabase.from("machines").select("name").eq("id", machineId).single();
@@ -80,6 +85,7 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
 export async function createPlanningTask(orderId: string, machine: string, start: string, end: string, operator?: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .insert({
@@ -101,6 +107,7 @@ export async function createPlanningTask(orderId: string, machine: string, start
 export async function updateTaskDetails(taskId: string, orderId: string, machine: string, start: string, end: string, operator?: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .update({
@@ -123,6 +130,7 @@ export async function updateTaskDetails(taskId: string, orderId: string, machine
 export async function recordCheckIn(taskId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .update({
@@ -141,6 +149,7 @@ export async function recordCheckIn(taskId: string) {
 export async function recordCheckOut(taskId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .update({
@@ -159,6 +168,7 @@ export async function recordCheckOut(taskId: string) {
 export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     // 1. Insert Draft Tasks
     if (draftTasks.length > 0) {
@@ -210,6 +220,7 @@ export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) 
 export async function fetchScenarios() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     // Auto-cleanup: delete scenarios older than 7 days
     const sevenDaysAgo = moment().subtract(7, 'days').toISOString();
@@ -240,9 +251,7 @@ export async function saveScenario(scenario: {
 }) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = await requireRole(supabase, PRODUCCION_ROLES);
 
     const { data, error } = await (supabase.from("planning_scenarios" as any) as any)
         .insert({
@@ -268,6 +277,7 @@ export async function saveScenario(scenario: {
 export async function deleteScenario(scenarioId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning_scenarios" as any) as any)
         .delete()
@@ -282,6 +292,7 @@ export async function deleteScenario(scenarioId: string) {
 export async function markScenarioApplied(scenarioId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning_scenarios" as any) as any)
         .update({ applied_at: new Date().toISOString() })
@@ -300,6 +311,7 @@ export async function markScenarioApplied(scenarioId: string) {
 export async function toggleTaskLocked(taskId: string, locked: boolean) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await (supabase.from("planning" as any) as any)
         .update({ locked })
@@ -316,6 +328,7 @@ export async function toggleTaskLocked(taskId: string, locked: boolean) {
 export async function clearOrderEvaluation(orderId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase
         .from("production_orders")

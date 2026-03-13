@@ -5,12 +5,16 @@ import { cookies } from "next/headers";
 import { ConvertQuoteToProjectSchema, UpdateProjectSchema, UpdateProductionOrderSchema } from "@/lib/validations/sales";
 import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { requireAuth, requireRole } from "@/lib/auth-guard";
+
+const VENTAS_ROLES = ["admin", "ventas"];
 
 // --- CREATE ACTIONS ---
 
 export async function createClientEntry(name: string, prefix?: string, business_name?: string, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_clients").insert({ name, prefix, business_name, is_active }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -19,6 +23,7 @@ export async function createClientEntry(name: string, prefix?: string, business_
 export async function createContactEntry(name: string, client_id?: string, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_contacts").insert({ name, client_id, is_active }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -27,6 +32,7 @@ export async function createContactEntry(name: string, client_id?: string, is_ac
 export async function createContactBatch(names: string[], client_id?: string, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
     if (!names || names.length === 0) return { success: false, error: "No names provided" };
 
@@ -44,6 +50,7 @@ export async function createContactBatch(names: string[], client_id?: string, is
 export async function updateClientEntry(id: string, name: string, prefix?: string | null, business_name?: string | null, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_clients").update({ name, prefix, business_name, is_active }).eq("id", id);
     if (error) throw new Error(error.message);
     return { success: true };
@@ -52,6 +59,7 @@ export async function updateClientEntry(id: string, name: string, prefix?: strin
 export async function deleteClientEntry(id: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_clients").delete().eq("id", id);
     if (error) throw new Error(error.message);
     return { success: true };
@@ -60,6 +68,7 @@ export async function deleteClientEntry(id: string) {
 export async function updateContactEntry(id: string, name: string, client_id?: string | null, is_active: boolean = true) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_contacts").update({ name, client_id, is_active }).eq("id", id);
     if (error) throw new Error(error.message);
     return { success: true };
@@ -68,6 +77,7 @@ export async function updateContactEntry(id: string, name: string, client_id?: s
 export async function deleteContactEntry(id: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_contacts").delete().eq("id", id);
     if (error) throw new Error(error.message);
     return { success: true };
@@ -77,6 +87,7 @@ export async function deleteContactEntry(id: string) {
 export async function createPositionEntry(name: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_positions").insert({ name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -85,6 +96,7 @@ export async function createPositionEntry(name: string) {
 export async function createAreaEntry(name: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_areas").insert({ name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -93,6 +105,7 @@ export async function createAreaEntry(name: string) {
 export async function createUnitEntry(name: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_units").insert({ name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -101,6 +114,7 @@ export async function createUnitEntry(name: string) {
 export async function createMaterialEntry(name: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_materials").insert({ name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -109,6 +123,7 @@ export async function createMaterialEntry(name: string) {
 export async function createTreatmentEntry(name: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("production_treatments").insert({ name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
@@ -117,6 +132,7 @@ export async function createTreatmentEntry(name: string) {
 export async function saveQuote(quoteData: any, items: any[]) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
     // 1. Insert Quote
     const { data: quote, error: quoteError } = await supabase
@@ -153,6 +169,7 @@ export async function saveQuote(quoteData: any, items: any[]) {
 export async function getCatalogData() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const [clients, contacts, positions, areas, units, materials, statuses, treatments] = await Promise.all([
         supabase.from("sales_clients").select("id, name, prefix, business_name, is_active").order("name"),
@@ -180,6 +197,7 @@ export async function getCatalogData() {
 export async function getQuotesHistory() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data, error } = await supabase
         .from("sales_quotes")
@@ -204,6 +222,7 @@ export async function getQuotesHistory() {
 export async function getActiveProjects() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data, error } = await supabase
         .from("projects")
@@ -234,6 +253,7 @@ export async function getActiveProjects() {
 export async function getAuditData() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data: projects, error: projectsError } = await supabase
         .from("projects")
@@ -277,6 +297,7 @@ export async function getAuditData() {
 export async function getFilterOptions() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     // Fetch in parallel for performance
     const [clientsData, requestorsData] = await Promise.all([
@@ -297,6 +318,7 @@ export async function getFilterOptions() {
 export async function getProjectDetails(projectId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data: items, error } = await supabase
         .from("production_orders")
@@ -311,6 +333,7 @@ export async function getProjectDetails(projectId: string) {
 export async function getQuoteById(id: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
@@ -334,6 +357,7 @@ export async function getQuoteById(id: string) {
 export async function updateQuote(id: string, quoteData: any, items: any[]) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
     // 1. Get old items to check for orphaned drawings
     const { data: oldItems } = await supabase
@@ -415,6 +439,7 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
 export async function deleteQuote(id: string, reason: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
     // Solo hacemos el soft delete (cambio de estado).
     // La eliminación física de archivos será manejada por un Webhook de DB (Hard Delete).
@@ -479,6 +504,7 @@ export async function deleteQuoteFiles(quoteId: string) {
 export async function getNextProjectCode(clientPrefix: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireAuth(supabase);
 
     const { data, error } = await supabase
         .from("projects")
@@ -521,6 +547,7 @@ export async function convertQuoteToProject(
 
         const cookieStore = await cookies();
         const supabase = createClient(cookieStore);
+        await requireRole(supabase, VENTAS_ROLES);
 
         // 1. Get Quote and Items
         const quote = await getQuoteById(quoteId);
@@ -622,6 +649,7 @@ export async function convertQuoteToProject(
 export async function updateQuoteStatus(id: string, status: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
     const { error } = await supabase
         .from("sales_quotes")
@@ -650,6 +678,7 @@ export async function updateProject(id: string, data: {
 
         const cookieStore = await cookies();
         const supabase = createClient(cookieStore);
+        await requireRole(supabase, VENTAS_ROLES);
 
         const { error } = await supabase
             .from("projects")
@@ -687,6 +716,7 @@ export async function updateProductionOrder(id: string, data: {
 
         const cookieStore = await cookies();
         const supabase = createClient(cookieStore);
+        await requireRole(supabase, VENTAS_ROLES);
 
         const { error } = await supabase
             .from("production_orders")
