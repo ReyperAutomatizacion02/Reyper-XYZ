@@ -16,13 +16,13 @@ import { cn } from "@/lib/utils";
 
 interface Project {
     id: string;
-    code: string;
-    name: string;
-    company: string;
-    requestor: string;
-    start_date: string;
-    delivery_date: string;
-    status: string;
+    code: string | null;
+    name: string | null;
+    company: string | null;
+    requestor: string | null;
+    start_date: string | null;
+    delivery_date: string | null;
+    status: string | null;
     parts_count?: number;
 }
 
@@ -65,7 +65,7 @@ export function ProjectsTable({
     }
 }: ProjectsTableProps) {
 
-    const getProjectStatus = (start: string, end: string) => {
+    const getProjectStatus = (start: string | null, end: string | null) => {
         const startDate = parseLocalDate(start)?.getTime() || 0;
         const endDate = parseLocalDate(end)?.getTime() || 0;
         const today = new Date().setHours(0, 0, 0, 0);

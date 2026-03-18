@@ -1321,17 +1321,17 @@ export function GanttSVG({
                                             } : {}}
                                             style={{
                                                 fill: color,
-                                                fillOpacity: (task as any).isDraft ? 0.85 : 1, // Slight transparency to show pattern but keep it solid
+                                                fillOpacity: task.isDraft ? 0.85 : 1, // Slight transparency to show pattern but keep it solid
                                                 filter: !activeTask ? "drop-shadow(0 4px 6px rgba(0,0,0,0.15))" : undefined,
-                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : ((task as any).isDraft ? "white" : "rgba(255,255,255,0.2)"),
-                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : ((task as any).isDraft ? 2 : 1),
-                                                strokeDasharray: isCascadeGhost ? '4 2' : (task as any).isDraft ? "4 2" : "none",
+                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : (task.isDraft ? "white" : "rgba(255,255,255,0.2)"),
+                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : (task.isDraft ? 2 : 1),
+                                                strokeDasharray: isCascadeGhost ? '4 2' : task.isDraft ? "4 2" : "none",
                                                 transformOrigin: "center",
                                                 transformBox: "fill-box"
                                             }}
                                         />
                                         {/* Draft Pattern Overlay */}
-                                        {(task as any).isDraft && (
+                                        {task.isDraft && (
                                             <rect
                                                 x={x}
                                                 y={y}
@@ -1375,8 +1375,8 @@ export function GanttSVG({
                                                     {isLocked && <Lock className="w-2.5 h-2.5 flex-shrink-0" />}
                                                     <div className={cn(
                                                         "text-[10px] font-black truncate uppercase leading-none",
-                                                        (task as any).isDraft ? "text-white" : "text-white"
-                                                    )} style={{ textShadow: (task as any).isDraft ? '0 1px 3px rgba(0,0,0,0.5)' : 'none' }}>
+                                                        task.isDraft ? "text-white" : "text-white"
+                                                    )} style={{ textShadow: task.isDraft ? '0 1px 3px rgba(0,0,0,0.5)' : 'none' }}>
                                                         {task.production_orders?.part_code || "S/N"}
                                                     </div>
                                                 </div>

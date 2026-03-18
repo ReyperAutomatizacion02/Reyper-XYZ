@@ -42,15 +42,15 @@ interface ProductionOrder {
 
 interface Project {
     id: string;
-    code: string;
-    name: string;
-    company: string;
+    code: string | null;
+    name: string | null;
+    company: string | null;
     company_id?: string | null;
-    requestor: string;
+    requestor: string | null;
     requestor_id?: string | null;
-    start_date: string;
-    delivery_date: string;
-    status: string;
+    start_date: string | null;
+    delivery_date: string | null;
+    status: string | null;
     production_orders: ProductionOrder[];
     integrityScore: number;
 }

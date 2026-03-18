@@ -74,7 +74,7 @@ import { es } from "date-fns/locale";
 import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { EvaluationModal } from "./evaluation-modal";
-import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, SchedulingStrategy, shiftTasksToCurrent, getNextValidWorkTime, snapToNext15Minutes } from "@/lib/scheduling-utils";
+import { generateAutomatedPlanning, compareOrdersByPriority, SchedulingResult, SavedScenario, PlanningTask as SchedulingPlanningTask, SchedulingStrategy, shiftTasksToCurrent, getNextValidWorkTime, snapToNext15Minutes, OrderWithRelations, EvaluationStep } from "@/lib/scheduling-utils";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { ScenarioComparison } from "./scenario-comparison";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
@@ -102,7 +102,7 @@ type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
 
 interface ProductionViewProps {
     machines: Machine[];
-    orders: Order[];
+    orders: OrderWithRelations[];
     tasks: PlanningTask[];
     operators: string[];
 }
@@ -194,7 +194,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
 
     // Filter orders that need evaluation
     const ordersPendingEvaluation = useMemo(() => {
-        let filtered = (orders as any[]).filter(o => {
+        let filtered = orders.filter(o => {
             const isFinished = o.genral_status === 'D7-ENTREGADA' || o.genral_status === 'D8-CANCELADA';
             if (isFinished) return false;
             if (o.material === 'ENSAMBLE') return false;
@@ -290,7 +290,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Get unique clients for the filter
     const uniqueClients = useMemo(() => {
         const clients = new Set<string>();
-        (orders as any[]).forEach(o => {
+        (orders as OrderWithRelations[]).forEach(o => {
             if (o.projects?.company) clients.add(o.projects.company);
         });
         return Array.from(clients).sort();
@@ -350,7 +350,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         toast.loading("Guardando planeación...", { id: "save-planning" });
 
         try {
-            await batchSavePlanning(draftTasks as any[], changedTasks as any[]);
+            await batchSavePlanning(draftTasks, changedTasks);
 
             toast.success("Planeación guardada con éxito", { id: "save-planning" });
             setDraftTasks([]);
@@ -597,12 +597,12 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Wrapper for setOptimisticTasks - Handles both real and draft tasks
     const handleTasksChange = (newTasks: React.SetStateAction<PlanningTask[]>) => {
         const resolvedTasks = typeof newTasks === "function"
-            ? (newTasks as any)(allTasks)
+            ? newTasks(allTasks)
             : newTasks;
 
         // Separate real tasks from draft tasks to keep their states independent
-        const real = resolvedTasks.filter((t: any) => !t.isDraft);
-        const drafts = resolvedTasks.filter((t: any) => t.isDraft);
+        const real = resolvedTasks.filter(t => !t.isDraft);
+        const drafts = resolvedTasks.filter(t => t.isDraft);
 
         setOptimisticTasks(real);
         setDraftTasks(drafts);
@@ -982,7 +982,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                         const strategies = ["NONE", "URGENCY", "DELIVERY_DATE", "CRITICAL_PATH", "PROJECT_GROUP", "FAB_TIME", "FAST_TRACK", "TREATMENTS", "MATERIAL_OPTIMIZATION"] as const;
                                         const idx = strategies.indexOf(activeStrategy);
                                         const prev = strategies[(idx - 1 + strategies.length) % strategies.length];
-                                        setActiveStrategy(prev as any);
+                                        setActiveStrategy(prev);
                                         // Clear manual tweaks when switching strategies to avoid stale overrides
                                         if (prev !== "NONE") {
                                             setDraftTasks([]);
@@ -1647,9 +1647,9 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                                 </div>
                             ) : (
                                 ordersPendingEvaluation.map(order => {
-                                    const deliveryDate = (order as any).projects?.delivery_date;
-                                    const companyName = (order as any).projects?.company;
-                                    const blueprintUrl = (order as any).drawing_url;
+                                    const deliveryDate = (order as OrderWithRelations).projects?.delivery_date;
+                                    const companyName = (order as OrderWithRelations).projects?.company;
+                                    const blueprintUrl = order.drawing_url;
 
                                     return (
                                         <div
@@ -1766,22 +1766,27 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             <EvaluationModal
                 isOpen={isEvalModalOpen}
                 onClose={() => setIsEvalModalOpen(false)}
-                order={selectedOrderForEval as any}
+                order={selectedOrderForEval ? {
+                    id: selectedOrderForEval.id,
+                    part_code: selectedOrderForEval.part_code,
+                    part_name: selectedOrderForEval.part_name,
+                    evaluation: selectedOrderForEval.evaluation as EvaluationStep[] | null | undefined,
+                    drawing_url: selectedOrderForEval.drawing_url ?? undefined,
+                    urgencia: selectedOrderForEval.urgencia ?? undefined,
+                } : null}
                 machines={machines}
                 onSuccess={(newSteps, urg) => {
                     // Update local state immediately for reactivity
                     setLocalOrders(prev => prev.map(o =>
                         o.id === selectedOrderForEval?.id
-                            ? { ...o, evaluation: newSteps as any, urgencia: urg ?? null }
+                            ? { ...o, evaluation: newSteps as unknown as typeof o.evaluation, urgencia: urg ?? null }
                             : o
                     ));
 
                     // Update eval navigation list if applicable
                     if (selectedEvalIndex !== -1 && evalNavigationList[selectedEvalIndex]) {
                         const updatedList = [...evalNavigationList];
-                        const updatedItem = { ...updatedList[selectedEvalIndex] } as any;
-                        updatedItem.evaluation = newSteps;
-                        updatedItem.urgencia = urg;
+                        const updatedItem = { ...updatedList[selectedEvalIndex], evaluation: newSteps as unknown as Order["evaluation"], urgencia: urg ?? null };
                         updatedList[selectedEvalIndex] = updatedItem;
                         setEvalNavigationList(updatedList);
                     }

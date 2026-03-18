@@ -327,7 +327,7 @@ export async function getProjectDetails(projectId: string) {
         .order("part_code", { ascending: true });
 
     if (error) throw new Error(error.message);
-    return items.map((item: any) => ({ ...item, status: item.genral_status }));
+    return items.map(item => ({ ...item, status: item.genral_status }));
 }
 
 export async function getQuoteById(id: string) {

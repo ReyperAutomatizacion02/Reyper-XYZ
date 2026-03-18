@@ -4,6 +4,14 @@ import { Database } from "@/utils/supabase/types";
 export type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 export type PlanningTask = Database["public"]["Tables"]["planning"]["Row"];
 
+/** Order with optional joined relations used in scheduling views */
+export type OrderWithRelations = Order & {
+    projects?: { delivery_date?: string | null; start_date?: string | null; drive_folder_id?: string | null; company?: string | null } | null;
+};
+
+/** Planning task extended with draft flag used in scheduling UI */
+export type PlanningTaskWithDraft = PlanningTask & { isDraft?: boolean };
+
 export interface EvaluationStep {
     machine: string;
     hours: number;
@@ -88,22 +96,21 @@ export function getStatusPriority(status: string): number {
  */
 export function compareOrdersByPriority(a: Order, b: Order): number {
     // 0. Manual Urgency Priority (The most important)
-    const urgA = (a as any).urgencia ? 0 : 1;
-    const urgB = (b as any).urgencia ? 0 : 1;
+    const urgA = a.urgencia ? 0 : 1;
+    const urgB = b.urgencia ? 0 : 1;
     if (urgA !== urgB) return urgA - urgB;
 
     // 1. Sort by Status Priority
-    const prioA = getStatusPriority((a as any).genral_status);
-    const prioB = getStatusPriority((b as any).genral_status);
+    const prioA = getStatusPriority(a.genral_status ?? "");
+    const prioB = getStatusPriority(b.genral_status ?? "");
 
     if (prioA !== prioB) {
         return prioA - prioB; // Lower priority number first
     }
 
     // 2. Sort by Delivery Date (Urgency) - Earlier date first
-    const getDeliveryDate = (item: any) => {
-        if (item.delivery_date) return moment(item.delivery_date).valueOf();
-        if (item.projects && item.projects.delivery_date) return moment(item.projects.delivery_date).valueOf();
+    const getDeliveryDate = (item: OrderWithRelations) => {
+        if (item.projects?.delivery_date) return moment(item.projects.delivery_date).valueOf();
         return Number.MAX_SAFE_INTEGER;
     };
 
@@ -117,25 +124,22 @@ export function compareOrdersByPriority(a: Order, b: Order): number {
  * Filter and sort orders for scheduling based on a specific strategy.
  */
 export function prepareOrdersForScheduling(orders: Order[], config: StrategyConfig): Order[] {
-    return (orders as any[])
+    return orders
         .filter(order => {
             // Must have evaluation
-            const evalData = order.evaluation as any;
+            const evalData = order.evaluation;
             if (!evalData || !Array.isArray(evalData) || evalData.length === 0) {
                 return false;
             }
 
-            // CAD Ready filter (3D Model)
+            // CAD Ready filter (3D Model) — checks model_url
             if (config.onlyWithCAD) {
-                const hasCAD = !!order.drive_file_id || !!(order as any).projects?.drive_folder_id;
-                if (!hasCAD) return false;
+                if (!order.model_url) return false;
             }
 
-            // Blueprint Ready filter (Plano)
+            // Blueprint Ready filter (Plano) — checks drawing_url
             if (config.onlyWithBlueprint) {
-                // For now assuming drive_file_id exists means blueprint is linked
-                const hasBlueprint = !!order.drive_file_id;
-                if (!hasBlueprint) return false;
+                if (!order.drawing_url) return false;
             }
 
             // Material Ready filter
@@ -152,7 +156,7 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
             return true;
         })
         .sort((a, b) => {
-            const getHours = (o: any) => (o.evaluation as any[]).reduce((sum, s) => sum + (s.hours || 0), 0);
+            const getHours = (o: Order) => (o.evaluation as EvaluationStep[] | null)?.reduce((sum: number, s: EvaluationStep) => sum + (s.hours || 0), 0) ?? 0;
 
             switch (config.mainStrategy) {
                 case "FAB_TIME":
@@ -300,10 +304,11 @@ export function generateAutomatedPlanning(
         }));
 
     for (const order of preparedOrders) {
-        const evaluation = (order as any).evaluation as any as EvaluationStep[];
+        const evaluation = order.evaluation as EvaluationStep[] | null;
+        if (!evaluation || evaluation.length === 0) continue;
         let pieceDependencyEndTime = moment(globalStart);
 
-        const pieceTasks: any[] = [];
+        const pieceTasks: Partial<PlanningTask>[] = [];
         let pieceSkipped = false;
 
         // Get all fixed tasks for THIS specific order, sorted by time
@@ -326,7 +331,7 @@ export function generateAutomatedPlanning(
 
             // SEQUENCE MATCHING: Try to find if this evaluation step is already covered by a "fixed" task.
             // We look for the next available fixed task that matches the machine.
-            let matchedTask: any = null;
+            let matchedTask: (typeof allKnownTasks)[number] | null = null;
             while (fixedTaskIdx < pieceFixedTasks.length) {
                 const potentialMatch = pieceFixedTasks[fixedTaskIdx];
                 if (potentialMatch.machine === step.machine) {
@@ -434,7 +439,7 @@ export function generateAutomatedPlanning(
             return end.isAfter(max) ? end : max;
         }, moment(0));
 
-        const deliveryDate = (order as any).delivery_date || (order as any).projects?.delivery_date;
+        const deliveryDate = (order as OrderWithRelations).projects?.delivery_date;
         if (deliveryDate && lastTaskEnd.isAfter(moment(deliveryDate))) {
             metrics.lateOrders++;
         }
@@ -504,7 +509,7 @@ export function shiftScenarioTasks(
 
     // Build collision map from existing (non-draft) tasks
     const existingTasksMap = existingTasks
-        .filter(t => !(t as any).isDraft)
+        .filter(t => !(t as PlanningTaskWithDraft).isDraft)
         .map(t => ({
             machine: t.machine,
             order_id: t.order_id,

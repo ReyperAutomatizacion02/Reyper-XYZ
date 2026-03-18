@@ -61,13 +61,13 @@ import { QuoteHistoryFilters } from "@/components/sales/quote-history-filters";
 interface QuoteSummary {
     id: string;
     quote_number: number;
-    issue_date: string;
-    total: number;
-    currency: string;
-    status: string;
-    quote_type: "services" | "pieces";
-    client: { name: string };
-    contact: { name: string };
+    issue_date: string | null;
+    total: number | null;
+    currency: string | null;
+    status: string | null;
+    quote_type: string | null;
+    client: { name: string } | null;
+    contact: { name: string } | null;
 }
 
 export default function QuoteHistoryPage() {
@@ -107,7 +107,7 @@ export default function QuoteHistoryPage() {
                 getQuotesHistory(),
                 getCatalogData()
             ]);
-            setQuotes(history as any);
+            setQuotes(history as QuoteSummary[]);
             setClients(catalogs.clients);
             setPositions(catalogs.positions);
             setAreas(catalogs.areas);
@@ -394,7 +394,7 @@ export default function QuoteHistoryPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-bold text-foreground">
-                                            {formatCurrency(q.total)} <span className="text-[10px] text-muted-foreground ml-1">{q.currency}</span>
+                                            {formatCurrency(q.total ?? 0)} <span className="text-[10px] text-muted-foreground ml-1">{q.currency}</span>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge className={cn(

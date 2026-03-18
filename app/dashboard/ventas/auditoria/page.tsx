@@ -19,13 +19,7 @@ export default function DataAuditPage() {
     const [selectedProject, setSelectedProject] = useState<any | null>(null);
 
     // Catalog data for ProjectDetailsPanel
-    const [catalog, setCatalog] = useState<{
-        clients: any[],
-        contacts: any[],
-        materials: any[],
-        statuses: any[],
-        treatments: any[]
-    }>({ clients: [], contacts: [], materials: [], statuses: [], treatments: [] });
+    const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof getCatalogData>>>({ clients: [], contacts: [], positions: [], areas: [], units: [], materials: [], statuses: [], treatments: [] });
 
     // Lógica de cálculo de integridad
     const calculateIntegrity = (project: any) => {
@@ -93,14 +87,14 @@ export default function DataAuditPage() {
                 getCatalogData()
             ]);
 
-            const projectsWithScore = (auditData as any[]).map(p => ({
+            const projectsWithScore = auditData.map(p => ({
                 ...p,
                 integrityScore: calculateIntegrity(p)
             })).sort((a, b) => a.integrityScore - b.integrityScore); // Los más incompletos primero
 
             setRawProjects(projectsWithScore);
             setProjects(projectsWithScore);
-            setCatalog(catalogData as any);
+            setCatalog(catalogData);
 
             // Sync selected project if open
             if (selectedProject) {

@@ -28,15 +28,15 @@ import { cn } from "@/lib/utils";
 
 interface Project {
     id: string;
-    code: string;
-    name: string;
-    company: string;
-    company_id?: string;
-    requestor: string;
-    requestor_id?: string;
-    start_date: string;
-    delivery_date: string;
-    status: string;
+    code: string | null;
+    name: string | null;
+    company: string | null;
+    company_id?: string | null;
+    requestor: string | null;
+    requestor_id?: string | null;
+    start_date: string | null;
+    delivery_date: string | null;
+    status: string | null;
 }
 
 interface ProjectHeaderFormProps {
@@ -55,7 +55,7 @@ interface ProjectHeaderFormProps {
     }) => void;
     onClose?: () => void;
     clients?: { id: string; name: string }[];
-    contacts?: { id: string; name: string; client_id?: string }[];
+    contacts?: { id: string; name: string; client_id?: string | null }[];
 }
 
 export function ProjectHeaderForm({
@@ -124,8 +124,8 @@ export function ProjectHeaderForm({
     const handleSave = () => {
         onSave({
             name: editName,
-            start_date: editStartDate ? format(editStartDate, 'yyyy-MM-dd') : project.start_date,
-            delivery_date: editDeliveryDate ? format(editDeliveryDate, 'yyyy-MM-dd') : project.delivery_date,
+            start_date: editStartDate ? format(editStartDate, 'yyyy-MM-dd') : project.start_date ?? "",
+            delivery_date: editDeliveryDate ? format(editDeliveryDate, 'yyyy-MM-dd') : project.delivery_date ?? "",
             company: editCompany,
             company_id: editCompanyId,
             requestor: editRequestor,

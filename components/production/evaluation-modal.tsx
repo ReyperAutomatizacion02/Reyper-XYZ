@@ -38,7 +38,7 @@ interface EvaluationModalProps {
     order: {
         id: string;
         part_code: string;
-        part_name: string;
+        part_name: string | null;
         evaluation?: EvaluationStep[] | null;
         drawing_url?: string;
         urgencia?: boolean;

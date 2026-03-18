@@ -21,15 +21,15 @@ import { useTour } from "@/hooks/use-tour";
 
 interface Project {
     id: string;
-    code: string;
-    name: string;
-    company: string;
-    company_id?: string;
-    requestor: string;
-    requestor_id?: string;
-    start_date: string;
-    delivery_date: string;
-    status: string;
+    code: string | null;
+    name: string | null;
+    company: string | null;
+    company_id?: string | null;
+    requestor: string | null;
+    requestor_id?: string | null;
+    start_date: string | null;
+    delivery_date: string | null;
+    status: string | null;
     parts_count?: number;
 }
 
@@ -45,7 +45,7 @@ export default function ActiveProjectsPage() {
     // Full catalog for editing
     const [catalog, setCatalog] = useState<{
         clients: { id: string, name: string, prefix?: string | null }[],
-        contacts: { id: string, name: string, client_id?: string }[],
+        contacts: { id: string, name: string, client_id?: string | null }[],
         materials: { id: string, name: string }[],
         statuses: { id: string, name: string }[],
         treatments: { id: string, name: string }[]
@@ -58,13 +58,13 @@ export default function ActiveProjectsPage() {
                 getFilterOptions(),
                 getCatalogData()
             ]);
-            setProjects(projectsData as any);
-            setFilterOptions(optionsData as any);
-            setCatalog(catalogData as any);
+            setProjects(projectsData as Project[]);
+            setFilterOptions(optionsData as { clients: string[], requestors: string[] });
+            setCatalog(catalogData);
 
             // Sync selected project if it exists
             if (selectedProject) {
-                const updated = (projectsData as any[]).find(p => p.id === selectedProject.id);
+                const updated = (projectsData as Project[]).find(p => p.id === selectedProject.id);
                 if (updated) setSelectedProject(updated);
             }
         } catch (error: any) {
@@ -79,7 +79,7 @@ export default function ActiveProjectsPage() {
     }, []);
 
     // Function to calculate progress and date status
-    const getProjectStatus = (start: string, end: string) => {
+    const getProjectStatus = (start: string | null, end: string | null) => {
         const startDate = parseLocalDate(start)?.getTime() || 0;
         const endDate = parseLocalDate(end)?.getTime() || 0;
         const today = new Date().setHours(0, 0, 0, 0); // Start of today
@@ -176,10 +176,10 @@ export default function ActiveProjectsPage() {
         // 2. Advanced Filters
 
         // Client Filter
-        if (filters.clients.length > 0 && !filters.clients.includes(p.company)) return false;
+        if (filters.clients.length > 0 && !filters.clients.includes(p.company ?? "")) return false;
 
         // Requestor Filter
-        if (filters.requestors.length > 0 && !filters.requestors.includes(p.requestor)) return false;
+        if (filters.requestors.length > 0 && !filters.requestors.includes(p.requestor ?? "")) return false;
 
         // Status Filter
         if (filters.status.length > 0) {
@@ -215,8 +215,8 @@ export default function ActiveProjectsPage() {
         const order = filters.sortOrder === 'desc' ? -1 : 1;
 
         if (field === 'delivery_date') {
-            const dateA = new Date(a.delivery_date).getTime();
-            const dateB = new Date(b.delivery_date).getTime();
+            const dateA = new Date(a.delivery_date ?? "").getTime();
+            const dateB = new Date(b.delivery_date ?? "").getTime();
             return (dateA - dateB) * order;
         }
 
@@ -230,8 +230,8 @@ export default function ActiveProjectsPage() {
             return ((a.parts_count || 0) - (b.parts_count || 0)) * order;
         }
 
-        const valA = (a as any)[field]?.toString().toLowerCase() || "";
-        const valB = (b as any)[field]?.toString().toLowerCase() || "";
+        const valA = (a[field as keyof Project])?.toString().toLowerCase() || "";
+        const valB = (b[field as keyof Project])?.toString().toLowerCase() || "";
         return valA.localeCompare(valB) * order;
     });
 
@@ -274,7 +274,7 @@ export default function ActiveProjectsPage() {
 
                     {/* Sort Dropdown for Grid View */}
                     {viewMode === 'grid' && (
-                        <Select value={filters.sortBy} onValueChange={(v) => toggleSort(v as any)}>
+                        <Select value={filters.sortBy} onValueChange={(v) => toggleSort(v as typeof filters.sortBy)}>
                             <SelectTrigger className="w-[180px] bg-background/50 border-border h-10 px-3">
                                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     <ArrowUpWideNarrow className="w-3.5 h-3.5" />

@@ -1,6 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Database } from "@/utils/supabase/types";
+
+type PlanningRow = Database["public"]["Tables"]["planning"]["Row"];
 
 export const dynamic = 'force-dynamic';
 import {
@@ -65,7 +68,7 @@ function UrgencyBadge({ days }: { days: number }) {
 // --- DATA PROCESSING HELPERS ---
 
 // Calculate Machine Utilization (Strict Lane 1 Logic)
-function calculateUtilization(tasks: any[]) {
+function calculateUtilization(tasks: PlanningRow[]) {
     const SHIFT_START = 6;
     const SHIFT_END = 22;
     const SHIFT_HOURS = 16;
@@ -80,15 +83,15 @@ function calculateUtilization(tasks: any[]) {
         if (!acc[m]) acc[m] = [];
         acc[m].push(task);
         return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, PlanningRow[]>);
 
     Object.entries(tasksByMachine).forEach(([machine, tasks]) => {
-        const machineTasks = tasks as any[];
+        const machineTasks = tasks;
         let occupiedHours = 0;
 
         // Sort tasks strictly by time
         const sortedTasks = machineTasks.sort((a, b) =>
-            new Date(a.planned_date).getTime() - new Date(b.planned_date).getTime()
+            new Date(a.planned_date ?? "").getTime() - new Date(b.planned_date ?? "").getTime()
         );
 
         // Iterate days (last 7 days)
@@ -103,15 +106,15 @@ function calculateUtilization(tasks: any[]) {
             let currentLaneEnd = 0;
 
             // Filter tasks for this day
-            const dailyTasks = sortedTasks.filter((t: any) => {
-                const tStart = new Date(t.planned_date);
-                const tEnd = new Date(t.planned_end);
+            const dailyTasks = sortedTasks.filter(t => {
+                const tStart = new Date(t.planned_date ?? "");
+                const tEnd = new Date(t.planned_end ?? "");
                 return tStart < dayEnd && tEnd > dayStart;
             });
 
-            dailyTasks.forEach((task: any) => {
-                const tStart = new Date(task.planned_date);
-                const tEnd = new Date(task.planned_end);
+            dailyTasks.forEach(task => {
+                const tStart = new Date(task.planned_date ?? "");
+                const tEnd = new Date(task.planned_end ?? "");
                 const tStartTime = tStart.getTime();
 
                 // Lane 1 Check: Must start after previous task ended
@@ -170,11 +173,11 @@ export default async function DashboardPage() {
 
     // Filter projects and extract active parts in one pass
     const projects = [];
-    const activeParts: any[] = [];
+    const activeParts: { project_id: string | null; genral_status: string | null }[] = [];
 
     if (projectsWithOrders) {
         for (const pj of projectsWithOrders) {
-            const parts = (pj.production_orders as any[]) || [];
+            const parts = pj.production_orders || [];
             const pjActiveParts = parts.filter(part => {
                 const s = (part.genral_status || "").toUpperCase();
                 return !s.includes("D7-ENTREGADA") && !s.includes("D8-CANCELADA");

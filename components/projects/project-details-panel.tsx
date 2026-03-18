@@ -36,36 +36,38 @@ import { DrawingViewerContent } from "../sales/drawing-viewer";
 
 interface Project {
     id: string;
-    code: string;
-    name: string;
-    company: string;
-    company_id?: string;
-    requestor: string;
-    requestor_id?: string;
-    start_date: string;
-    delivery_date: string;
-    status: string;
+    code: string | null;
+    name: string | null;
+    company: string | null;
+    company_id?: string | null;
+    requestor: string | null;
+    requestor_id?: string | null;
+    start_date: string | null;
+    delivery_date: string | null;
+    status: string | null;
 }
 
 interface ProjectItem {
     id: string;
     part_code: string;
-    part_name: string;
-    quantity: number;
-    status: string;
-    status_id?: string;
-    image?: string;
-    material: string;
-    material_id?: string;
-    unit?: string;
-    treatment: string;
-    treatment_id?: string;
-    design_no?: string;
-    urgencia?: boolean;
-    drawing_url?: string;
-    genral_status?: string;
+    part_name: string | null;
+    quantity: number | null;
+    status: string | null;
+    status_id?: string | null;
+    image?: string | null;
+    material: string | null;
+    material_id?: string | null;
+    unit?: string | null;
+    treatment: string | null;
+    treatment_id?: string | null;
+    design_no?: string | null;
+    urgencia?: boolean | null;
+    drawing_url?: string | null;
+    genral_status?: string | null;
     urgency_level?: string;
-    material_confirmation?: string;
+    material_confirmation?: string | null;
+    model_url?: string | null;
+    render_url?: string | null;
 }
 
 interface ProjectDetailsPanelProps {
@@ -74,7 +76,7 @@ interface ProjectDetailsPanelProps {
     onClose: () => void;
     onProjectUpdated?: () => void;
     clients?: { id: string; name: string; prefix?: string | null }[];
-    contacts?: { id: string; name: string; client_id?: string }[];
+    contacts?: { id: string; name: string; client_id?: string | null }[];
     materials?: { id: string; name: string }[];
     statuses?: { id: string; name: string }[];
     treatments?: { id: string; name: string }[];
@@ -171,7 +173,7 @@ export function ProjectDetailsPanel({
         setLoading(true);
         try {
             const data = await getProjectDetails(id);
-            const itemsList = data as any[];
+            const itemsList = data;
             setItems(itemsList);
 
             // Sync selected item if viewing detail

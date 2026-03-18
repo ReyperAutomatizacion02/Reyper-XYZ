@@ -29,13 +29,13 @@ import { DrawingViewer } from "./drawing-viewer";
 interface QuoteSummary {
     id: string;
     quote_number: number;
-    issue_date: string;
-    total: number;
-    currency: string;
-    status: string;
-    quote_type: "services" | "pieces";
-    client: { name: string };
-    contact: { name: string };
+    issue_date: string | null;
+    total: number | null;
+    currency: string | null;
+    status: string | null;
+    quote_type: string | null;
+    client: { name: string } | null;
+    contact: { name: string } | null;
 }
 
 // ----------------------------------------------------------------------
