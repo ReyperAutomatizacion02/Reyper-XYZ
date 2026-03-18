@@ -54,11 +54,11 @@ type UserProfile = {
     id: string;
     full_name: string | null;
     username: string | null;
-    roles: string[];
-    is_approved: boolean;
+    roles: string[] | null;
+    is_approved: boolean | null;
     operator_name: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
 };
 
 interface AdminPanelClientProps {
@@ -589,7 +589,7 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                                 <p className="font-semibold">{user.full_name || "Sin nombre"}</p>
                                                 <p className="text-sm text-muted-foreground">@{user.username || "sin-usuario"}</p>
                                                 <p className="text-xs text-muted-foreground mt-1">
-                                                    Registrado: {new Date(user.created_at).toLocaleDateString('es-MX', {
+                                                    Registrado: {new Date(user.created_at ?? "").toLocaleDateString('es-MX', {
                                                         day: 'numeric',
                                                         month: 'short',
                                                         year: 'numeric',
@@ -680,7 +680,7 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
-                                            {new Date(user.updated_at).toLocaleDateString('es-MX', {
+                                            {new Date(user.updated_at ?? "").toLocaleDateString('es-MX', {
                                                 day: 'numeric',
                                                 month: 'short',
                                                 year: 'numeric'
@@ -729,10 +729,10 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                     ) : (
                                         <div className="flex items-center justify-between gap-4">
                                             <div className="flex flex-wrap gap-1">
-                                                {getRoleBadges(user.roles)}
-                                                {user.roles?.length > 3 && (
+                                                {getRoleBadges(user.roles || [])}
+                                                {(user.roles?.length ?? 0) > 3 && (
                                                     <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-muted text-muted-foreground">
-                                                        +{user.roles.length - 3} más
+                                                        +{(user.roles?.length ?? 0) - 3} más
                                                     </span>
                                                 )}
                                             </div>

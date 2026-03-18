@@ -14,7 +14,7 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .update({
             planned_date: start,
             planned_end: end,
@@ -62,12 +62,12 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
 
     const end = new Date(new Date(start).getTime() + durationHours * 60 * 60 * 1000);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .insert({
             order_id: orderId,
             machine: machine.name,
             planned_date: start,
-            planned_end: end.toISOString(), // This might be issue if logic used elsewhere
+            planned_end: end.toISOString(),
         });
 
 
@@ -87,7 +87,7 @@ export async function createPlanningTask(orderId: string, machine: string, start
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .insert({
             order_id: orderId,
             machine: machine,
@@ -109,7 +109,7 @@ export async function updateTaskDetails(taskId: string, orderId: string, machine
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .update({
             order_id: orderId,
             machine: machine,
@@ -132,7 +132,7 @@ export async function recordCheckIn(taskId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .update({
             check_in: moment().format('YYYY-MM-DD HH:mm:ss'),
         })
@@ -151,7 +151,7 @@ export async function recordCheckOut(taskId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .update({
             check_out: moment().format('YYYY-MM-DD HH:mm:ss'),
         })
@@ -181,7 +181,7 @@ export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) 
             operator: t.operator || null,
         }));
 
-        const { error: insError } = await (supabase.from("planning" as any) as any).insert(toInsert);
+        const { error: insError } = await supabase.from("planning").insert(toInsert);
         if (insError) {
             logger.error("Error batch inserting tasks", insError);
             throw new Error("Failed to insert draft tasks");
@@ -204,7 +204,7 @@ export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) 
             operator: t.operator || null,
         }));
 
-        const { error: updError } = await (supabase.from("planning" as any) as any).upsert(toUpdate);
+        const { error: updError } = await supabase.from("planning").upsert(toUpdate);
         if (updError) {
             logger.error("Error batch updating tasks", updError);
             throw new Error("Failed to update changed tasks");
@@ -224,12 +224,12 @@ export async function fetchScenarios() {
 
     // Auto-cleanup: delete scenarios older than 7 days
     const sevenDaysAgo = moment().subtract(7, 'days').toISOString();
-    await (supabase.from("planning_scenarios" as any) as any)
+    await supabase.from("planning_scenarios")
         .delete()
         .lt('created_at', sevenDaysAgo);
 
     // Fetch remaining scenarios
-    const { data, error } = await (supabase.from("planning_scenarios" as any) as any)
+    const { data, error } = await supabase.from("planning_scenarios")
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -253,7 +253,7 @@ export async function saveScenario(scenario: {
     const supabase = createClient(cookieStore);
     const { user } = await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { data, error } = await (supabase.from("planning_scenarios" as any) as any)
+    const { data, error } = await supabase.from("planning_scenarios")
         .insert({
             name: scenario.name,
             strategy: scenario.strategy,
@@ -279,7 +279,7 @@ export async function deleteScenario(scenarioId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning_scenarios" as any) as any)
+    const { error } = await supabase.from("planning_scenarios")
         .delete()
         .eq('id', scenarioId);
 
@@ -294,7 +294,7 @@ export async function markScenarioApplied(scenarioId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning_scenarios" as any) as any)
+    const { error } = await supabase.from("planning_scenarios")
         .update({ applied_at: new Date().toISOString() })
         .eq("id", scenarioId);
 
@@ -313,7 +313,7 @@ export async function toggleTaskLocked(taskId: string, locked: boolean) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await (supabase.from("planning" as any) as any)
+    const { error } = await supabase.from("planning")
         .update({ locked })
         .eq("id", taskId);
 

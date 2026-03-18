@@ -34,7 +34,7 @@ export default async function ProductionPage() {
     const { data: profile } = await supabase
         .from("user_profiles")
         .select("roles")
-        .eq("id", user?.id)
+        .eq("id", user?.id ?? "")
         .single();
 
     const userRoles = profile?.roles || [];

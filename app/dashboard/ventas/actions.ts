@@ -244,7 +244,7 @@ export async function getActiveProjects() {
 
     if (error) throw new Error(error.message);
 
-    return (data as any[]).map(project => ({
+    return (data ?? []).map(project => ({
         ...project,
         parts_count: project.production_orders?.length || 0
     }));
@@ -337,7 +337,7 @@ export async function getQuoteById(id: string) {
 
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
-        .select("*")
+        .select("*, client:sales_clients(name), contact:sales_contacts(name)")
         .eq("id", id)
         .single();
 
@@ -553,6 +553,8 @@ export async function convertQuoteToProject(
         const quote = await getQuoteById(quoteId);
         if (!quote) throw new Error("Quote not found");
         if (quote.status === QUOTE_STATUS.APPROVED) throw new Error("Quote already approved");
+        if (!quote.client_id) throw new Error("Quote has no client assigned");
+        if (!quote.contact_id) throw new Error("Quote has no contact assigned");
 
         // 2. Get Client Prefix
         const { data: client, error: clientError } = await supabase
@@ -561,7 +563,7 @@ export async function convertQuoteToProject(
             .eq("id", quote.client_id)
             .single();
 
-        if (clientError || !client) throw new Error("Client prefix not found");
+        if (clientError || !client || !client.prefix) throw new Error("Client prefix not found");
 
         const projectCode = await getNextProjectCode(client.prefix);
         const finalProjectName = projectName || `COT-${quote.quote_number}`;

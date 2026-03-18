@@ -18,7 +18,7 @@ export default async function MaquinadosPage() {
         .eq("id", user.id)
         .single();
 
-    if (!profile || (!profile.roles.includes("operador") && !profile.roles.includes("admin"))) {
+    if (!profile || !profile.roles || (!profile.roles.includes("operador") && !profile.roles.includes("admin"))) {
         redirect("/dashboard");
     }
 
@@ -30,7 +30,7 @@ export default async function MaquinadosPage() {
         .select("*, production_orders(*)")
         .order("planned_date", { ascending: false });
 
-    if (!profile.roles.includes("admin")) {
+    if (!profile.roles?.includes("admin")) {
         if (!operatorName) {
             return (
                 <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-6 text-center">

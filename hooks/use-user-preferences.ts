@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { type Json } from "@/utils/supabase/types";
 
 // Default preferences structure
 export interface UserPreferences {
@@ -47,7 +48,7 @@ export function useUserPreferences() {
                 if (error) {
                     console.error("Error loading preferences:", error);
                 } else {
-                    setPreferences(data?.preferences || {});
+                    setPreferences((data?.preferences as UserPreferences) || {});
                 }
             } catch (err) {
                 console.error("Failed to load user preferences:", err);
@@ -73,7 +74,7 @@ export function useUserPreferences() {
             try {
                 const { error } = await supabase
                     .from("user_profiles")
-                    .update({ preferences: newPrefs })
+                    .update({ preferences: newPrefs as unknown as Json })
                     .eq("id", userId);
 
                 if (error) {

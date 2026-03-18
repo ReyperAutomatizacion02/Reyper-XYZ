@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { type Json } from '@/utils/supabase/types';
 import {
     Dialog, DialogContent,
     DialogHeader,
@@ -174,7 +175,7 @@ export function EvaluationModal({
             const { error } = await supabase
                 .from("production_orders")
                 .update({
-                    evaluation: validSteps,
+                    evaluation: validSteps as unknown as Json,
                     urgencia: urgencia
                 })
                 .eq("id", order.id);
@@ -200,8 +201,8 @@ export function EvaluationModal({
         }
     };
 
-    const hasDrawing = !!(order as any)?.drawing_url;
-    const fileId = hasDrawing ? extractDriveFileId((order as any).drawing_url) : null;
+    const hasDrawing = !!order?.drawing_url;
+    const fileId = hasDrawing ? extractDriveFileId(order!.drawing_url!) : null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -220,12 +221,12 @@ export function EvaluationModal({
                                     <FileText className="w-4 h-4 text-primary" />
                                     Plano de Fabricación
                                 </h3>
-                                {(order as any).drawing_url && !fileId && (
+                                {order?.drawing_url && !fileId && (
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="text-[10px] h-7"
-                                        onClick={() => window.open((order as any).drawing_url, '_blank')}
+                                        onClick={() => window.open(order?.drawing_url, '_blank')}
                                     >
                                         Abrir en pestaña nueva
                                     </Button>

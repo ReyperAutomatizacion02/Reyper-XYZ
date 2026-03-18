@@ -96,7 +96,7 @@ export function EditUpdateDialog({ update, isOpen, onClose, onSuccess }: EditUpd
             title: update.title || "",
             summary: update.summary || "",
             content: update.content || "",
-            category: (update.category as any) || "Improvement",
+            category: (update.category as z.infer<typeof formSchema>["category"]) || "Improvement",
         },
     });
 

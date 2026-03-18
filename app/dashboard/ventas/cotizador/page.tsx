@@ -470,20 +470,20 @@ function QuoteGeneratorContent() {
                     const existing = await getQuoteById(editingId);
                     // Pre-fill form
                     setFormData({
-                        quote_as: existing.quote_as,
-                        quote_type: existing.quote_type || "services",
-                        requisition_no: existing.requisition_no,
-                        part_no: existing.part_no,
-                        issue_date: existing.issue_date,
-                        delivery_date: existing.delivery_date,
-                        currency: existing.currency,
-                        client_id: existing.client_id,
-                        contact_id: existing.contact_id,
-                        payment_terms_days: existing.payment_terms_days,
-                        position_id: existing.position_id,
-                        area_id: existing.area_id,
-                        validity_days: existing.validity_days,
-                        tax_rate: existing.tax_rate * 100 // Convert back to %
+                        quote_as: existing.quote_as ?? "",
+                        quote_type: (existing.quote_type as "services" | "pieces") || "services",
+                        requisition_no: existing.requisition_no ?? "",
+                        part_no: existing.part_no ?? "",
+                        issue_date: existing.issue_date ?? "",
+                        delivery_date: existing.delivery_date ?? "",
+                        currency: existing.currency ?? "",
+                        client_id: existing.client_id ?? "",
+                        contact_id: existing.contact_id ?? "",
+                        payment_terms_days: existing.payment_terms_days ?? 0,
+                        position_id: existing.position_id ?? "",
+                        area_id: existing.area_id ?? "",
+                        validity_days: existing.validity_days ?? 0,
+                        tax_rate: (existing.tax_rate ?? 0) * 100 // Convert back to %
                     });
 
                     // Pre-fill items

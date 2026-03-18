@@ -58,7 +58,7 @@ import { createMaterialEntry, createTreatmentEntry } from "@/app/dashboard/venta
 
 interface ProjectFormProps {
     clients: { id: string; name: string; prefix?: string | null }[];
-    contacts: { id: string; name: string; client_id?: string }[];
+    contacts: { id: string; name: string; client_id?: string | null }[];
     units: { id: string; name: string }[];
     materials: { id: string; name: string }[];
     treatments: { id: string; name: string }[];

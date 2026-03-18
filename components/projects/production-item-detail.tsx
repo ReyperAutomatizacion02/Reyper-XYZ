@@ -81,7 +81,7 @@ export function ProductionItemDetail({
                 const data = await getCatalogData();
                 setMaterials(data.materials || []);
                 setStatuses(data.statuses || []);
-                const treatmentList = (data as any).treatments || [];
+                const treatmentList = data.treatments || [];
                 setTreatments(treatmentList);
             } catch (error) {
                 console.error("Error loading catalogs:", error);
@@ -366,13 +366,14 @@ export function ProductionItemDetail({
                                 value={editMaterial}
                                 onSelect={setEditMaterial}
                                 onCreate={async (val) => {
-                                    const res = await createMaterialEntry(val);
-                                    if (res.success && res.id) {
+                                    try {
+                                        await createMaterialEntry(val);
                                         const data = await getCatalogData();
                                         setMaterials(data.materials || []);
                                         return val;
+                                    } catch {
+                                        return null;
                                     }
-                                    return null;
                                 }}
                                 placeholder="Seleccionar..."
                                 className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
@@ -395,13 +396,14 @@ export function ProductionItemDetail({
                                 value={editMaterialConfirmation}
                                 onSelect={setEditMaterialConfirmation}
                                 onCreate={async (val) => {
-                                    const res = await createMaterialEntry(val);
-                                    if (res.success && res.id) {
+                                    try {
+                                        await createMaterialEntry(val);
                                         const data = await getCatalogData();
                                         setMaterials(data.materials || []);
                                         return val;
+                                    } catch {
+                                        return null;
                                     }
-                                    return null;
                                 }}
                                 placeholder="Seleccionar o crear..."
                                 className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
@@ -425,13 +427,14 @@ export function ProductionItemDetail({
                                 value={editTreatmentId}
                                 onSelect={setEditTreatmentId}
                                 onCreate={async (val) => {
-                                    const res = await createTreatmentEntry(val);
-                                    if (res.success && res.id) {
+                                    try {
+                                        const id = await createTreatmentEntry(val);
                                         const data = await getCatalogData();
-                                        setTreatments((data as any).treatments || []);
-                                        return res.id;
+                                        setTreatments(data.treatments || []);
+                                        return id ?? null;
+                                    } catch {
+                                        return null;
                                     }
-                                    return null;
                                 }}
                                 placeholder="Seleccionar..."
                                 className="h-10 bg-slate-50 border-slate-200 rounded-xl font-bold uppercase text-xs"
