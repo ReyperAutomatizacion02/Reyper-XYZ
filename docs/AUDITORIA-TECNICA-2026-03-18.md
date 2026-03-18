@@ -82,10 +82,12 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-02: 54 CASTEOS `as any` — TIPOS SUPABASE ROTOS
+### ✅ H-02: 54 CASTEOS `as any` — TIPOS SUPABASE ROTOS (RESUELTO)
 
 - **Categoría:** Lógica / Limpieza
 - **Gravedad:** CRÍTICA
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resultado:** Tipos regenerados desde BD live, `<Database>` generic aplicado a todos los clientes Supabase, ~30 archivos corregidos. De ~70 `as any` → 5 irreducibles (canvas PDF.js, drag-and-drop lib, demo data, Supabase Realtime overload ×2). 0 errores TypeScript.
 - **Diagnóstico:** Se encontraron 54 instancias de `as any` distribuidas en 15+ archivos. El caso más grave está en `app/dashboard/produccion/actions.ts` donde **cada operación de base de datos** requiere doble casteo:
   ```typescript
   await (supabase.from("planning" as any) as any)
@@ -124,10 +126,12 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-03: VALIDACIÓN DE INPUTS AUSENTE EN SERVER ACTIONS
+### ✅ H-03: VALIDACIÓN DE INPUTS AUSENTE EN SERVER ACTIONS (RESUELTO)
 
 - **Categoría:** Seguridad
 - **Gravedad:** CRÍTICA
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resultado:** Validación Zod agregada a los 8 archivos de server actions (~35 funciones). Se crearon 4 archivos de schemas: `lib/validations/production.ts`, `lib/validations/admin.ts`, `lib/validations/auth.ts`, `lib/validations/updates.ts`. Se expandió `lib/validations/sales.ts` con schemas para catálogos, cotizaciones, contactos, proyectos y Drive. 0 errores TypeScript.
 - **Diagnóstico:** Múltiples server actions aceptan datos directamente sin validación Zod ni sanitización. Mientras que `lib/validations/sales.ts` define schemas para algunas operaciones de ventas, las funciones de creación de catálogos y producción no validan nada.
 - **Impacto:** Datos malformados, strings excesivamente largos, o caracteres especiales entran directamente a Supabase. Aunque Supabase parametriza queries (protege contra SQL injection), no hay protección contra datos basura, strings vacíos, o valores fuera de rango. Violación directa de OWASP A03:2021 (Injection).
 - **Archivos afectados:**
@@ -600,8 +604,8 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 ## 3. LISTA DE VERIFICACIÓN POST-AUDITORÍA
 
 ### Prioridad CRÍTICA (Semana 1)
-- [ ] Regenerar tipos Supabase con `supabase gen types typescript` y eliminar los 54 `as any`
-- [ ] Agregar validación Zod a TODOS los server actions que aceptan input de usuario
+- [x] ~~Regenerar tipos Supabase con `supabase gen types typescript` y eliminar los 54 `as any`~~ ✅ Resuelto 2026-03-18 — 0 errores TS, solo 5 `as any` irreducibles
+- [x] ~~Agregar validación Zod a TODOS los server actions que aceptan input de usuario~~ ✅ Resuelto 2026-03-18 — 35 funciones validadas, 4 archivos de schemas creados
 - [ ] Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios
 - [ ] Configurar Vitest y escribir tests para `scheduling-utils.ts` y `auth-guard.ts`
 - [ ] Corregir open redirect en `auth/callback/route.ts` con whitelist de rutas

@@ -2,12 +2,14 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { ClientPrefixSchema, CreateProjectSchema, CreateProjectItemSchema } from "@/lib/validations/sales";
 
 /**
  * Calculates the next project code for a specific client prefix.
  * Looks for codes in the format "{clientPrefix}-{sequence}" (e.g., "85-1230").
  */
 export async function getNextProjectCode(clientPrefix: string) {
+    const parsed = ClientPrefixSchema.parse({ clientPrefix });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -15,7 +17,7 @@ export async function getNextProjectCode(clientPrefix: string) {
     const { data, error } = await supabase
         .from("projects")
         .select("code")
-        .ilike("code", `${clientPrefix}-%`);
+        .ilike("code", `${parsed.clientPrefix}-%`);
 
     if (error) {
         console.error("Error fetching project codes:", error);
@@ -23,12 +25,12 @@ export async function getNextProjectCode(clientPrefix: string) {
     }
 
     if (!data || data.length === 0) {
-        return `${clientPrefix}-0001`;
+        return `${parsed.clientPrefix}-0001`;
     }
 
     let maxSequence = 0;
     // Match codes like "PREFIX-0001" or "PREFIX-123"
-    const regex = new RegExp(`^${clientPrefix}-(\\d+)$`);
+    const regex = new RegExp(`^${parsed.clientPrefix}-(\\d+)$`);
 
     data.forEach((row) => {
         const match = row.code.match(regex);
@@ -44,7 +46,7 @@ export async function getNextProjectCode(clientPrefix: string) {
     // We want at least 4 digits, but if it goes beyond (e.g. 10000) it shouldn't cut off
     const nextSequenceStr = nextSequence.toString().padStart(4, "0");
 
-    return `${clientPrefix}-${nextSequenceStr}`;
+    return `${parsed.clientPrefix}-${nextSequenceStr}`;
 }
 
 /**
@@ -80,6 +82,8 @@ export async function createProjectAndItems(
         description?: string;
     }>
 ) {
+    const parsedProject = CreateProjectSchema.parse(projectData);
+    const parsedItems = items.map(item => CreateProjectItemSchema.parse(item));
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 

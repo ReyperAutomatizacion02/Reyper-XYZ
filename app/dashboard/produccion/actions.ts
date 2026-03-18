@@ -6,20 +6,33 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/utils/logger";
 import { requireRole } from "@/lib/auth-guard";
+import {
+    UpdateTaskScheduleSchema,
+    ScheduleNewTaskSchema,
+    CreatePlanningTaskSchema,
+    UpdateTaskDetailsSchema,
+    TaskIdSchema,
+    ToggleTaskLockedSchema,
+    OrderIdSchema,
+    BatchSavePlanningSchema,
+    SaveScenarioSchema,
+    ScenarioIdSchema,
+} from "@/lib/validations/production";
 
 const PRODUCCION_ROLES = ["admin", "produccion", "automatizacion", "operador"];
 
 export async function updateTaskSchedule(taskId: string, start: string, end: string) {
+    const parsed = UpdateTaskScheduleSchema.parse({ taskId, start, end });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning")
         .update({
-            planned_date: start,
-            planned_end: end,
+            planned_date: parsed.start,
+            planned_end: parsed.end,
         })
-        .eq("id", taskId);
+        .eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error updating task", error);
@@ -30,12 +43,13 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
 }
 
 export async function scheduleNewTask(orderId: string, machineId: string, start: string, durationHours: number = 2) {
+    const parsed = ScheduleNewTaskSchema.parse({ orderId, machineId, start, durationHours });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     // Get machine name because the Notion-synced table uses names
-    const { data: machine } = await supabase.from("machines").select("name").eq("id", machineId).single();
+    const { data: machine } = await supabase.from("machines").select("name").eq("id", parsed.machineId).single();
     if (!machine) throw new Error("Machine not found");
 
     // Calculate end time on server? OR modify to accept end time string?
@@ -60,13 +74,13 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
     // I will keep scheduleNewTask as is (Date) but verify it later.
     // I'll only change updateTaskSchedule.
 
-    const end = new Date(new Date(start).getTime() + durationHours * 60 * 60 * 1000);
+    const end = new Date(new Date(parsed.start).getTime() + parsed.durationHours * 60 * 60 * 1000);
 
     const { error } = await supabase.from("planning")
         .insert({
-            order_id: orderId,
+            order_id: parsed.orderId,
             machine: machine.name,
-            planned_date: start,
+            planned_date: parsed.start,
             planned_end: end.toISOString(),
         });
 
@@ -77,23 +91,24 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
     }
 
     // Update order status if needed - using general_status from types
-    await supabase.from("production_orders").update({ genral_status: 'En Proceso' }).eq('id', orderId);
+    await supabase.from("production_orders").update({ genral_status: 'En Proceso' }).eq('id', parsed.orderId);
 
     revalidatePath("/dashboard/produccion");
 }
 
 export async function createPlanningTask(orderId: string, machine: string, start: string, end: string, operator?: string) {
+    const parsed = CreatePlanningTaskSchema.parse({ orderId, machine, start, end, operator });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning")
         .insert({
-            order_id: orderId,
-            machine: machine,
-            planned_date: start,
-            planned_end: end,
-            operator: operator || null,
+            order_id: parsed.orderId,
+            machine: parsed.machine,
+            planned_date: parsed.start,
+            planned_end: parsed.end,
+            operator: parsed.operator || null,
         });
 
     if (error) {
@@ -105,19 +120,20 @@ export async function createPlanningTask(orderId: string, machine: string, start
 }
 
 export async function updateTaskDetails(taskId: string, orderId: string, machine: string, start: string, end: string, operator?: string) {
+    const parsed = UpdateTaskDetailsSchema.parse({ taskId, orderId, machine, start, end, operator });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning")
         .update({
-            order_id: orderId,
-            machine: machine,
-            planned_date: start,
-            planned_end: end,
-            operator: operator || null,
+            order_id: parsed.orderId,
+            machine: parsed.machine,
+            planned_date: parsed.start,
+            planned_end: parsed.end,
+            operator: parsed.operator || null,
         })
-        .eq("id", taskId);
+        .eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error updating planning task", error);
@@ -128,6 +144,7 @@ export async function updateTaskDetails(taskId: string, orderId: string, machine
 }
 
 export async function recordCheckIn(taskId: string) {
+    const parsed = TaskIdSchema.parse({ taskId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
@@ -136,7 +153,7 @@ export async function recordCheckIn(taskId: string) {
         .update({
             check_in: moment().format('YYYY-MM-DD HH:mm:ss'),
         })
-        .eq("id", taskId);
+        .eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error recording check-in", error);
@@ -147,6 +164,7 @@ export async function recordCheckIn(taskId: string) {
 }
 
 export async function recordCheckOut(taskId: string) {
+    const parsed = TaskIdSchema.parse({ taskId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
@@ -155,7 +173,7 @@ export async function recordCheckOut(taskId: string) {
         .update({
             check_out: moment().format('YYYY-MM-DD HH:mm:ss'),
         })
-        .eq("id", taskId);
+        .eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error recording check-out", error);
@@ -165,15 +183,15 @@ export async function recordCheckOut(taskId: string) {
     revalidatePath("/dashboard/produccion/maquinados");
 }
 
-export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) {
+export async function batchSavePlanning(draftTasks: Record<string, unknown>[], changedTasks: Record<string, unknown>[]) {
+    const parsed = BatchSavePlanningSchema.parse({ draftTasks, changedTasks });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     // 1. Insert Draft Tasks
-    if (draftTasks.length > 0) {
-        // Remove helper fields like isDraft and production_orders (nested object)
-        const toInsert = draftTasks.map(t => ({
+    if (parsed.draftTasks.length > 0) {
+        const toInsert = parsed.draftTasks.map(t => ({
             order_id: t.order_id,
             machine: t.machine,
             planned_date: t.planned_date,
@@ -189,13 +207,8 @@ export async function batchSavePlanning(draftTasks: any[], changedTasks: any[]) 
     }
 
     // 2. Update Changed Tasks
-    if (changedTasks.length > 0) {
-        // Supabase doesn't support batch updates with different values easily in a single call 
-        // without complex syntax (using upsert with IDs).
-        // Since changedTasks is usually small, we can do it in a loop or use upsert.
-
-        // Let's use upsert if they have IDs
-        const toUpdate = changedTasks.map(t => ({
+    if (parsed.changedTasks.length > 0) {
+        const toUpdate = parsed.changedTasks.map(t => ({
             id: t.id,
             order_id: t.order_id,
             machine: t.machine,
@@ -244,23 +257,24 @@ export async function fetchScenarios() {
 export async function saveScenario(scenario: {
     name: string;
     strategy: string;
-    config: any;
-    tasks: any[];
-    skipped: any[];
-    metrics: any;
+    config: Record<string, unknown>;
+    tasks: Record<string, unknown>[];
+    skipped: Record<string, unknown>[];
+    metrics: Record<string, unknown>;
 }) {
+    const parsed = SaveScenarioSchema.parse(scenario);
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     const { user } = await requireRole(supabase, PRODUCCION_ROLES);
 
     const { data, error } = await supabase.from("planning_scenarios")
         .insert({
-            name: scenario.name,
-            strategy: scenario.strategy,
-            config: scenario.config,
-            tasks: scenario.tasks,
-            skipped: scenario.skipped,
-            metrics: scenario.metrics,
+            name: parsed.name,
+            strategy: parsed.strategy,
+            config: parsed.config as unknown as import("@/utils/supabase/types").Json,
+            tasks: parsed.tasks as unknown as import("@/utils/supabase/types").Json,
+            skipped: parsed.skipped as unknown as import("@/utils/supabase/types").Json,
+            metrics: parsed.metrics as unknown as import("@/utils/supabase/types").Json,
             created_by: user?.id || null,
         })
         .select()
@@ -275,13 +289,14 @@ export async function saveScenario(scenario: {
 }
 
 export async function deleteScenario(scenarioId: string) {
+    const parsed = ScenarioIdSchema.parse({ scenarioId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning_scenarios")
         .delete()
-        .eq('id', scenarioId);
+        .eq('id', parsed.scenarioId);
 
     if (error) {
         logger.error("Error deleting scenario", error);
@@ -290,13 +305,14 @@ export async function deleteScenario(scenarioId: string) {
 }
 
 export async function markScenarioApplied(scenarioId: string) {
+    const parsed = ScenarioIdSchema.parse({ scenarioId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning_scenarios")
         .update({ applied_at: new Date().toISOString() })
-        .eq("id", scenarioId);
+        .eq("id", parsed.scenarioId);
 
     if (error) {
         logger.error("Error marking scenario applied", error);
@@ -309,13 +325,14 @@ export async function markScenarioApplied(scenarioId: string) {
 // ===== TASK LOCKING =====
 
 export async function toggleTaskLocked(taskId: string, locked: boolean) {
+    const parsed = ToggleTaskLockedSchema.parse({ taskId, locked });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
     const { error } = await supabase.from("planning")
-        .update({ locked })
-        .eq("id", taskId);
+        .update({ locked: parsed.locked })
+        .eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error toggling task lock", error);
@@ -326,6 +343,7 @@ export async function toggleTaskLocked(taskId: string, locked: boolean) {
 }
 
 export async function clearOrderEvaluation(orderId: string) {
+    const parsed = OrderIdSchema.parse({ orderId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
@@ -336,7 +354,7 @@ export async function clearOrderEvaluation(orderId: string) {
             genral_status: "A0-NUEVO PROYECTO",
             evaluation: null,
         })
-        .eq("id", orderId);
+        .eq("id", parsed.orderId);
 
     if (error) {
         logger.error("Error clearing order evaluation", error);

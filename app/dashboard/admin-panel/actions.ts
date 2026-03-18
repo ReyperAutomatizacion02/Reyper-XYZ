@@ -3,6 +3,13 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import {
+    ApproveUserSchema,
+    RejectUserSchema,
+    UpdateUserRolesSchema,
+    UpsertEmployeeSchema,
+    DeleteEmployeeSchema,
+} from "@/lib/validations/admin";
 
 const VALID_ROLES = [
     "admin",
@@ -36,6 +43,7 @@ async function verifyAdmin(supabase: any, userId: string) {
 
 // Approve user with multiple roles
 export async function approveUser(userId: string, roles: string[], operatorName?: string) {
+    const parsed = ApproveUserSchema.parse({ userId, roles, operatorName });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -44,21 +52,15 @@ export async function approveUser(userId: string, roles: string[], operatorName?
 
     await verifyAdmin(supabase, user.id);
 
-    // Validate all roles
-    const validRoles = roles.filter(r => VALID_ROLES.includes(r as ValidRole));
-    if (validRoles.length === 0) {
-        throw new Error("Debe seleccionar al menos un rol válido");
-    }
-
     const { error } = await supabase
         .from("user_profiles")
         .update({
             is_approved: true,
-            roles: validRoles,
-            operator_name: operatorName || null,
+            roles: parsed.roles,
+            operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
-        .eq("id", userId);
+        .eq("id", parsed.userId);
 
     if (error) throw new Error(error.message);
 
@@ -67,6 +69,7 @@ export async function approveUser(userId: string, roles: string[], operatorName?
 }
 
 export async function rejectUser(userId: string) {
+    const parsed = RejectUserSchema.parse({ userId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -78,7 +81,7 @@ export async function rejectUser(userId: string) {
     const { error } = await supabase
         .from("user_profiles")
         .delete()
-        .eq("id", userId);
+        .eq("id", parsed.userId);
 
     if (error) throw new Error(error.message);
 
@@ -88,6 +91,7 @@ export async function rejectUser(userId: string) {
 
 // Update user roles (accepts array)
 export async function updateUserRoles(userId: string, newRoles: string[], operatorName?: string) {
+    const parsed = UpdateUserRolesSchema.parse({ userId, newRoles, operatorName });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -96,14 +100,8 @@ export async function updateUserRoles(userId: string, newRoles: string[], operat
 
     await verifyAdmin(supabase, user.id);
 
-    // Validate all roles
-    const validRoles = newRoles.filter(r => VALID_ROLES.includes(r as ValidRole));
-    if (validRoles.length === 0) {
-        throw new Error("Debe seleccionar al menos un rol válido");
-    }
-
     // Prevent removing admin from self if last admin
-    if (userId === user.id && !validRoles.includes("admin")) {
+    if (parsed.userId === user.id && !parsed.newRoles.includes("admin")) {
         const { data: adminUsers } = await supabase
             .from("user_profiles")
             .select("id")
@@ -117,11 +115,11 @@ export async function updateUserRoles(userId: string, newRoles: string[], operat
     const { error } = await supabase
         .from("user_profiles")
         .update({
-            roles: validRoles,
-            operator_name: operatorName || null,
+            roles: [...parsed.newRoles],
+            operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
-        .eq("id", userId);
+        .eq("id", parsed.userId);
 
     if (error) throw new Error(error.message);
 
@@ -187,6 +185,7 @@ export async function getEmployees() {
 }
 
 export async function upsertEmployee(data: Partial<Employee>) {
+    const parsed = UpsertEmployeeSchema.parse(data);
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -194,23 +193,16 @@ export async function upsertEmployee(data: Partial<Employee>) {
     if (!user) throw new Error("No autenticado");
     await verifyAdmin(supabase, user.id);
 
-    // Filter out only valid columns to avoid errors if extra props are passed
-    const payload: any = {
-        full_name: data.full_name,
-        employee_number: data.employee_number || null,
-        department: data.department || null,
-        position: data.position || null,
-        is_operator: data.is_operator ?? false,
-        is_active: data.is_active ?? true,
+    const payload = {
+        full_name: parsed.full_name,
+        employee_number: parsed.employee_number || null,
+        department: parsed.department || null,
+        position: parsed.position || null,
+        is_operator: parsed.is_operator,
+        is_active: parsed.is_active,
         updated_at: new Date().toISOString(),
+        ...(parsed.id ? { id: parsed.id } : { created_at: new Date().toISOString() }),
     };
-
-    if (data.id) {
-        payload.id = data.id;
-    } else {
-        // New record
-        payload.created_at = new Date().toISOString();
-    }
 
     const { data: result, error } = await supabase
         .from("employees")
@@ -225,6 +217,7 @@ export async function upsertEmployee(data: Partial<Employee>) {
 }
 
 export async function deleteEmployee(id: string) {
+    const parsed = DeleteEmployeeSchema.parse({ id });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -235,7 +228,7 @@ export async function deleteEmployee(id: string) {
     const { error } = await supabase
         .from("employees")
         .delete()
-        .eq("id", id);
+        .eq("id", parsed.id);
 
     if (error) throw new Error(error.message);
 

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requireRole } from "@/lib/auth-guard";
+import { UpdateSystemUpdateSchema } from "@/lib/validations/updates";
 
 export interface SystemUpdate {
     id: string;
@@ -39,16 +40,17 @@ export async function getSystemUpdates() {
 }
 
 export async function updateSystemUpdate(id: string, updates: Partial<SystemUpdate>) {
+    const parsed = UpdateSystemUpdateSchema.parse({ id, updates });
     const cookieStore = await cookies();
     const supabase = await createClient(cookieStore);
     await requireRole(supabase, ["admin"]);
 
-    console.log("Saving update to Supabase:", { id, updates }); // Debug log
+    console.log("Saving update to Supabase:", { id: parsed.id, updates: parsed.updates }); // Debug log
 
     const { data, error } = await supabase
         .from("system_updates")
-        .update(updates)
-        .eq("id", id)
+        .update(parsed.updates)
+        .eq("id", parsed.id)
         .select();
 
     if (error) {

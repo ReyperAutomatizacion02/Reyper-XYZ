@@ -2,7 +2,22 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
-import { ConvertQuoteToProjectSchema, UpdateProjectSchema, UpdateProductionOrderSchema } from "@/lib/validations/sales";
+import {
+    ConvertQuoteToProjectSchema,
+    UpdateProjectSchema,
+    UpdateProductionOrderSchema,
+    CatalogEntrySchema,
+    ClientEntrySchema,
+    UpdateClientSchema,
+    ContactEntrySchema,
+    UpdateContactSchema,
+    ContactBatchSchema,
+    IdSchema,
+    SaveQuoteSchema,
+    UpdateQuoteSchema as UpdateQuoteValidation,
+    DeleteQuoteSchema,
+    QuoteStatusSchema,
+} from "@/lib/validations/sales";
 import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { requireAuth, requireRole } from "@/lib/auth-guard";
@@ -12,34 +27,35 @@ const VENTAS_ROLES = ["admin", "ventas"];
 // --- CREATE ACTIONS ---
 
 export async function createClientEntry(name: string, prefix?: string, business_name?: string, is_active: boolean = true) {
+    const parsed = ClientEntrySchema.parse({ name, prefix, business_name, is_active });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_clients").insert({ name, prefix, business_name, is_active }).select("id").single();
+    const { data, error } = await supabase.from("sales_clients").insert(parsed).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createContactEntry(name: string, client_id?: string, is_active: boolean = true) {
+    const parsed = ContactEntrySchema.parse({ name, client_id, is_active });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_contacts").insert({ name, client_id, is_active }).select("id").single();
+    const { data, error } = await supabase.from("sales_contacts").insert(parsed).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createContactBatch(names: string[], client_id?: string, is_active: boolean = true) {
+    const parsed = ContactBatchSchema.parse({ names, client_id, is_active });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
 
-    if (!names || names.length === 0) return { success: false, error: "No names provided" };
-
-    const records = names.map(name => ({
+    const records = parsed.names.map(name => ({
         name,
-        client_id,
-        is_active
+        client_id: parsed.client_id,
+        is_active: parsed.is_active
     }));
 
     const { error } = await supabase.from("sales_contacts").insert(records);
@@ -48,88 +64,98 @@ export async function createContactBatch(names: string[], client_id?: string, is
 }
 
 export async function updateClientEntry(id: string, name: string, prefix?: string | null, business_name?: string | null, is_active: boolean = true) {
+    const parsed = UpdateClientSchema.parse({ id, name, prefix, business_name, is_active });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_clients").update({ name, prefix, business_name, is_active }).eq("id", id);
+    const { error } = await supabase.from("sales_clients").update({ name: parsed.name, prefix: parsed.prefix, business_name: parsed.business_name, is_active: parsed.is_active }).eq("id", parsed.id);
     if (error) throw new Error(error.message);
     return { success: true };
 }
 
 export async function deleteClientEntry(id: string) {
+    const { id: validId } = IdSchema.parse({ id });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_clients").delete().eq("id", id);
+    const { error } = await supabase.from("sales_clients").delete().eq("id", validId);
     if (error) throw new Error(error.message);
     return { success: true };
 }
 
 export async function updateContactEntry(id: string, name: string, client_id?: string | null, is_active: boolean = true) {
+    const parsed = UpdateContactSchema.parse({ id, name, client_id, is_active });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_contacts").update({ name, client_id, is_active }).eq("id", id);
+    const { error } = await supabase.from("sales_contacts").update({ name: parsed.name, client_id: parsed.client_id, is_active: parsed.is_active }).eq("id", parsed.id);
     if (error) throw new Error(error.message);
     return { success: true };
 }
 
 export async function deleteContactEntry(id: string) {
+    const { id: validId } = IdSchema.parse({ id });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_contacts").delete().eq("id", id);
+    const { error } = await supabase.from("sales_contacts").delete().eq("id", validId);
     if (error) throw new Error(error.message);
     return { success: true };
 }
 
 
 export async function createPositionEntry(name: string) {
+    const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_positions").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_positions").insert({ name: parsed.name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createAreaEntry(name: string) {
+    const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_areas").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_areas").insert({ name: parsed.name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createUnitEntry(name: string) {
+    const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_units").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_units").insert({ name: parsed.name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createMaterialEntry(name: string) {
+    const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_materials").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("sales_materials").insert({ name: parsed.name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
 export async function createTreatmentEntry(name: string) {
+    const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("production_treatments").insert({ name }).select("id").single();
+    const { data, error } = await supabase.from("production_treatments").insert({ name: parsed.name }).select("id").single();
     if (error) throw new Error(error.message);
     return data?.id;
 }
 
-export async function saveQuote(quoteData: any, items: any[]) {
+export async function saveQuote(quoteData: Record<string, unknown>, items: Record<string, unknown>[]) {
+    const parsed = SaveQuoteSchema.parse({ quoteData, items });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
@@ -138,7 +164,7 @@ export async function saveQuote(quoteData: any, items: any[]) {
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
         .insert({
-            ...quoteData,
+            ...parsed.quoteData,
         })
         .select("id, quote_number")
         .single();
@@ -146,7 +172,7 @@ export async function saveQuote(quoteData: any, items: any[]) {
     if (quoteError) throw new Error(quoteError.message);
 
     // 2. Insert Items
-    const itemsWithQuoteId = items.map((item, index) => ({
+    const itemsWithQuoteId = parsed.items.map((item, index) => ({
         ...item,
         quote_id: quote.id,
         sort_order: index
@@ -316,6 +342,7 @@ export async function getFilterOptions() {
 }
 
 export async function getProjectDetails(projectId: string) {
+    const { id: validId } = IdSchema.parse({ id: projectId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
@@ -323,7 +350,7 @@ export async function getProjectDetails(projectId: string) {
     const { data: items, error } = await supabase
         .from("production_orders")
         .select("id, part_code, part_name, quantity, genral_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url, model_url, render_url, material_confirmation")
-        .eq("project_id", projectId)
+        .eq("project_id", validId)
         .order("part_code", { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -331,6 +358,7 @@ export async function getProjectDetails(projectId: string) {
 }
 
 export async function getQuoteById(id: string) {
+    const { id: validId } = IdSchema.parse({ id });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
@@ -338,7 +366,7 @@ export async function getQuoteById(id: string) {
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
         .select("*, client:sales_clients(name), contact:sales_contacts(name)")
-        .eq("id", id)
+        .eq("id", validId)
         .single();
 
     if (quoteError) throw new Error(quoteError.message);
@@ -346,7 +374,7 @@ export async function getQuoteById(id: string) {
     const { data: items, error: itemsError } = await supabase
         .from("sales_quote_items")
         .select("*")
-        .eq("quote_id", id)
+        .eq("quote_id", validId)
         .order("sort_order");
 
     if (itemsError) throw new Error(itemsError.message);
@@ -354,7 +382,8 @@ export async function getQuoteById(id: string) {
     return { ...quote, items };
 }
 
-export async function updateQuote(id: string, quoteData: any, items: any[]) {
+export async function updateQuote(id: string, quoteData: Record<string, unknown>, items: Record<string, unknown>[]) {
+    const parsed = UpdateQuoteValidation.parse({ id, quoteData, items });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
@@ -369,18 +398,18 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
     const { error: quoteError } = await supabase
         .from("sales_quotes")
         .update({
-            ...quoteData,
+            ...parsed.quoteData,
         })
-        .eq("id", id);
+        .eq("id", parsed.id);
 
     if (quoteError) throw new Error(quoteError.message);
 
     // 3. Delete old items and insert fresh ones (Simplest way to sync)
-    await supabase.from("sales_quote_items").delete().eq("quote_id", id);
+    await supabase.from("sales_quote_items").delete().eq("quote_id", parsed.id);
 
-    const itemsWithQuoteId = items.map((item, index) => ({
+    const itemsWithQuoteId = parsed.items.map((item, index) => ({
         ...item,
-        quote_id: id,
+        quote_id: parsed.id,
         sort_order: index
     }));
 
@@ -404,11 +433,11 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
         };
 
         const oldFiles = oldItems.map(i => getFilename(i.drawing_url)).filter(Boolean) as string[];
-        const newFiles = items.map(i => getFilename(i.drawing_url)).filter(Boolean) as string[];
+        const newFiles = parsed.items.map(i => getFilename(i.drawing_url)).filter(Boolean) as string[];
 
         // SAFETY CHECK: If the UI has items with drawings, but we couldn't parse ANY of them,
         // or if our extraction count doesn't match the items with drawings, abort to be safe.
-        const itemsWithRemoteDrawings = items.filter(i =>
+        const itemsWithRemoteDrawings = parsed.items.filter(i =>
             i.drawing_url &&
             !i.drawing_url.startsWith('blob:') &&
             !i.drawing_url.startsWith('data:')
@@ -433,10 +462,11 @@ export async function updateQuote(id: string, quoteData: any, items: any[]) {
         }
     }
 
-    return { id };
+    return { id: parsed.id };
 }
 
 export async function deleteQuote(id: string, reason: string) {
+    const parsed = DeleteQuoteSchema.parse({ id, reason });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
@@ -448,9 +478,9 @@ export async function deleteQuote(id: string, reason: string) {
         .update({
             status: 'deleted',
             deleted_at: new Date().toISOString(),
-            deleted_reason: reason
+            deleted_reason: parsed.reason
         })
-        .eq("id", id);
+        .eq("id", parsed.id);
 
     if (error) throw new Error(error.message);
     return { success: true };
@@ -462,25 +492,26 @@ export async function deleteQuote(id: string, reason: string) {
  * It strictly deletes the `quotes/{quoteId}/` folder to avoid deleting shared catalog images.
  */
 export async function deleteQuoteFiles(quoteId: string) {
+    const { id: validQuoteId } = IdSchema.parse({ id: quoteId });
     // Usar el Service Role Key para tener privilegios de borrado absolutos y saltarse RLS
     const supabaseAdmin = createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    console.log(`[STORAGE] >>> INICIANDO LIMPIEZA DE CARPETA COTIZACIÓN: ${quoteId} (ADMIN)`);
+    console.log(`[STORAGE] >>> INICIANDO LIMPIEZA DE CARPETA COTIZACIÓN: ${validQuoteId} (ADMIN)`);
 
     // 1. Intentar limpiar la CARPETA entera en el bucket 'quotes' (Basado en el ID de la cotización)
     try {
-        console.log(`[STORAGE] Listando archivos en 'quotes/${quoteId}'...`);
+        console.log(`[STORAGE] Listando archivos en 'quotes/${validQuoteId}'...`);
         const { data: files, error: listError } = await supabaseAdmin.storage
             .from("quotes")
-            .list(quoteId);
+            .list(validQuoteId);
 
         if (listError) {
-            console.error(`[STORAGE] [!] Error al listar 'quotes/${quoteId}':`, listError.message);
+            console.error(`[STORAGE] [!] Error al listar 'quotes/${validQuoteId}':`, listError.message);
         } else if (files && files.length > 0) {
-            const filesToRemove = files.map((f) => `${quoteId}/${f.name}`);
+            const filesToRemove = files.map((f) => `${validQuoteId}/${f.name}`);
             console.log(`[STORAGE] Encontrados ${files.length} archivos en carpeta. Borrando uno a uno para mayor seguridad...`);
 
             for (const path of filesToRemove) {
@@ -492,13 +523,13 @@ export async function deleteQuoteFiles(quoteId: string) {
                 }
             }
         } else {
-            console.log(`[STORAGE] No se encontraron archivos directos en la carpeta 'quotes/${quoteId}'.`);
+            console.log(`[STORAGE] No se encontraron archivos directos en la carpeta 'quotes/${validQuoteId}'.`);
         }
     } catch (e: any) {
         console.error("[STORAGE] [CRITICO] Excepción en limpieza de carpeta 'quotes':", e.message);
     }
 
-    console.log(`[STORAGE] <<< FINALIZADA LIMPIEZA PARA COTIZACIÓN: ${quoteId}`);
+    console.log(`[STORAGE] <<< FINALIZADA LIMPIEZA PARA COTIZACIÓN: ${validQuoteId}`);
 }
 
 export async function getNextProjectCode(clientPrefix: string) {
@@ -649,14 +680,15 @@ export async function convertQuoteToProject(
 }
 
 export async function updateQuoteStatus(id: string, status: string) {
+    const parsed = QuoteStatusSchema.parse({ id, status });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
 
     const { error } = await supabase
         .from("sales_quotes")
-        .update({ status })
-        .eq("id", id);
+        .update({ status: parsed.status })
+        .eq("id", parsed.id);
 
     if (error) throw new Error(error.message);
     return { success: true };

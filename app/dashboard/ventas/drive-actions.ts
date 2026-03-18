@@ -2,8 +2,14 @@
 
 import { google } from "googleapis";
 import { logger } from "@/utils/logger";
+import { DriveFolderSchema } from "@/lib/validations/sales";
 
 export async function scanDriveFolder(folderUrl: string) {
+    const parsed = DriveFolderSchema.safeParse({ folderUrl });
+    if (!parsed.success) {
+        return { success: false, error: "URL de carpeta inválida." };
+    }
+    folderUrl = parsed.data.folderUrl;
     logger.debug("Iniciando scan Drive folder", { folderUrl });
 
     if (!process.env.GOOGLE_API_KEY) {
