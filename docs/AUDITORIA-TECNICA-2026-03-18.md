@@ -331,10 +331,12 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-09: SIN ERROR BOUNDARIES NI LOADING STATES
+### ✅ H-09: SIN ERROR BOUNDARIES NI LOADING STATES — RESUELTO
 
 - **Categoría:** Performance / Lógica
 - **Gravedad:** ALTA
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resolución:** Se creó componente reutilizable `ErrorDisplay` y se implementaron 9 error boundaries: `global-error.tsx` (root), `dashboard/error.tsx` (nivel dashboard), y 7 archivos `error.tsx` en cada subdirectorio (`ventas`, `produccion`, `admin-panel`, `almacen`, `diseno`, `logistica`, `actualizaciones`). Cada boundary muestra mensajes contextualizados al módulo con botón de reintentar.
 - **Diagnóstico:** No existe ningún archivo `error.tsx` en el App Router. Solo hay 1 `loading.tsx` (`app/dashboard/loading.tsx`). Las páginas que hacen fetches de 5,000 registros no tienen Suspense boundaries. Si una query falla, el usuario ve una pantalla en blanco o el error genérico de Next.js.
 - **Impacto:** Experiencia de usuario degradada: sin feedback visual durante cargas pesadas, sin recuperación elegante ante errores. En un entorno de manufactura donde la app se usa en planta, esto genera frustración y llamadas innecesarias a soporte.
 - **Refactorización Propuesta:**
@@ -606,7 +608,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 ### Prioridad CRÍTICA (Semana 1)
 - [x] ~~Regenerar tipos Supabase con `supabase gen types typescript` y eliminar los 54 `as any`~~ ✅ Resuelto 2026-03-18 — 0 errores TS, solo 5 `as any` irreducibles
 - [x] ~~Agregar validación Zod a TODOS los server actions que aceptan input de usuario~~ ✅ Resuelto 2026-03-18 — 35 funciones validadas, 4 archivos de schemas creados
-- [ ] Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios
+- [x] ~~Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios~~ ✅ Resuelto 2026-03-18 — 9 error boundaries creados (global + dashboard + 7 subdirectorios), componente reutilizable `ErrorDisplay`
 - [ ] Configurar Vitest y escribir tests para `scheduling-utils.ts` y `auth-guard.ts`
 - [ ] Corregir open redirect en `auth/callback/route.ts` con whitelist de rutas
 - [ ] Reemplazar mensajes de error internos con mensajes genéricos al usuario
