@@ -565,7 +565,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)~~ ✅ Resuelto 2026-03-20 — `getFilterOptions` de 2→1 query, `getQuoteById` de 2→1 query con relación embebida
 - [x] ~~Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)~~ ✅ Resuelto 2026-03-20 — Eliminado `force-dynamic` redundante de 3 páginas (cookies() ya opta en dynamic). Mantenido en webhook API
 - [x] ~~Refactorizar `realtime-refresher.tsx` para invalidación granular~~ ✅ Resuelto 2026-03-20 — Multi-tabla por instancia, debounce 2s, startTransition, eliminados console.logs
-- [ ] Configurar Prettier y extender reglas de ESLint
+- [x] ~~Configurar Prettier y extender reglas de ESLint~~ ✅ Resuelto 2026-03-20 — Prettier configurado (.prettierrc con tailwindcss plugin, 4-space, double quotes, semicolons). ESLint extendido con eslint-config-prettier + reglas: no-console (warn), no-duplicate-imports, no-unused-vars con ignore pattern `^_`. Scripts `format` y `format:check` agregados
 
 ### Prioridad BAJA (Mes 2)
 - [ ] Eliminar directorio `src/app` huérfano
