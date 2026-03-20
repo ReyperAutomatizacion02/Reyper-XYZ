@@ -547,7 +547,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)~~ ✅ Resuelto 2026-03-20 — Filtros por rango de fechas en planeacion (±90/180 días) y maquinados (±30/60 días), eliminados limits arbitrarios y query de operadores redundante
 - [x] ~~Unificar componentes duplicados en `components/shared/`~~ ✅ Resuelto 2026-03-20 — 6 componentes unificados, 12 duplicados eliminados, 3 imports actualizados
 - [x] ~~Agregar security headers en `next.config.ts`~~ ✅ Resuelto 2026-03-20 — 5 headers de seguridad agregados (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy). Rate limiting pendiente.
-- [ ] Agregar `loading.tsx` a todas las rutas con fetches pesados
+- [x] ~~Agregar `loading.tsx` a todas las rutas con fetches pesados~~ ✅ Resuelto 2026-03-20 — 10 archivos loading.tsx creados con skeletons contextualizados por módulo (planeacion usa ProductionViewSkeleton, resto usa Skeleton genérico con layout adaptado)
 - [ ] Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)
 
 ### Prioridad MEDIA (Semana 3-4)
