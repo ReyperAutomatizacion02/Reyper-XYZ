@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { format, subDays, addDays } from "date-fns";
 import { MachiningRealtimeWrapper } from "@/components/production/machining-realtime-wrapper";
 
-export const dynamic = 'force-dynamic';
-
 export default async function MaquinadosPage() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

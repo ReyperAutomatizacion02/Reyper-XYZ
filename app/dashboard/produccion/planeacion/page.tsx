@@ -5,8 +5,6 @@ import { ProductionView } from "@/components/production/production-view";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { compareOrdersByPriority } from "@/lib/scheduling-utils";
 
-export const dynamic = 'force-dynamic';
-
 export default async function PlaneacionPage() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

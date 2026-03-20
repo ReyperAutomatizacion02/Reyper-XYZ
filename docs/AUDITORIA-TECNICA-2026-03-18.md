@@ -501,14 +501,15 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-18: `force-dynamic` EN TODAS LAS PÁGINAS — SIN CACHING
+### ✅ H-18: `force-dynamic` EN TODAS LAS PÁGINAS — SIN CACHING — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** MEDIA
+- **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** Múltiples páginas declaran `export const dynamic = 'force-dynamic'` que desactiva completamente el caching de Next.js. Datos que cambian infrecuentemente (catálogos, máquinas, operadores) se re-fetechean en cada request.
 - **Impacto:** TTFB elevado innecesariamente. Carga adicional a Supabase.
 - **Archivos:** `app/dashboard/page.tsx:5`, `app/dashboard/produccion/maquinados/page.tsx:6`, `app/dashboard/produccion/planeacion/page.tsx:7`
-- **Refactorización:** Usar `revalidatePath()` / `revalidateTag()` con ISR para datos semi-estáticos (catálogos, lista de máquinas). Mantener `force-dynamic` solo para datos que realmente cambian en tiempo real.
+- **Resolución:** Eliminado `force-dynamic` redundante de las 3 páginas. Todas usan `cookies()` para autenticación, lo cual ya opta la página en rendering dinámico automáticamente en Next.js App Router. ISR/caching estático no aplica porque todas las páginas requieren autenticación. Se mantiene `force-dynamic` solo en el webhook API (`app/api/webhooks/...`) que no usa `cookies()`.
 
 ---
 
@@ -560,7 +561,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Reemplazar `moment.js` con `date-fns` en todo el módulo de producción~~ ✅ Resuelto 2026-03-20 — Migrados 13 archivos (scheduling-utils, gantt-svg, production-view, machining-view, evaluation-sidebar, use-evaluation-filters, create-task-modal, evaluation-modal, actions.ts, 2 pages, 2 scripts). Dependencia `moment` eliminada de package.json. 66 tests pasan, build exitoso.
 - [x] ~~Migrar imágenes a `next/image`~~ ✅ Resuelto 2026-03-20 — 4 de 6 `<img>` migrados a `next/image` con fill+sizes responsive. 2 excepciones: drawing-viewer (zoom/pan dinámico) y project-form (blob/data URLs)
 - [x] ~~Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)~~ ✅ Resuelto 2026-03-20 — `getFilterOptions` de 2→1 query, `getQuoteById` de 2→1 query con relación embebida
-- [ ] Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)
+- [x] ~~Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)~~ ✅ Resuelto 2026-03-20 — Eliminado `force-dynamic` redundante de 3 páginas (cookies() ya opta en dynamic). Mantenido en webhook API
 - [ ] Refactorizar `realtime-refresher.tsx` para invalidación granular
 - [ ] Configurar Prettier y extender reglas de ESLint
 

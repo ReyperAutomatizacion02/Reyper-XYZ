@@ -5,7 +5,6 @@ import { Database } from "@/utils/supabase/types";
 
 type PlanningRow = Database["public"]["Tables"]["planning"]["Row"];
 
-export const dynamic = 'force-dynamic';
 import {
     FolderKanban,
     Package,
