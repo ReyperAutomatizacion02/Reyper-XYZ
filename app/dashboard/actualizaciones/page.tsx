@@ -21,6 +21,7 @@ import { cn } from "@/utils/cn";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
@@ -212,10 +213,12 @@ export default function ActualizacionesPage() {
                                                                 onClick={() => setLightbox({ url: img, caption })}
                                                             >
                                                                 <div className="rounded-xl overflow-hidden border border-border/50 shadow-sm aspect-video bg-muted relative">
-                                                                    <img
+                                                                    <Image
                                                                         src={img}
                                                                         alt={caption || `Update image ${i}`}
-                                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
+                                                                        fill
+                                                                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                                                                        className="object-cover transition-transform duration-500 group-hover/img:scale-105"
                                                                     />
                                                                     <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors flex items-center justify-center">
                                                                         <Badge className="opacity-0 group-hover/img:opacity-100 transition-opacity bg-white/20 backdrop-blur-md text-white border-white/30">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
+import Image from "next/image";
 // import { useRouter } from "next/navigation"; // Removed
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, FileText } from "lucide-react";
@@ -1443,11 +1444,13 @@ export function GanttSVG({
                         <div className="bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-3 min-w-[240px] max-w-[320px]">
                             {/* Image */}
                             {hoveredTask.production_orders?.image && (
-                                <div className="w-full h-40 rounded-md overflow-hidden mb-3 bg-muted">
-                                    <img
+                                <div className="w-full h-40 rounded-md overflow-hidden mb-3 bg-muted relative">
+                                    <Image
                                         src={hoveredTask.production_orders.image}
                                         alt={hoveredTask.production_orders?.part_name || "Pieza"}
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        sizes="320px"
+                                        className="object-cover"
                                     />
                                 </div>
                             )}

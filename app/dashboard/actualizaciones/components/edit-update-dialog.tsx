@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -310,7 +311,7 @@ export function EditUpdateDialog({ update, isOpen, onClose, onSuccess }: EditUpd
                                 {images.map((url, index) => (
                                     <div key={url} className="flex flex-col gap-2 p-3 rounded-xl border bg-muted/30 group relative">
                                         <div className="relative aspect-video rounded-lg overflow-hidden border bg-black/5">
-                                            <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                            <Image src={url} alt={`Preview ${index}`} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />
                                             <button
                                                 type="button"
                                                 onClick={() => removeImage(index)}

@@ -376,12 +376,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-11: NO SE USA `next/image`
+### ✅ H-11: NO SE USA `next/image` — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** MEDIA
+- **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** A pesar de que `next.config.ts` configura formatos de imagen (AVIF, WebP) y dominios remotos, no se encontró ningún uso de `next/image` en el codebase. Todas las imágenes se cargan con `<img>` nativo.
 - **Impacto:** Sin lazy loading automático, sin optimización de formato, sin responsive sizes, sin blur placeholders. Imágenes de Supabase Storage se sirven en tamaño completo sin importar el viewport.
+- **Resolución:** Migrados 4 de 6 usos de `<img>` a `next/image` con `fill` y `sizes` responsive: planner-sidebar.tsx, gantt-svg.tsx, actualizaciones/page.tsx, edit-update-dialog.tsx. Se mantienen 2 excepciones justificadas: drawing-viewer.tsx (visor con zoom/pan dinámico vía motion.div) y project-form.tsx (usa blob URLs y data URLs no compatibles con next/image).
 - **Refactorización Propuesta:**
 
   *Código Actual:*
@@ -554,7 +556,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ### Prioridad MEDIA (Semana 3-4)
 - [x] ~~Reemplazar `moment.js` con `date-fns` en todo el módulo de producción~~ ✅ Resuelto 2026-03-20 — Migrados 13 archivos (scheduling-utils, gantt-svg, production-view, machining-view, evaluation-sidebar, use-evaluation-filters, create-task-modal, evaluation-modal, actions.ts, 2 pages, 2 scripts). Dependencia `moment` eliminada de package.json. 66 tests pasan, build exitoso.
-- [ ] Migrar imágenes a `next/image`
+- [x] ~~Migrar imágenes a `next/image`~~ ✅ Resuelto 2026-03-20 — 4 de 6 `<img>` migrados a `next/image` con fill+sizes responsive. 2 excepciones: drawing-viewer (zoom/pan dinámico) y project-form (blob/data URLs)
 - [ ] Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)
 - [ ] Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)
 - [ ] Refactorizar `realtime-refresher.tsx` para invalidación granular

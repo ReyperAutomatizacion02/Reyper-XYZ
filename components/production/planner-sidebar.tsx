@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Database } from "@/utils/supabase/types";
 import { Package } from "lucide-react";
 
@@ -46,11 +47,13 @@ export function PlannerSidebar({ tasks, machines, searchQuery = "" }: PlannerSid
                     return (
                         <div key={task.id} className="p-4 rounded-xl border border-border bg-background hover:border-primary/50 transition-colors group relative overflow-hidden">
                             {order.image && (
-                                <div className="mb-3 rounded-lg overflow-hidden border border-border aspect-video bg-muted">
-                                    <img
+                                <div className="mb-3 rounded-lg overflow-hidden border border-border aspect-video bg-muted relative">
+                                    <Image
                                         src={order.image}
                                         alt={order.part_code}
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        fill
+                                        sizes="(max-width: 768px) 100vw, 280px"
+                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                 </div>
                             )}
