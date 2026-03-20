@@ -238,38 +238,18 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-06: SIN PAGINACIÓN — QUERIES DE 5,000 REGISTROS
+### ✅ H-06: SIN PAGINACIÓN — QUERIES DE 5,000 REGISTROS — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** CRÍTICA
+- **Estado:** ✅ RESUELTO (2026-03-20)
+- **Resolución:** Se reemplazaron los `.limit(5000)` con filtros por rango de fechas, que es la estrategia correcta para vistas Gantt/calendario que necesitan todos los datos visibles. Cambios: (1) `planeacion/page.tsx`: planning tasks filtradas a ±90/180 días via `.gte("planned_date", rangeStart).lte("planned_date", rangeEnd)`, orders ya acotadas por filtro de status (sin ENTREGADA/CANCELADA), operadores derivados de los tasks filtrados eliminando la 4ta query. (2) `maquinados/page.tsx`: tasks filtradas a ±30/60 días, removido `.limit(1000)`. Machines sin cambio (tabla naturalmente pequeña).
 - **Diagnóstico:** Múltiples páginas cargan miles de registros en una sola query sin paginación ni streaming. Conforme la base de datos crezca, estos endpoints se convertirán en cuellos de botella que degradan la experiencia del usuario y pueden causar timeouts.
 - **Impacto:** Con 5,000+ registros: tiempos de carga de 3-10 segundos, consumo excesivo de memoria en el servidor, transferencia de datos innecesaria al cliente. A 50,000 registros: timeouts y crashes.
 - **Archivos afectados:**
   - `app/dashboard/produccion/planeacion/page.tsx:22-23` — `.limit(5000)` en `production_orders` y `planning`
   - `app/dashboard/produccion/maquinados/page.tsx:45` — `.limit(1000)` en tasks
   - `app/dashboard/produccion/planeacion/page.tsx:15` — `machines.select("*")` sin límite
-- **Refactorización Propuesta:**
-
-  *Código Actual:* (`app/dashboard/produccion/planeacion/page.tsx:22`)
-  ```typescript
-  const { data: orders } = await supabase
-    .from("production_orders")
-    .select("id, part_code, part_name, quantity, genral_status, project_id, projects(code, company)")
-    .limit(5000);
-  ```
-
-  *Código Optimizado:*
-  ```typescript
-  // Server component con paginación
-  const page = Number(searchParams?.page) || 1;
-  const pageSize = 50;
-
-  const { data: orders, count } = await supabase
-    .from("production_orders")
-    .select("id, part_code, part_name, quantity, genral_status, project_id, projects(code, company)", { count: "exact" })
-    .range((page - 1) * pageSize, page * pageSize - 1)
-    .order("created_at", { ascending: false });
-  ```
 
 ---
 
@@ -600,7 +580,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ### Prioridad ALTA (Semana 2-3)
 - [x] ~~Agregar verificación de propiedad en `deleteQuoteFiles()`~~ ✅ Resuelto 2026-03-20 — Separado en `deleteQuoteFilesInternal` (lib/storage-utils.ts) + server action con requireRole y verificación RLS
-- [ ] Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)
+- [x] ~~Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)~~ ✅ Resuelto 2026-03-20 — Filtros por rango de fechas en planeacion (±90/180 días) y maquinados (±30/60 días), eliminados limits arbitrarios y query de operadores redundante
 - [ ] Unificar componentes duplicados en `components/shared/`
 - [ ] Agregar security headers en `next.config.ts`
 - [ ] Agregar `loading.tsx` a todas las rutas con fetches pesados

@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import moment from "moment";
 import { MachiningRealtimeWrapper } from "@/components/production/machining-realtime-wrapper";
 
 export const dynamic = 'force-dynamic';
@@ -24,10 +25,16 @@ export default async function MaquinadosPage() {
 
     const operatorName = profile.operator_name;
 
+    // Date range: 30 days back + 60 days forward (operator view focuses on near-term)
+    const rangeStart = moment().subtract(30, "days").format("YYYY-MM-DD");
+    const rangeEnd = moment().add(60, "days").format("YYYY-MM-DD");
+
     // Fetch tasks for this operator
     let tasksQuery = supabase
         .from("planning")
         .select("*, production_orders(*)")
+        .gte("planned_date", rangeStart)
+        .lte("planned_date", rangeEnd)
         .order("planned_date", { ascending: false });
 
     if (!profile.roles?.includes("admin")) {
@@ -42,7 +49,7 @@ export default async function MaquinadosPage() {
         tasksQuery = tasksQuery.eq("operator", operatorName);
     }
 
-    const { data: tasks } = await tasksQuery.limit(1000);
+    const { data: tasks } = await tasksQuery;
 
     return (
         <MachiningRealtimeWrapper
