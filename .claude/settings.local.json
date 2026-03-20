@@ -6,7 +6,8 @@
       "Bash(ls -d \"c:/Users/User2/Documents/Reyper XYZ/app/dashboard\"/*/)",
       "Bash(npx vitest:*)",
       "Bash(rm components/sales/production-item-detail.tsx components/sales/project-details-panel.tsx components/sales/projects-table.tsx components/sales/projects-filter.tsx components/sales/project-header-form.tsx components/sales/production-item-summary.tsx)",
-      "Bash(rm components/projects/production-item-detail.tsx components/projects/project-details-panel.tsx components/projects/projects-table.tsx components/projects/projects-filter.tsx components/projects/project-header-form.tsx components/projects/production-item-summary.tsx)"
+      "Bash(rm components/projects/production-item-detail.tsx components/projects/project-details-panel.tsx components/projects/projects-table.tsx components/projects/projects-filter.tsx components/projects/project-header-form.tsx components/projects/production-item-summary.tsx)",
+      "Bash(npx next:*)"
     ]
   }
 }

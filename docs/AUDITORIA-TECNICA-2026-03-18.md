@@ -548,7 +548,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Unificar componentes duplicados en `components/shared/`~~ ✅ Resuelto 2026-03-20 — 6 componentes unificados, 12 duplicados eliminados, 3 imports actualizados
 - [x] ~~Agregar security headers en `next.config.ts`~~ ✅ Resuelto 2026-03-20 — 5 headers de seguridad agregados (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy). Rate limiting pendiente.
 - [x] ~~Agregar `loading.tsx` a todas las rutas con fetches pesados~~ ✅ Resuelto 2026-03-20 — 10 archivos loading.tsx creados con skeletons contextualizados por módulo (planeacion usa ProductionViewSkeleton, resto usa Skeleton genérico con layout adaptado)
-- [ ] Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)
+- [x] ~~Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)~~ ✅ Resuelto 2026-03-20 — Archivo principal reducido de 1,899 a 744 líneas. Extraídos 6 módulos: `useEvaluationFilters` hook (176 lín), `EvaluationSidebar` (405 lín), `StrategyToolbar` (289 lín), `GanttControls` (263 lín), `BlueprintPreviewDialog` (61 lín), `ConfirmationDialogs` (86 lín)
 
 ### Prioridad MEDIA (Semana 3-4)
 - [ ] Reemplazar `moment.js` con `date-fns` en todo el módulo de producción
