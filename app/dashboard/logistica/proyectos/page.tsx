@@ -13,9 +13,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getActiveProjects, getFilterOptions, getCatalogData } from "../../ventas/actions";
 import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
-import { ProjectDetailsPanel } from "@/components/projects/project-details-panel";
-import { ProjectsFilter } from "@/components/projects/projects-filter";
-import { ProjectsTable } from "@/components/projects/projects-table";
+import { ProjectDetailsPanel } from "@/components/shared/project-details-panel";
+import { ProjectsFilter } from "@/components/shared/projects-filter";
+import { ProjectsTable } from "@/components/shared/projects-table";
 import { useProjectFilters } from "../../ventas/proyectos/hooks/use-project-filters";
 import { Building2, User2 } from "lucide-react";
 

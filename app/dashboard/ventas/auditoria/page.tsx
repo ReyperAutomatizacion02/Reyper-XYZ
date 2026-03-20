@@ -6,7 +6,7 @@ import { ShieldCheck, Search, Filter, RefreshCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getAuditData, getCatalogData } from "../actions";
-import { ProjectDetailsPanel } from "@/components/sales/project-details-panel";
+import { ProjectDetailsPanel } from "@/components/shared/project-details-panel";
 import { DataAuditTable } from "@/components/sales/data-audit-table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";

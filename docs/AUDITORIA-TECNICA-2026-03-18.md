@@ -284,36 +284,17 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-08: COMPONENTES DUPLICADOS (DRY VIOLATION)
+### ✅ H-08: COMPONENTES DUPLICADOS (DRY VIOLATION) — RESUELTO
 
 - **Categoría:** Limpieza
 - **Gravedad:** ALTA
+- **Estado:** ✅ RESUELTO (2026-03-20)
+- **Resolución:** Se creó `components/shared/` y se unificaron los 6 pares de componentes duplicados. Se usaron las versiones de `components/projects/` como base (superset con props de configuración: `config`, `hiddenFields`, `readOnlyFields`, `visibilityConfig`, `hiddenTabs`). Se actualizaron los 3 imports en páginas consumidoras (`ventas/auditoria`, `ventas/proyectos`, `logistica/proyectos`) y se eliminaron las 12 copias originales de `components/sales/` y `components/projects/`.
 - **Diagnóstico:** Existen componentes prácticamente idénticos (~95% overlap) en dos directorios diferentes. Esto viola el principio DRY y crea un riesgo real de divergencia.
 - **Impacto:** Bugs corregidos en un componente no se corrigen en el duplicado. Doble trabajo de mantenimiento. Inconsistencias de UI entre módulos de ventas y proyectos.
-- **Archivos duplicados:**
-  - `components/sales/production-item-detail.tsx` ↔ `components/projects/production-item-detail.tsx`
-  - `components/sales/project-details-panel.tsx` ↔ `components/projects/project-details-panel.tsx`
-  - `components/sales/projects-table.tsx` ↔ `components/projects/projects-table.tsx`
-  - `components/sales/projects-filter.tsx` ↔ `components/projects/projects-filter.tsx`
-  - `components/sales/project-header-form.tsx` ↔ `components/projects/project-header-form.tsx`
-  - `components/sales/production-item-summary.tsx` ↔ `components/projects/production-item-summary.tsx`
-- **Refactorización Propuesta:**
-
-  Crear componentes compartidos con props de configuración:
-  ```typescript
-  // components/shared/production-item-detail.tsx
-  interface ProductionItemDetailProps {
-    item: ProductionOrder;
-    mode: "sales" | "projects" | "logistics";
-    hiddenFields?: string[];
-    readOnlyFields?: string[];
-    onSave: (data: Partial<ProductionOrder>) => Promise<void>;
-  }
-
-  export function ProductionItemDetail({ item, mode, hiddenFields, readOnlyFields, onSave }: ProductionItemDetailProps) {
-    // Componente unificado
-  }
-  ```
+- **Archivos unificados en `components/shared/`:**
+  - `production-item-detail.tsx`, `project-details-panel.tsx`, `projects-table.tsx`
+  - `projects-filter.tsx`, `project-header-form.tsx`, `production-item-summary.tsx`
 
 ---
 
@@ -581,7 +562,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 ### Prioridad ALTA (Semana 2-3)
 - [x] ~~Agregar verificación de propiedad en `deleteQuoteFiles()`~~ ✅ Resuelto 2026-03-20 — Separado en `deleteQuoteFilesInternal` (lib/storage-utils.ts) + server action con requireRole y verificación RLS
 - [x] ~~Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)~~ ✅ Resuelto 2026-03-20 — Filtros por rango de fechas en planeacion (±90/180 días) y maquinados (±30/60 días), eliminados limits arbitrarios y query de operadores redundante
-- [ ] Unificar componentes duplicados en `components/shared/`
+- [x] ~~Unificar componentes duplicados en `components/shared/`~~ ✅ Resuelto 2026-03-20 — 6 componentes unificados, 12 duplicados eliminados, 3 imports actualizados
 - [ ] Agregar security headers en `next.config.ts`
 - [ ] Agregar `loading.tsx` a todas las rutas con fetches pesados
 - [ ] Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)
