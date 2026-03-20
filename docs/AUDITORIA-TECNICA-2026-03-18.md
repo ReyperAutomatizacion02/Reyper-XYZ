@@ -27,10 +27,12 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-01: ZERO TEST COVERAGE
+### ✅ H-01: ZERO TEST COVERAGE — RESUELTO
 
 - **Categoría:** Lógica / Seguridad
 - **Gravedad:** CRÍTICA
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resolución:** Se configuró Vitest como framework de testing. Se escribieron 66 tests en 2 archivos: `lib/__tests__/scheduling-utils.test.ts` (55 tests cubriendo `getPriorityLevel`, `getStatusPriority`, `compareOrdersByPriority`, `prepareOrdersForScheduling`, `getNextValidWorkTime`, `snapToNext15Minutes`, `generateAutomatedPlanning`, `shiftScenarioTasks`) y `lib/__tests__/auth-guard.test.ts` (11 tests cubriendo `requireAuth` y `requireRole` con Supabase mockeado). Todos los 66 tests pasan. Scripts `test` y `test:watch` agregados a package.json.
 - **Diagnóstico:** No existe ningún archivo de test (`*.test.ts`, `*.spec.ts`, `__tests__/`), ningún framework de testing configurado (ni Jest, ni Vitest, ni Playwright), y ninguna dependencia de testing en `package.json`. El algoritmo de scheduling en `lib/scheduling-utils.ts` (727 líneas de lógica de negocio pura) opera sin ninguna verificación automatizada.
 - **Impacto:** Cualquier cambio en la lógica de planificación, auth guards, o server actions puede introducir regresiones silenciosas. En un sistema de manufactura CNC, un error en la asignación de tareas a máquinas puede resultar en piezas defectuosas, tiempos muertos de máquina, o incumplimiento de entregas.
 - **Archivos afectados:** Todo el proyecto — especialmente:
@@ -207,11 +209,13 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-05: OPEN REDIRECT EN AUTH CALLBACK
+### ✅ H-05: OPEN REDIRECT EN AUTH CALLBACK — RESUELTO
 
 - **Categoría:** Seguridad
 - **Gravedad:** ALTA
-- **Diagnóstico:** El parámetro `next` del query string se usa directamente en la redirección sin validación contra una whitelist.
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resolución:** Se implementó función `getSafeRedirect()` que valida el parámetro `next` contra una whitelist de prefijos (`/dashboard`, `/pending-approval`), bloquea URLs protocol-relative (`//evil.com`) y absolutas. Cualquier valor no permitido redirige a `/dashboard`.
+- **Diagnóstico original:** El parámetro `next` del query string se usa directamente en la redirección sin validación contra una whitelist.
 - **Impacto:** Un atacante puede construir una URL como `/auth/callback?next=//evil.com` que redirige al usuario a un sitio de phishing después de autenticarse. Violación de OWASP A01:2021 (Broken Access Control).
 - **Archivo:** `app/auth/callback/route.ts:6-16`
 - **Refactorización Propuesta:**
@@ -609,8 +613,8 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Regenerar tipos Supabase con `supabase gen types typescript` y eliminar los 54 `as any`~~ ✅ Resuelto 2026-03-18 — 0 errores TS, solo 5 `as any` irreducibles
 - [x] ~~Agregar validación Zod a TODOS los server actions que aceptan input de usuario~~ ✅ Resuelto 2026-03-18 — 35 funciones validadas, 4 archivos de schemas creados
 - [x] ~~Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios~~ ✅ Resuelto 2026-03-18 — 9 error boundaries creados (global + dashboard + 7 subdirectorios), componente reutilizable `ErrorDisplay`
-- [ ] Configurar Vitest y escribir tests para `scheduling-utils.ts` y `auth-guard.ts`
-- [ ] Corregir open redirect en `auth/callback/route.ts` con whitelist de rutas
+- [x] ~~Configurar Vitest y escribir tests para `scheduling-utils.ts` y `auth-guard.ts`~~ ✅ Resuelto 2026-03-18 — 66 tests (55 scheduling + 11 auth), todos pasando, Vitest configurado
+- [x] ~~Corregir open redirect en `auth/callback/route.ts` con whitelist de rutas~~ ✅ Resuelto 2026-03-18 — función `getSafeRedirect()` con whitelist de prefijos permitidos, bloquea URLs protocol-relative y absolutas
 - [ ] Reemplazar mensajes de error internos con mensajes genéricos al usuario
 
 ### Prioridad ALTA (Semana 2-3)
