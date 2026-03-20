@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import moment from "moment";
+import { isBefore, isAfter, startOfDay } from "date-fns";
 import { compareOrdersByPriority, OrderWithRelations } from "@/lib/scheduling-utils";
 import { Database } from "@/utils/supabase/types";
 
@@ -96,19 +96,22 @@ export function useEvaluationFilters(orders: OrderWithRelations[]): EvaluationFi
             }
 
             if (evalFilterType !== "none" && evalDateValue) {
-                const targetDate = moment(evalDateValue);
+                const targetDayStart = startOfDay(new Date(evalDateValue));
                 const orderWithRelations = o as OrderWithRelations;
-                let orderDate;
+                let orderDateRaw: string;
                 if (evalFilterType === "request") {
-                    orderDate = moment(orderWithRelations.projects?.start_date || o.created_at);
+                    orderDateRaw = orderWithRelations.projects?.start_date || o.created_at || "";
                 } else {
-                    orderDate = moment(orderWithRelations.projects?.delivery_date || o.created_at);
+                    orderDateRaw = orderWithRelations.projects?.delivery_date || o.created_at || "";
                 }
+                const orderDayStart = startOfDay(new Date(orderDateRaw));
 
                 if (evalDateOperator === "before") {
-                    if (!orderDate.isSameOrBefore(targetDate, 'day')) return false;
+                    // isSameOrBefore by day: orderDayStart <= targetDayStart
+                    if (isAfter(orderDayStart, targetDayStart)) return false;
                 } else {
-                    if (!orderDate.isSameOrAfter(targetDate, 'day')) return false;
+                    // isSameOrAfter by day: orderDayStart >= targetDayStart
+                    if (isBefore(orderDayStart, targetDayStart)) return false;
                 }
             }
 

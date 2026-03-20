@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { Database } from "../utils/supabase/types";
-import moment from "moment";
+import { format, subDays, startOfDay, endOfDay, isBefore, parseISO } from "date-fns";
 
 // --- CONFIGURATION ---
 dotenv.config({ path: ".env.local" });
@@ -27,8 +27,8 @@ const supabase = createClient<Database>(
 // --- CLI ARGS ---
 const args = process.argv.slice(2);
 const DAYS_BACK = (args.indexOf("--days") !== -1) ? (parseInt(args[args.indexOf("--days") + 1]) || 3) : 3;
-const SINCE_DATE = args.includes("--today") ? moment().format("YYYY-MM-DD") : ((args.indexOf("--since") !== -1) ? args[args.indexOf("--since") + 1] : null);
-const UNTIL_DATE = args.includes("--today") ? moment().format("YYYY-MM-DD") : ((args.indexOf("--until") !== -1) ? args[args.indexOf("--until") + 1] : null);
+const SINCE_DATE = args.includes("--today") ? format(new Date(), "yyyy-MM-dd") : ((args.indexOf("--since") !== -1) ? args[args.indexOf("--since") + 1] : null);
+const UNTIL_DATE = args.includes("--today") ? format(new Date(), "yyyy-MM-dd") : ((args.indexOf("--until") !== -1) ? args[args.indexOf("--until") + 1] : null);
 const FULL_SYNC = args.includes("--full") || args.includes("--all");
 
 const RUN_PJ = args.includes("--projects") || (!args.includes("--items") && !args.includes("--planning") && !args.includes("--full") && !args.includes("--all")) || FULL_SYNC;
@@ -36,6 +36,14 @@ const RUN_IT = args.includes("--items") || (!args.includes("--projects") && !arg
 const RUN_PL = args.includes("--planning") || (!args.includes("--projects") && !args.includes("--items") && !args.includes("--full") && !args.includes("--all")) || FULL_SYNC;
 
 // --- UTILS ---
+
+/** Create a Date representing the start of day in GMT-6 */
+function startOfDayGMT6(date: Date = new Date()): Date {
+    const d = startOfDay(date);
+    // Adjust for GMT-6: start of day in GMT-6 is 06:00 UTC
+    d.setUTCHours(6, 0, 0, 0);
+    return d;
+}
 
 async function fetchWithRetry(url: string, options: any, retries = 5, backoff = 2000) {
     for (let i = 0; i < retries; i++) {
@@ -107,11 +115,13 @@ function buildFilter(sinceISO: string, untilISO: string | null, propName: string
 
 function formatTime(dateStr: string | null | undefined) {
     if (!dateStr) return null;
-    const m = moment(dateStr);
-    if (!m.isValid()) return dateStr;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
     if (dateStr.length === 10) return dateStr;
-    const local = dateStr.match(/[Z+\-]/) ? m : moment(`${dateStr}-06:00`);
-    return local.format("YYYY-MM-DDTHH:mm:ss");
+    // If the string has no timezone indicator, treat as GMT-6
+    const hasTimezone = /[Z+\-]/.test(dateStr.slice(10));
+    const effective = hasTimezone ? d : new Date(`${dateStr}-06:00`);
+    return format(effective, "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 function cleanName(name: string | null | undefined) {
@@ -150,18 +160,18 @@ async function fetchAll(query: any) {
 
 async function run() {
     // 1. Thresholds (Ajustado para GMT-6)
-    let since = moment().utcOffset("-06:00").subtract(DAYS_BACK, 'days').startOf('day').toISOString();
+    let since = startOfDayGMT6(subDays(new Date(), DAYS_BACK)).toISOString();
     if (args.includes("--today")) {
-        since = moment().utcOffset("-06:00").startOf('day').toISOString();
+        since = startOfDayGMT6().toISOString();
     }
     if (args.find(a => a.startsWith("--since="))) {
-        since = moment(args.find(a => a.startsWith("--since="))!.split("=")[1]).utcOffset("-06:00").startOf('day').toISOString();
+        since = startOfDayGMT6(parseISO(args.find(a => a.startsWith("--since="))!.split("=")[1])).toISOString();
     }
 
-    let until = UNTIL_DATE ? moment(UNTIL_DATE).endOf('day').toISOString() : null;
+    let until = UNTIL_DATE ? endOfDay(parseISO(UNTIL_DATE)).toISOString() : null;
 
     console.log(`\n🚀 INICIANDO SINCRONIZACIÓN OPTIMIZADA`);
-    console.log(`📅 Rango: ${moment(since).format("L")} - ${until ? moment(until).format("L") : "Ahora"}`);
+    console.log(`📅 Rango: ${format(parseISO(since), "P")} - ${until ? format(parseISO(until), "P") : "Ahora"}`);
     if (FULL_SYNC) console.log(`🔥 MODO FULL SYNC ACTIVO`);
     if (args.includes("--today")) console.log(`✨ FILTRANDO SOLO POR HOY`);
 
@@ -201,7 +211,7 @@ async function run() {
             let processedInBatch = 0;
             const batch = resp.results.map((p: any) => {
                 const modTime = p.properties["ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
-                if (!FULL_SYNC && moment(modTime).isBefore(since)) return null;
+                if (!FULL_SYNC && isBefore(new Date(modTime), new Date(since))) return null;
 
                 const code = p.properties["CODIGO PROYECTO E"]?.title?.[0]?.plain_text;
                 if (!code) return null;
@@ -262,7 +272,7 @@ async function run() {
                 for (const p of resp.results) {
                     const modTime = p.properties["ZAUX-FECHA ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
 
-                    if (!FULL_SYNC && moment(modTime).isBefore(since)) {
+                    if (!FULL_SYNC && isBefore(new Date(modTime), new Date(since))) {
                         continue;
                     }
 
@@ -387,7 +397,7 @@ async function run() {
                 for (const p of resp.results) {
                     const modTime = p.properties["FECHA ULTIMA EDICION"]?.last_edited_time || p.last_edited_time;
 
-                    if (!FULL_SYNC && moment(modTime).isBefore(since)) continue;
+                    if (!FULL_SYNC && isBefore(new Date(modTime), new Date(since))) continue;
 
                     processedInBatch++;
                     const props = p.properties;

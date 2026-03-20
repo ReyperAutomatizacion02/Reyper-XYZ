@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
-import moment from "moment";
+import { format, subDays } from "date-fns";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/utils/logger";
@@ -151,7 +151,7 @@ export async function recordCheckIn(taskId: string) {
 
     const { error } = await supabase.from("planning")
         .update({
-            check_in: moment().format('YYYY-MM-DD HH:mm:ss'),
+            check_in: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
         })
         .eq("id", parsed.taskId);
 
@@ -171,7 +171,7 @@ export async function recordCheckOut(taskId: string) {
 
     const { error } = await supabase.from("planning")
         .update({
-            check_out: moment().format('YYYY-MM-DD HH:mm:ss'),
+            check_out: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
         })
         .eq("id", parsed.taskId);
 
@@ -236,7 +236,7 @@ export async function fetchScenarios() {
     await requireRole(supabase, PRODUCCION_ROLES);
 
     // Auto-cleanup: delete scenarios older than 7 days
-    const sevenDaysAgo = moment().subtract(7, 'days').toISOString();
+    const sevenDaysAgo = subDays(new Date(), 7).toISOString();
     await supabase.from("planning_scenarios")
         .delete()
         .lt('created_at', sevenDaysAgo);

@@ -7,7 +7,7 @@ import { Database } from "@/utils/supabase/types";
 import { recordCheckIn, recordCheckOut } from "@/app/dashboard/produccion/actions";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import moment from "moment";
+import { format, startOfDay, isSameDay, subMinutes, addHours } from "date-fns";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { createClient } from "@/utils/supabase/client";
 import { useTour, TourStep } from "@/hooks/use-tour";
@@ -96,7 +96,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
     // Filter tasks - Only show non-completed tasks for TODAY (OR DEMO)
     const filteredTasks = useMemo(() => {
         if (demoMode !== 'none') {
-            const now = moment();
+            const now = new Date();
 
             // Exactly ONE task, active from start to satisfy all requirements
             const demoTask: any = {
@@ -106,9 +106,9 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                 operator: operatorName,
                 order_id: "demo-order-1",
                 part_code_id: "demo-part-1",
-                planned_date: now.clone().subtract(30, 'minutes').toISOString(),
-                planned_end: now.clone().add(2, 'hours').toISOString(),
-                check_in: now.clone().subtract(15, 'minutes').toISOString(), // Active from start
+                planned_date: subMinutes(now, 30).toISOString(),
+                planned_end: addHours(now, 2).toISOString(),
+                check_in: subMinutes(now, 15).toISOString(), // Active from start
                 check_out: null,
                 production_orders: {
                     id: "demo-order-1",
@@ -121,13 +121,13 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
             return [demoTask];
         }
 
-        const today = moment().startOf('day');
+        const today = startOfDay(new Date());
         return initialTasks.filter(task => {
             const isCompleted = !!task.check_out;
             if (isCompleted) return false;
 
-            const taskDate = moment(task.planned_date);
-            return taskDate.isSame(today, 'day');
+            const taskDate = new Date(task.planned_date!);
+            return isSameDay(taskDate, today);
         });
     }, [initialTasks, demoMode, operatorName]);
 
@@ -251,7 +251,7 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 text-muted-foreground">
                                 Inicio de Registro
                             </span>
-                            <span className="text-base font-black text-foreground">{moment(activeTask.check_in).format("HH:mm [hrs]")}</span>
+                            <span className="text-base font-black text-foreground">{format(new Date(activeTask.check_in), "HH:mm 'hrs'")}</span>
                         </div>
                     </div>
 

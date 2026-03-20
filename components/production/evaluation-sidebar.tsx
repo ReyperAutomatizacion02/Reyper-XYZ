@@ -14,7 +14,8 @@ import {
     XCircle,
     Calendar as CalendarIcon,
 } from "lucide-react";
-import moment from "moment";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -245,7 +246,7 @@ export function EvaluationSidebar({
                                                     >
                                                         <CalendarIcon className="mr-2 h-3 w-3" />
                                                         {evalDateValue ? (
-                                                            moment(evalDateValue).format("DD [de] MMMM, YYYY")
+                                                            format(new Date(evalDateValue), "dd 'de' MMMM, yyyy", { locale: es })
                                                         ) : (
                                                             <span>Seleccionar fecha</span>
                                                         )}
@@ -254,8 +255,8 @@ export function EvaluationSidebar({
                                                 <PopoverContent className="w-auto p-0 z-[2000]" align="start">
                                                     <Calendar
                                                         mode="single"
-                                                        selected={evalDateValue ? moment(evalDateValue).toDate() : undefined}
-                                                        onSelect={(date) => setEvalDateValue(date ? moment(date).format("YYYY-MM-DD") : "")}
+                                                        selected={evalDateValue ? new Date(evalDateValue) : undefined}
+                                                        onSelect={(date) => setEvalDateValue(date ? format(date, "yyyy-MM-dd") : "")}
                                                         initialFocus
                                                     />
                                                 </PopoverContent>
@@ -357,7 +358,7 @@ export function EvaluationSidebar({
                                         )}
                                         {deliveryDate && (
                                             <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded border border-border/50">
-                                                {moment(deliveryDate).format("DD MMM")}
+                                                {format(new Date(deliveryDate), "dd MMM", { locale: es })}
                                             </div>
                                         )}
                                     </div>

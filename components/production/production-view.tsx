@@ -4,8 +4,9 @@ import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
-import moment from "moment";
-import "moment/locale/es";
+import {
+    format, startOfDay, isBefore, isSameDay,
+} from "date-fns";
 import {
     updateTaskSchedule,
     batchSavePlanning,
@@ -217,7 +218,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             ...strategyFilters
         });
 
-        const nowSnapped = snapToNext15Minutes(moment());
+        const nowSnapped = snapToNext15Minutes(new Date());
         const globalStart = getNextValidWorkTime(nowSnapped);
 
         const shifted = shiftTasksToCurrent(
@@ -239,18 +240,18 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 ...generatedDrafts.filter(g => !manuallyTweakedPieceIds.has(g.order_id))
             ];
 
-            const nowSnapped = snapToNext15Minutes(moment());
+            const nowSnapped = snapToNext15Minutes(new Date());
             const globalStart = getNextValidWorkTime(nowSnapped);
 
             const fixedTasks = optimisticTasks.filter(t => {
-                const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+                const isFuture = !isBefore(new Date(t.planned_date!), globalStart);
                 const isLocked = t.locked === true;
                 const hasStarted = !!t.check_in;
                 return isLocked || hasStarted || !isFuture;
             });
 
             const flexibleTasks = optimisticTasks.filter(t => {
-                const isFuture = moment(t.planned_date).isSameOrAfter(globalStart);
+                const isFuture = !isBefore(new Date(t.planned_date!), globalStart);
                 const isLocked = t.locked === true;
                 const hasStarted = !!t.check_in;
                 return !isLocked && !hasStarted && isFuture;
@@ -269,8 +270,8 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
     // Planning Alerts Computation
     const planningAlerts = useMemo(() => {
         const alerts: { type: 'OVERLAP' | 'MISSING_OPERATOR', task: PlanningTask, details: string }[] = [];
-        const now = moment();
-        const startOfToday = moment().startOf('day');
+        const now = new Date();
+        const today = startOfDay(new Date());
         const flaggedTaskIds = new Set<string>();
 
         const machineGroups: Record<string, PlanningTask[]> = {};
@@ -278,13 +279,13 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
             const mName = task.machine;
             if (!mName) return;
             if (!task.planned_date || !task.planned_end) return;
-            if (moment(task.planned_end).isBefore(now)) return;
+            if (isBefore(new Date(task.planned_end!), now)) return;
 
             if (!machineGroups[mName]) machineGroups[mName] = [];
             machineGroups[mName].push(task);
 
             if (!task.operator || task.operator.trim() === "") {
-                const isToday = moment(task.planned_date).isSame(startOfToday, 'day');
+                const isToday = isSameDay(new Date(task.planned_date!), today);
                 if (isToday) {
                     alerts.push({ type: 'MISSING_OPERATOR', task, details: `Sin operador asignado para hoy` });
                 }
@@ -292,19 +293,19 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         });
 
         Object.values(machineGroups).forEach(group => {
-            const sorted = [...group].sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+            const sorted = [...group].sort((a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime());
             for (let i = 0; i < sorted.length; i++) {
                 for (let j = i + 1; j < sorted.length; j++) {
                     const t1 = sorted[i];
                     const t2 = sorted[j];
                     if (!t1.planned_date || !t1.planned_end || !t2.planned_date || !t2.planned_end) continue;
 
-                    const start1 = moment(t1.planned_date);
-                    const end1 = moment(t1.planned_end);
-                    const start2 = moment(t2.planned_date);
-                    const end2 = moment(t2.planned_end);
+                    const start1 = new Date(t1.planned_date);
+                    const end1 = new Date(t1.planned_end);
+                    const start2 = new Date(t2.planned_date);
+                    const end2 = new Date(t2.planned_end);
 
-                    if (start1.isBefore(end2) && end1.isAfter(start2)) {
+                    if (isBefore(start1, end2) && !isBefore(end1, start2)) {
                         if (!flaggedTaskIds.has(t2.id)) {
                             alerts.push({ type: 'OVERLAP', task: t2, details: `Solapamiento detectado en ${t2.machine}` });
                             flaggedTaskIds.add(t2.id);
@@ -364,11 +365,11 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         return optimisticTasks.filter(current => {
             const original = savedTasks.find(s => s.id === current.id);
             if (!original) return false;
-            const format = "YYYY-MM-DDTHH:mm:ss";
-            const currentStart = moment(current.planned_date).format(format);
-            const originalStart = moment(original.planned_date).format(format);
-            const currentEnd = moment(current.planned_end).format(format);
-            const originalEnd = moment(original.planned_end).format(format);
+            const fmt = "yyyy-MM-dd'T'HH:mm:ss";
+            const currentStart = format(new Date(current.planned_date!), fmt);
+            const originalStart = format(new Date(original.planned_date!), fmt);
+            const currentEnd = format(new Date(current.planned_end!), fmt);
+            const originalEnd = format(new Date(original.planned_end!), fmt);
             return currentStart !== originalStart || currentEnd !== originalEnd;
         }) as PlanningTask[];
     }, [optimisticTasks, savedTasks]);
@@ -409,7 +410,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
         setIsSaving(true);
         try {
             await Promise.all(changedTasks.map(task =>
-                updateTaskSchedule(task.id, moment(task.planned_date).format("YYYY-MM-DDTHH:mm:ss"), moment(task.planned_end).format("YYYY-MM-DDTHH:mm:ss"))
+                updateTaskSchedule(task.id, format(new Date(task.planned_date!), "yyyy-MM-dd'T'HH:mm:ss"), format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm:ss"))
             ));
             router.refresh();
         } catch (error) {

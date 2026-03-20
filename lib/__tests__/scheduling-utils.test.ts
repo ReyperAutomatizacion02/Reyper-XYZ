@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import moment from "moment";
+import {
+    format, addDays, addHours, subDays, getHours, getDay, differenceInMinutes,
+} from "date-fns";
 import {
     getPriorityLevel,
     getStatusPriority,
@@ -83,37 +85,37 @@ describe("getPriorityLevel", () => {
     });
 
     it("returns CRITICAL for overdue dates", () => {
-        const yesterday = moment().subtract(1, "day").format("YYYY-MM-DD");
+        const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
         expect(getPriorityLevel(yesterday)).toBe("CRITICAL");
     });
 
     it("returns SOON for dates within 3 days", () => {
-        const in2Days = moment().add(2, "days").format("YYYY-MM-DD");
+        const in2Days = format(addDays(new Date(), 2), "yyyy-MM-dd");
         expect(getPriorityLevel(in2Days)).toBe("SOON");
     });
 
     it("returns SOON for today (0 days diff)", () => {
-        const today = moment().format("YYYY-MM-DD");
+        const today = format(new Date(), "yyyy-MM-dd");
         expect(getPriorityLevel(today)).toBe("SOON");
     });
 
     it("returns NORMAL for 4-10 day range", () => {
-        const in7Days = moment().add(7, "days").format("YYYY-MM-DD");
+        const in7Days = format(addDays(new Date(), 7), "yyyy-MM-dd");
         expect(getPriorityLevel(in7Days)).toBe("NORMAL");
     });
 
     it("returns PLENTY for dates more than 10 days out", () => {
-        const in15Days = moment().add(15, "days").format("YYYY-MM-DD");
+        const in15Days = format(addDays(new Date(), 15), "yyyy-MM-dd");
         expect(getPriorityLevel(in15Days)).toBe("PLENTY");
     });
 
     it("returns NORMAL for exactly 10 days", () => {
-        const in10Days = moment().add(10, "days").format("YYYY-MM-DD");
+        const in10Days = format(addDays(new Date(), 10), "yyyy-MM-dd");
         expect(getPriorityLevel(in10Days)).toBe("NORMAL");
     });
 
     it("returns SOON for exactly 3 days", () => {
-        const in3Days = moment().add(3, "days").format("YYYY-MM-DD");
+        const in3Days = format(addDays(new Date(), 3), "yyyy-MM-dd");
         expect(getPriorityLevel(in3Days)).toBe("SOON");
     });
 });
@@ -185,53 +187,50 @@ describe("compareOrdersByPriority", () => {
 
 describe("getNextValidWorkTime", () => {
     it("returns same time if within work hours (Mon-Sat 6-22)", () => {
-        // Wednesday 10:00
-        const wed10 = moment("2026-03-18T10:00:00");
+        const wed10 = new Date("2026-03-18T10:00:00");
         const result = getNextValidWorkTime(wed10);
-        expect(result.format("YYYY-MM-DDTHH:mm:ss")).toBe("2026-03-18T10:00:00");
+        expect(format(result, "yyyy-MM-dd'T'HH:mm:ss")).toBe("2026-03-18T10:00:00");
     });
 
     it("moves to 6 AM same day if before 6 AM on a weekday", () => {
-        const earlyMon = moment("2026-03-16T04:30:00"); // Monday 4:30 AM
+        const earlyMon = new Date("2026-03-16T04:30:00"); // Monday 4:30 AM
         const result = getNextValidWorkTime(earlyMon);
-        expect(result.hour()).toBe(6);
-        expect(result.minute()).toBe(0);
-        expect(result.format("YYYY-MM-DD")).toBe("2026-03-16");
+        expect(getHours(result)).toBe(6);
+        expect(format(result, "yyyy-MM-dd")).toBe("2026-03-16");
     });
 
     it("moves to next day 6 AM if after 22:00", () => {
-        const lateTue = moment("2026-03-17T23:00:00"); // Tuesday 11 PM
+        const lateTue = new Date("2026-03-17T23:00:00"); // Tuesday 11 PM
         const result = getNextValidWorkTime(lateTue);
-        expect(result.format("YYYY-MM-DDTHH:mm:ss")).toBe("2026-03-18T06:00:00");
+        expect(format(result, "yyyy-MM-dd'T'HH:mm:ss")).toBe("2026-03-18T06:00:00");
     });
 
     it("skips Sunday to Monday 6 AM", () => {
-        const sunday = moment("2026-03-22T10:00:00"); // Sunday
-        expect(sunday.day()).toBe(0); // Confirm it's Sunday
+        const sunday = new Date("2026-03-22T10:00:00"); // Sunday
+        expect(getDay(sunday)).toBe(0);
         const result = getNextValidWorkTime(sunday);
-        expect(result.day()).toBe(1); // Monday
-        expect(result.hour()).toBe(6);
+        expect(getDay(result)).toBe(1); // Monday
+        expect(getHours(result)).toBe(6);
     });
 
     it("handles Saturday at 21:59 (still valid)", () => {
-        const satEvening = moment("2026-03-21T21:59:00"); // Saturday
-        expect(satEvening.day()).toBe(6);
+        const satEvening = new Date("2026-03-21T21:59:00"); // Saturday
+        expect(getDay(satEvening)).toBe(6);
         const result = getNextValidWorkTime(satEvening);
-        expect(result.format("YYYY-MM-DDTHH:mm:ss")).toBe("2026-03-21T21:59:00");
+        expect(format(result, "yyyy-MM-dd'T'HH:mm:ss")).toBe("2026-03-21T21:59:00");
     });
 
     it("handles Saturday at 22:00 -> Monday 6 AM (skips Sunday)", () => {
-        const sat22 = moment("2026-03-21T22:00:00"); // Saturday 10 PM
+        const sat22 = new Date("2026-03-21T22:00:00"); // Saturday 10 PM
         const result = getNextValidWorkTime(sat22);
-        // Should skip Sunday and go to Monday
-        expect(result.day()).toBe(1); // Monday
-        expect(result.hour()).toBe(6);
+        expect(getDay(result)).toBe(1); // Monday
+        expect(getHours(result)).toBe(6);
     });
 
     it("moves from exact 6 AM to 6 AM (stays)", () => {
-        const exact6 = moment("2026-03-18T06:00:00"); // Wednesday
+        const exact6 = new Date("2026-03-18T06:00:00"); // Wednesday
         const result = getNextValidWorkTime(exact6);
-        expect(result.format("YYYY-MM-DDTHH:mm:ss")).toBe("2026-03-18T06:00:00");
+        expect(format(result, "yyyy-MM-dd'T'HH:mm:ss")).toBe("2026-03-18T06:00:00");
     });
 });
 
@@ -239,39 +238,39 @@ describe("getNextValidWorkTime", () => {
 
 describe("snapToNext15Minutes", () => {
     it("snaps 14:04 to 14:15", () => {
-        const date = moment("2026-03-18T14:04:00");
+        const date = new Date("2026-03-18T14:04:00");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm")).toBe("14:15");
+        expect(format(result, "HH:mm")).toBe("14:15");
     });
 
     it("keeps exact 15-minute mark (14:15:00.000)", () => {
-        const date = moment("2026-03-18T14:15:00.000");
+        const date = new Date("2026-03-18T14:15:00.000");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm:ss")).toBe("14:15:00");
+        expect(format(result, "HH:mm:ss")).toBe("14:15:00");
     });
 
     it("snaps 14:00 stays at 14:00 (exact mark)", () => {
-        const date = moment("2026-03-18T14:00:00.000");
+        const date = new Date("2026-03-18T14:00:00.000");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm")).toBe("14:00");
+        expect(format(result, "HH:mm")).toBe("14:00");
     });
 
     it("snaps 14:31 to 14:45", () => {
-        const date = moment("2026-03-18T14:31:00");
+        const date = new Date("2026-03-18T14:31:00");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm")).toBe("14:45");
+        expect(format(result, "HH:mm")).toBe("14:45");
     });
 
     it("snaps 14:46 to 15:00", () => {
-        const date = moment("2026-03-18T14:46:00");
+        const date = new Date("2026-03-18T14:46:00");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm")).toBe("15:00");
+        expect(format(result, "HH:mm")).toBe("15:00");
     });
 
     it("snaps up if seconds > 0 even at 15-min mark", () => {
-        const date = moment("2026-03-18T14:15:01");
+        const date = new Date("2026-03-18T14:15:01");
         const result = snapToNext15Minutes(date);
-        expect(result.format("HH:mm")).toBe("14:30");
+        expect(format(result, "HH:mm")).toBe("14:30");
     });
 });
 
@@ -402,11 +401,11 @@ describe("generateAutomatedPlanning", () => {
         const result = generateAutomatedPlanning(orders, [], ["CNC-1"], DEFAULT_CONFIG);
 
         for (const task of result.tasks) {
-            const start = moment(task.planned_date);
-            const end = moment(task.planned_end);
-            expect(start.hour()).toBeGreaterThanOrEqual(6);
-            expect(end.hour()).toBeLessThanOrEqual(22);
-            expect(start.day()).not.toBe(0); // Not Sunday
+            const start = new Date(task.planned_date!);
+            const end = new Date(task.planned_end!);
+            expect(getHours(start)).toBeGreaterThanOrEqual(6);
+            expect(getHours(end)).toBeLessThanOrEqual(22);
+            expect(getDay(start)).not.toBe(0); // Not Sunday
         }
     });
 
@@ -426,8 +425,8 @@ describe("generateAutomatedPlanning", () => {
     it("avoids collisions with locked existing tasks", () => {
         const existingTask = makeTask({
             machine: "CNC-1",
-            planned_date: moment().add(1, "hour").format("YYYY-MM-DDTHH:mm:ss"),
-            planned_end: moment().add(3, "hours").format("YYYY-MM-DDTHH:mm:ss"),
+            planned_date: format(addHours(new Date(), 1), "yyyy-MM-dd'T'HH:mm:ss"),
+            planned_end: format(addHours(new Date(), 3), "yyyy-MM-dd'T'HH:mm:ss"),
             locked: true,
         });
 
@@ -441,10 +440,10 @@ describe("generateAutomatedPlanning", () => {
 
         // New tasks should not overlap with the locked task
         for (const task of result.tasks) {
-            const newStart = moment(task.planned_date).valueOf();
-            const newEnd = moment(task.planned_end).valueOf();
-            const existStart = moment(existingTask.planned_date).valueOf();
-            const existEnd = moment(existingTask.planned_end).valueOf();
+            const newStart = new Date(task.planned_date!).getTime();
+            const newEnd = new Date(task.planned_end!).getTime();
+            const existStart = new Date(existingTask.planned_date!).getTime();
+            const existEnd = new Date(existingTask.planned_end!).getTime();
 
             const overlaps = newStart < existEnd && newEnd > existStart;
             expect(overlaps).toBe(false);
@@ -465,8 +464,8 @@ describe("generateAutomatedPlanning", () => {
         expect(result.tasks.length).toBeGreaterThanOrEqual(2);
 
         // Second step should start after the first
-        const step1End = moment(result.tasks[0].planned_end).valueOf();
-        const step2Start = moment(result.tasks[result.tasks.length - 1].planned_date).valueOf();
+        const step1End = new Date(result.tasks[0].planned_end!).getTime();
+        const step2Start = new Date(result.tasks[result.tasks.length - 1].planned_date!).getTime();
         expect(step2Start).toBeGreaterThanOrEqual(step1End);
     });
 
@@ -509,9 +508,9 @@ describe("shiftScenarioTasks", () => {
         ];
         const result = shiftScenarioTasks(tasks, 2, [], ["CNC-1"]);
 
-        const newStart = moment(result[0].planned_date);
+        const newStart = new Date(result[0].planned_date!);
         // Wednesday + 2 work days = Friday
-        expect(newStart.day()).toBe(5); // Friday
+        expect(getDay(newStart)).toBe(5); // Friday
     });
 
     it("skips Sundays when shifting forward", () => {
@@ -524,9 +523,9 @@ describe("shiftScenarioTasks", () => {
         ];
         const result = shiftScenarioTasks(tasks, 1, [], ["CNC-1"]);
 
-        const newStart = moment(result[0].planned_date);
+        const newStart = new Date(result[0].planned_date!);
         // Saturday + 1 work day should skip Sunday → Monday
-        expect(newStart.day()).toBe(1); // Monday
+        expect(getDay(newStart)).toBe(1); // Monday
     });
 
     it("maintains task duration after shift", () => {
@@ -539,9 +538,9 @@ describe("shiftScenarioTasks", () => {
         ];
         const result = shiftScenarioTasks(tasks, 1, [], ["CNC-1"]);
 
-        const start = moment(result[0].planned_date);
-        const end = moment(result[0].planned_end);
-        const durationMinutes = end.diff(start, "minutes");
+        const start = new Date(result[0].planned_date!);
+        const end = new Date(result[0].planned_end!);
+        const durationMinutes = differenceInMinutes(end, start);
         expect(durationMinutes).toBe(120); // 2 hours
     });
 });

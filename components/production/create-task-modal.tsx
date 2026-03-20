@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import moment from "moment";
 import { createPlanningTask } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
 import { CalendarIcon, Clock, X } from "lucide-react";
-import { format } from "date-fns";
+import { format, addHours } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -170,11 +169,11 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
 
     useEffect(() => {
         if (isOpen && initialData) {
-            const startMoment = moment(initialData.time);
-            const endMoment = moment(startMoment).add(2, 'hours');
+            const start = new Date(initialData.time);
+            const end = addHours(start, 2);
 
-            setStartDate(startMoment.toDate());
-            setEndDate(endMoment.toDate());
+            setStartDate(start);
+            setEndDate(end);
             setSelectedOrder("");
             setOperator("");
         }
@@ -194,8 +193,8 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
             await createPlanningTask(
                 selectedOrder,
                 initialData.machine,
-                moment(startDate).format("YYYY-MM-DDTHH:mm"),
-                moment(endDate).format("YYYY-MM-DDTHH:mm"),
+                format(startDate, "yyyy-MM-dd'T'HH:mm"),
+                format(endDate, "yyyy-MM-dd'T'HH:mm"),
                 operator
             );
             onSuccess();

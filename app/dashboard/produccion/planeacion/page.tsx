@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
-import moment from "moment";
+import { format, subDays, addDays } from "date-fns";
 import { ProductionView } from "@/components/production/production-view";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { compareOrdersByPriority } from "@/lib/scheduling-utils";
@@ -12,8 +12,8 @@ export default async function PlaneacionPage() {
     const supabase = createClient(cookieStore);
 
     // Date range filter: 90 days back (for recent history) + 180 days forward
-    const rangeStart = moment().subtract(90, "days").format("YYYY-MM-DD");
-    const rangeEnd = moment().add(180, "days").format("YYYY-MM-DD");
+    const rangeStart = format(subDays(new Date(), 90), "yyyy-MM-dd");
+    const rangeEnd = format(addDays(new Date(), 180), "yyyy-MM-dd");
 
     // Fetch all necessary data in parallel
     const [machinesRes, ordersRes, tasksRes] = await Promise.all([

@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
 // import { useRouter } from "next/navigation"; // Removed
-import moment from "moment";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, FileText } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
@@ -13,7 +12,13 @@ import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { es } from "date-fns/locale";
-import { format } from "date-fns";
+import {
+    format, startOfDay, endOfDay, startOfISOWeek, endOfISOWeek, startOfMonth, endOfMonth,
+    addDays, addHours, addMinutes, addWeeks, addMonths, addMilliseconds, subDays,
+    isBefore, isAfter, differenceInMinutes, differenceInMilliseconds,
+    getHours, getDay, getDate, getISOWeek, getMinutes,
+    set,
+} from "date-fns";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -53,12 +58,10 @@ export interface GanttSVGProps {
 }
 
 // Helper for 15-minute snapping
-const roundToNearest15Minutes = (date: moment.Moment) => {
-    const minutes = date.minute();
+const roundToNearest15Minutes = (date: Date): Date => {
+    const minutes = getMinutes(date);
     const roundedMinutes = Math.round(minutes / 15) * 15;
-
-    // This handles minute=60 automatically by overflowing to next hour
-    return date.clone().minute(roundedMinutes).second(0).millisecond(0);
+    return set(new Date(date), { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
 };
 
 // Constants for the SVG Engine
@@ -106,29 +109,26 @@ export function GanttSVG({
     const UNIT_WIDTH = config.width * zoomLevel; // Apply Zoom
 
     // 1. Time Window State with view-specific date filter
-    const [selectedDate, setSelectedDate] = useState(() => moment().startOf('day'));
-    const [dateRangeStart, setDateRangeStart] = useState(() => moment().startOf('day').subtract(7, 'days'));
-    const [dateRangeEnd, setDateRangeEnd] = useState(() => moment().startOf('day').add(14, 'days'));
+    const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+    const [dateRangeStart, setDateRangeStart] = useState(() => subDays(startOfDay(new Date()), 7));
+    const [dateRangeEnd, setDateRangeEnd] = useState(() => addDays(startOfDay(new Date()), 14));
 
     // Calculate timeWindow based on viewMode
     const timeWindow = useMemo(() => {
         if (viewMode === 'hour') {
-            // Hour view: show selected day only (24 hours)
             return {
-                start: moment(selectedDate).startOf('day'),
-                end: moment(selectedDate).endOf('day').add(1, 'hour')
+                start: startOfDay(selectedDate),
+                end: addHours(endOfDay(selectedDate), 1)
             };
         } else if (viewMode === 'day') {
-            // Day view: show date range
             return {
-                start: moment(dateRangeStart).startOf('day'),
-                end: moment(dateRangeEnd).endOf('day')
+                start: startOfDay(dateRangeStart),
+                end: endOfDay(dateRangeEnd)
             };
         } else {
-            // Week view: show weeks starting from Monday
             return {
-                start: moment(dateRangeStart).startOf('isoWeek'),
-                end: moment(dateRangeEnd).endOf('isoWeek')
+                start: startOfISOWeek(dateRangeStart),
+                end: endOfISOWeek(dateRangeEnd)
             };
         }
     }, [viewMode, selectedDate, dateRangeStart, dateRangeEnd]);
@@ -136,13 +136,11 @@ export function GanttSVG({
     // Automatically set default ranges when switching views
     useEffect(() => {
         if (viewMode === 'day') {
-            // "Vista de día" -> Calcular por la semana completa
-            setDateRangeStart(moment().startOf('isoWeek'));
-            setDateRangeEnd(moment().endOf('isoWeek'));
+            setDateRangeStart(startOfISOWeek(new Date()));
+            setDateRangeEnd(endOfISOWeek(new Date()));
         } else if (viewMode === 'week') {
-            // "Vista de semana" -> Calcular por el mes completo
-            setDateRangeStart(moment().startOf('month'));
-            setDateRangeEnd(moment().endOf('month'));
+            setDateRangeStart(startOfMonth(new Date()));
+            setDateRangeEnd(endOfMonth(new Date()));
         }
         // For 'hour', we rely on selectedDate which defaults to today.
     }, [viewMode]);
@@ -176,7 +174,7 @@ export function GanttSVG({
 
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
     const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number, mode: 'above' | 'below' }>({ x: 0, y: 0, mode: 'below' });
-    const [currentTime, setCurrentTime] = useState<moment.Moment>(() => moment());
+    const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Scroll suppression refs
@@ -185,8 +183,8 @@ export function GanttSVG({
 
     // Initialize current time on client and update every minute
     useEffect(() => {
-        setCurrentTime(moment());
-        const timer = setInterval(() => setCurrentTime(moment()), 60000);
+        setCurrentTime(new Date());
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         return () => clearInterval(timer);
     }, []);
 
@@ -214,7 +212,7 @@ export function GanttSVG({
     // Auto-scroll to today on mount
     useEffect(() => {
         if (scrollContainerRef.current) {
-            const todayX = timeToX(moment());
+            const todayX = timeToX(new Date());
             // Center today in the viewport
             const containerWidth = scrollContainerRef.current.clientWidth;
             const scrollTo = Math.max(0, todayX - containerWidth / 3);
@@ -247,12 +245,10 @@ export function GanttSVG({
                         if (!isThisMachine) return false;
 
                         // Check overlap with visible window
-                        const taskStart = moment(t.planned_date);
-                        const taskEnd = moment(t.planned_end);
-                        const windowStart = timeWindow.start;
-                        const windowEnd = timeWindow.end;
+                        const taskStart = new Date(t.planned_date!);
+                        const taskEnd = new Date(t.planned_end!);
 
-                        return taskEnd.isAfter(windowStart) && taskStart.isBefore(windowEnd);
+                        return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
                     });
                     return hasTasksInWindow;
                 }
@@ -273,22 +269,20 @@ export function GanttSVG({
                 task.production_orders?.part_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
             // Time window filter - task must overlap with visible period
-            const taskStart = moment(task.planned_date);
-            const taskEnd = moment(task.planned_end);
-            const windowStart = timeWindow.start;
-            const windowEnd = timeWindow.end;
-            const matchesTime = taskEnd.isAfter(windowStart) && taskStart.isBefore(windowEnd);
+            const taskStart = new Date(task.planned_date!);
+            const taskEnd = new Date(task.planned_end!);
+            const matchesTime = isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
 
             return matchesMachine && matchesSearch && matchesTime;
         });
     }, [optimisticTasks, selectedMachines, searchQuery, timeWindow]);
 
     // 3. Absolute Coordinate Math (Critical for Alignment)
-    const timeToX = (time: string | number | Date | moment.Moment) => {
+    const timeToX = (time: string | number | Date) => {
         if (!time) return 0;
-        const mTime = moment(time);
-        const startMs = timeWindow.start.valueOf();
-        const currentMs = mTime.valueOf();
+        const mTime = new Date(time);
+        const startMs = timeWindow.start.getTime();
+        const currentMs = mTime.getTime();
 
         // Calculate difference based on view mode
         if (viewMode === 'hour') {
@@ -303,24 +297,25 @@ export function GanttSVG({
         }
     };
 
-    const xToTime = (x: number) => {
+    const xToTime = (x: number): Date => {
         const msPerUnit = viewMode === 'hour' ? 1000 * 60 * 60
             : viewMode === 'day' ? 1000 * 60 * 60 * 24
                 : 1000 * 60 * 60 * 24 * 7;
 
         const diffMs = (x / UNIT_WIDTH) * msPerUnit;
-        return moment(timeWindow.start).add(diffMs, 'milliseconds');
+        return addMilliseconds(timeWindow.start, diffMs);
     };
 
     const totalWidth = useMemo(() => {
+        const diffMs = timeWindow.end.getTime() - timeWindow.start.getTime();
         if (viewMode === 'hour') {
-            return (timeWindow.end.valueOf() - timeWindow.start.valueOf()) / (1000 * 60 * 60) * UNIT_WIDTH;
+            return diffMs / (1000 * 60 * 60) * UNIT_WIDTH;
         } else if (viewMode === 'day') {
-            return (timeWindow.end.valueOf() - timeWindow.start.valueOf()) / (1000 * 60 * 60 * 24) * UNIT_WIDTH;
+            return diffMs / (1000 * 60 * 60 * 24) * UNIT_WIDTH;
         } else {
-            return (timeWindow.end.valueOf() - timeWindow.start.valueOf()) / (1000 * 60 * 60 * 24 * 7) * UNIT_WIDTH;
+            return diffMs / (1000 * 60 * 60 * 24 * 7) * UNIT_WIDTH;
         }
-    }, [timeWindow, viewMode, UNIT_WIDTH]); // Ensure UNIT_WIDTH is here
+    }, [timeWindow, viewMode, UNIT_WIDTH]);
 
     // Lane Allocation System - Detect overlaps PER DAY and assign lanes
     const taskLanes = useMemo(() => {
@@ -331,7 +326,7 @@ export function GanttSVG({
 
         filteredTasks.forEach(task => {
             const machine = task.machine || "Sin Máquina";
-            const day = moment(task.planned_date).format("YYYY-MM-DD");
+            const day = format(new Date(task.planned_date!), "yyyy-MM-dd");
             const key = `${machine}|${day}`;
 
             if (!machineDayTaskGroups.has(key)) {
@@ -344,14 +339,14 @@ export function GanttSVG({
         machineDayTaskGroups.forEach((tasks) => {
             // Sort by start time
             const sorted = [...tasks].sort((a, b) =>
-                moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
+                new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
             );
 
             const laneEnds: number[] = []; // Track when each lane ends
 
             sorted.forEach(task => {
-                const taskStart = moment(task.planned_date).valueOf();
-                const taskEnd = moment(task.planned_end).valueOf();
+                const taskStart = new Date(task.planned_date!).getTime();
+                const taskEnd = new Date(task.planned_end!).getTime();
 
                 // Find first available lane
                 let assignedLane = 0;
@@ -391,48 +386,48 @@ export function GanttSVG({
                 return;
             }
 
-            const viewStart = timeWindow.start.clone().startOf('day');
-            const viewEnd = timeWindow.end.clone().subtract(2, 'hours').endOf('day');
+            const viewStart = startOfDay(timeWindow.start);
+            const viewEnd = endOfDay(addHours(timeWindow.end, -2));
 
             let totalShiftHours = 0;
             let occupiedHours = 0;
 
-            const currentDay = viewStart.clone();
-            while (currentDay.isBefore(viewEnd)) {
+            let currentDayIter = new Date(viewStart);
+            while (isBefore(currentDayIter, viewEnd)) {
                 totalShiftHours += SHIFT_HOURS;
 
-                const dayShiftStart = currentDay.clone().hour(SHIFT_START);
-                const dayShiftEnd = currentDay.clone().hour(SHIFT_END);
+                const dayShiftStart = set(currentDayIter, { hours: SHIFT_START, minutes: 0, seconds: 0, milliseconds: 0 });
+                const dayShiftEnd = set(currentDayIter, { hours: SHIFT_END, minutes: 0, seconds: 0, milliseconds: 0 });
 
                 const dailyTasks = machineTasks
                     .filter(task => {
-                        const taskStart = moment(task.planned_date);
-                        const taskEnd = moment(task.planned_end);
-                        return taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart);
+                        const taskStart = new Date(task.planned_date!);
+                        const taskEnd = new Date(task.planned_end!);
+                        return isBefore(taskStart, dayShiftEnd) && isAfter(taskEnd, dayShiftStart);
                     })
                     .sort((a, b) =>
-                        moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf()
+                        new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
                     );
 
                 let currentLaneEnd = 0;
                 dailyTasks.forEach(task => {
-                    const taskStart = moment(task.planned_date);
-                    const taskEnd = moment(task.planned_end);
-                    if (taskStart.valueOf() >= currentLaneEnd) {
-                        if (taskStart.isBefore(dayShiftEnd) && taskEnd.isAfter(dayShiftStart)) {
-                            const overlapStart = moment.max(taskStart, dayShiftStart);
-                            const overlapEnd = moment.min(taskEnd, dayShiftEnd);
+                    const taskStart = new Date(task.planned_date!);
+                    const taskEnd = new Date(task.planned_end!);
+                    if (taskStart.getTime() >= currentLaneEnd) {
+                        if (isBefore(taskStart, dayShiftEnd) && isAfter(taskEnd, dayShiftStart)) {
+                            const overlapStart = isAfter(taskStart, dayShiftStart) ? taskStart : dayShiftStart;
+                            const overlapEnd = isBefore(taskEnd, dayShiftEnd) ? taskEnd : dayShiftEnd;
 
-                            if (overlapEnd.isAfter(overlapStart)) {
-                                occupiedHours += overlapEnd.diff(overlapStart, 'hours', true);
-                                currentLaneEnd = taskEnd.valueOf();
+                            if (isAfter(overlapEnd, overlapStart)) {
+                                occupiedHours += differenceInMilliseconds(overlapEnd, overlapStart) / (1000 * 60 * 60);
+                                currentLaneEnd = taskEnd.getTime();
                             }
                         }
-                        currentLaneEnd = Math.max(currentLaneEnd, taskEnd.valueOf());
+                        currentLaneEnd = Math.max(currentLaneEnd, taskEnd.getTime());
                     }
                 });
 
-                currentDay.add(1, 'days');
+                currentDayIter = addDays(currentDayIter, 1);
             }
 
             const ut = totalShiftHours === 0 ? 0 : Math.min(100, Math.round((occupiedHours / totalShiftHours) * 100));
@@ -512,7 +507,7 @@ export function GanttSVG({
             if (groupTasks.length < 2) return;
 
             // Sort by start date
-            groupTasks.sort((a, b) => moment(a.planned_date).diff(moment(b.planned_date)));
+            groupTasks.sort((a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime());
 
             for (let i = 0; i < groupTasks.length - 1; i++) {
                 const startTask = groupTasks[i];
@@ -525,8 +520,8 @@ export function GanttSVG({
                 const startY = (machineYOffsets.get(startMachine) || 0) + ROW_PADDING + ((taskLanes.get(startTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
                 const endY = (machineYOffsets.get(endMachine) || 0) + ROW_PADDING + ((taskLanes.get(endTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
 
-                const startX = timeToX(moment(startTask.planned_end));
-                const endX = timeToX(moment(endTask.planned_date));
+                const startX = timeToX(new Date(startTask.planned_end!));
+                const endX = timeToX(new Date(endTask.planned_date!));
 
                 // Bezier Curve
                 const controlOffset = Math.min(Math.abs(endX - startX) / 2, 50);
@@ -583,35 +578,31 @@ export function GanttSVG({
     };
 
     const onMouseDown = (e: React.MouseEvent, task: PlanningTask) => {
-        const now = currentTime || moment();
-        const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(now);
+        const now = currentTime || new Date();
+        const isFinishedOrRunning = !!task.check_in || !!task.check_out || isBefore(new Date(task.planned_date!), now);
         const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
 
         if (readOnly) return;
-        if (isLocked) return; // Locked tasks cannot be dragged
+        if (isLocked) return;
         e.stopPropagation();
-        setHoveredTask(null); // Hide tooltip immediately
+        setHoveredTask(null);
 
-        // Capture Snapshot
         snapshotRef.current = optimisticTasks;
 
-        // If cascade mode, capture consecutive tasks on the same machine
         let cascadeIds: string[] = [];
         if (cascadeMode) {
-            const taskEnd = moment(task.planned_end);
-            // Include both real and draft tasks in the cascade, but only if they are not locked
+            const taskEnd = new Date(task.planned_end!);
             const sameMachine = optimisticTasks
                 .filter(t => t.machine === task.machine && t.id !== task.id)
                 .filter(t => {
-                    const isFinishedOrRunning = !!t.check_in || !!t.check_out || moment(t.planned_date).isBefore(now);
+                    const isFinishedOrRunning = !!t.check_in || !!t.check_out || isBefore(new Date(t.planned_date!), now);
                     const isLocked = !t.isDraft && (t.locked === true || (t.locked !== false && isFinishedOrRunning));
                     return !isLocked;
                 })
-                .sort((a, b) => moment(a.planned_date).valueOf() - moment(b.planned_date).valueOf());
+                .sort((a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime());
 
-            // Find consecutive chain: tasks whose start >= current task end
             for (const t of sameMachine) {
-                if (moment(t.planned_date).isSameOrAfter(taskEnd)) {
+                if (!isBefore(new Date(t.planned_date!), taskEnd)) {
                     cascadeIds.push(t.id);
                 }
             }
@@ -621,26 +612,25 @@ export function GanttSVG({
             id: task.id,
             startX: e.clientX,
             initialX: timeToX(task.planned_date!),
-            initialDuration: moment(task.planned_end).diff(moment(task.planned_date)), // Capture duration once
+            initialDuration: new Date(task.planned_end!).getTime() - new Date(task.planned_date!).getTime(),
             cascadeIds
         });
     };
 
     const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
-        const now = currentTime || moment();
-        const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(now);
+        const now = currentTime || new Date();
+        const isFinishedOrRunning = !!task.check_in || !!task.check_out || isBefore(new Date(task.planned_date!), now);
         const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
 
         if (readOnly) return;
-        if (isLocked) return; // Locked tasks cannot be resized
+        if (isLocked) return;
         e.stopPropagation();
-        setHoveredTask(null); // Hide tooltip immediately
+        setHoveredTask(null);
 
-        // Capture Snapshot
         snapshotRef.current = optimisticTasks;
 
-        const startDay = moment(task.planned_date).startOf('day').valueOf();
-        const endDay = moment(task.planned_date).endOf('day').valueOf();
+        const startDay = startOfDay(new Date(task.planned_date!)).getTime();
+        const endDay = endOfDay(new Date(task.planned_date!)).getTime();
 
         setResizingTask({
             id: task.id,
@@ -662,27 +652,24 @@ export function GanttSVG({
             // Snap to 15 mins
             newStartTime = roundToNearest15Minutes(newStartTime);
 
-            // Calculate the delta in milliseconds for cascade
-            const originalStart = moment(xToTime(draggingTask.initialX));
-            const deltaMs = newStartTime.diff(originalStart);
+            const originalStart = xToTime(draggingTask.initialX);
+            const deltaMs = newStartTime.getTime() - originalStart.getTime();
 
             setOptimisticTasks(prev => prev.map(t => {
                 if (t.id === draggingTask.id) {
-                    // Use captured, constant duration to prevent drift
                     return {
                         ...t,
-                        planned_date: newStartTime.format("YYYY-MM-DDTHH:mm:ss"),
-                        planned_end: newStartTime.clone().add(draggingTask.initialDuration).format("YYYY-MM-DDTHH:mm:ss")
+                        planned_date: format(newStartTime, "yyyy-MM-dd'T'HH:mm:ss"),
+                        planned_end: format(addMilliseconds(newStartTime, draggingTask.initialDuration), "yyyy-MM-dd'T'HH:mm:ss")
                     };
                 }
-                // Cascade: move consecutive tasks by the same delta
                 if (draggingTask.cascadeIds?.includes(t.id)) {
-                    const origStart = moment(snapshotRef.current.find(s => s.id === t.id)?.planned_date);
-                    const origEnd = moment(snapshotRef.current.find(s => s.id === t.id)?.planned_end);
+                    const origStart = new Date(snapshotRef.current.find(s => s.id === t.id)?.planned_date!);
+                    const origEnd = new Date(snapshotRef.current.find(s => s.id === t.id)?.planned_end!);
                     return {
                         ...t,
-                        planned_date: origStart.clone().add(deltaMs).format("YYYY-MM-DDTHH:mm:ss"),
-                        planned_end: origEnd.clone().add(deltaMs).format("YYYY-MM-DDTHH:mm:ss")
+                        planned_date: format(addMilliseconds(origStart, deltaMs), "yyyy-MM-dd'T'HH:mm:ss"),
+                        planned_end: format(addMilliseconds(origEnd, deltaMs), "yyyy-MM-dd'T'HH:mm:ss")
                     };
                 }
                 return t;
@@ -690,51 +677,41 @@ export function GanttSVG({
         } else if (resizingTask) {
             const deltaX = e.clientX - resizingTask.startX;
             const direction = resizingTask.direction || 'right';
-            const limitStart = resizingTask.dayStart ? moment(resizingTask.dayStart) : null;
-            const limitEnd = resizingTask.dayEnd ? moment(resizingTask.dayEnd) : null;
+            const limitStart = resizingTask.dayStart ? new Date(resizingTask.dayStart) : null;
+            const limitEnd = resizingTask.dayEnd ? new Date(resizingTask.dayEnd) : null;
 
             setOptimisticTasks(prev => prev.map(t => {
                 if (t.id === resizingTask.id) {
                     if (direction === 'right') {
                         const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
                         let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
-
-                        // Snap End Time
                         newEndTime = roundToNearest15Minutes(newEndTime);
 
-                        // CLAMP to day end
-                        if (limitEnd && newEndTime.isAfter(limitEnd)) {
-                            newEndTime = limitEnd.clone();
+                        if (limitEnd && isAfter(newEndTime, limitEnd)) {
+                            newEndTime = new Date(limitEnd);
                         }
 
-                        // Ensure min duration (15 mins)
-                        const currentStart = moment(t.planned_date);
-                        if (newEndTime.diff(currentStart, 'minutes') < 15) {
-                            newEndTime = currentStart.clone().add(15, 'minutes');
+                        const currentStart = new Date(t.planned_date!);
+                        if (differenceInMinutes(newEndTime, currentStart) < 15) {
+                            newEndTime = addMinutes(currentStart, 15);
                         }
 
-                        return { ...t, planned_end: newEndTime.format("YYYY-MM-DDTHH:mm:ss") };
+                        return { ...t, planned_end: format(newEndTime, "yyyy-MM-dd'T'HH:mm:ss") };
                     } else {
-                        // Left resize
-                        // 1. Calculate ideal new X
                         let newX = (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
                         let newStartDate = xToTime(newX);
-
-                        // Snap Start Time
                         newStartDate = roundToNearest15Minutes(newStartDate);
 
-                        // 2. CLAMP to day start
-                        if (limitStart && newStartDate.isBefore(limitStart)) {
-                            newStartDate = limitStart.clone();
+                        if (limitStart && isBefore(newStartDate, limitStart)) {
+                            newStartDate = new Date(limitStart);
                         }
 
-                        // Re-validate against end time to ensure min width
-                        const currentEnd = moment(t.planned_end);
-                        if (currentEnd.diff(newStartDate, 'minutes') < 15) {
-                            newStartDate = currentEnd.clone().subtract(15, 'minutes');
+                        const currentEnd = new Date(t.planned_end!);
+                        if (differenceInMinutes(currentEnd, newStartDate) < 15) {
+                            newStartDate = addMinutes(currentEnd, -15);
                         }
 
-                        return { ...t, planned_date: newStartDate.format("YYYY-MM-DDTHH:mm:ss") };
+                        return { ...t, planned_date: format(newStartDate, "yyyy-MM-dd'T'HH:mm:ss") };
                     }
                 }
                 return t;
@@ -759,34 +736,33 @@ export function GanttSVG({
     // 5. Grid Helpers - Generate columns based on view mode
     const timeColumns = useMemo(() => {
         const columns = [];
-        let curr = moment(timeWindow.start);
+        let curr = new Date(timeWindow.start);
 
-        while (curr.isBefore(timeWindow.end)) {
+        while (isBefore(curr, timeWindow.end)) {
             const isSpecial = viewMode === 'hour'
-                ? curr.hour() === 0
+                ? getHours(curr) === 0
                 : viewMode === 'day'
-                    ? curr.day() === 1 // Monday
-                    : curr.date() === 1; // First of month
+                    ? getDay(curr) === 1 // Monday
+                    : getDate(curr) === 1; // First of month
 
             columns.push({
-                time: curr.clone(),
+                time: new Date(curr),
                 x: timeToX(curr),
                 label: viewMode === 'hour'
-                    ? curr.format('HH:mm')
+                    ? format(curr, 'HH:mm')
                     : viewMode === 'day'
-                        ? curr.format('DD MMM')
-                        : `Sem ${curr.week()}`,
-                dateLabel: curr.format('DD MMM'),
+                        ? format(curr, 'dd MMM', { locale: es })
+                        : `Sem ${getISOWeek(curr)}`,
+                dateLabel: format(curr, 'dd MMM', { locale: es }),
                 isSpecial
             });
 
-            // Step based on view mode
             if (viewMode === 'hour') {
-                curr.add(1, 'hour');
+                curr = addHours(curr, 1);
             } else if (viewMode === 'day') {
-                curr.add(1, 'day');
+                curr = addDays(curr, 1);
             } else {
-                curr.add(1, 'week');
+                curr = addWeeks(curr, 1);
             }
         }
         return columns;
@@ -797,38 +773,31 @@ export function GanttSVG({
         if (viewMode === 'hour') {
             // Hour view: navigate by day
             if (direction === 'today') {
-                setSelectedDate(moment().startOf('day'));
-                // Scroll to current time after state update
+                setSelectedDate(startOfDay(new Date()));
                 setTimeout(() => scrollToNow(), 100);
             } else {
                 const shift = direction === 'prev' ? -1 : 1;
-                setSelectedDate(prev => moment(prev).add(shift, 'day'));
+                setSelectedDate(prev => addDays(prev, shift));
             }
         } else {
-            // Day/Week view: navigate by range (Standardized to Week/Month)
             if (direction === 'today') {
                 if (viewMode === 'day') {
-                    // Reset to current Week
-                    setDateRangeStart(moment().startOf('isoWeek'));
-                    setDateRangeEnd(moment().endOf('isoWeek'));
+                    setDateRangeStart(startOfISOWeek(new Date()));
+                    setDateRangeEnd(endOfISOWeek(new Date()));
                 } else {
-                    // Reset to current Month
-                    setDateRangeStart(moment().startOf('month'));
-                    setDateRangeEnd(moment().endOf('month'));
+                    setDateRangeStart(startOfMonth(new Date()));
+                    setDateRangeEnd(endOfMonth(new Date()));
                 }
-                // Scroll to current time after state update
                 setTimeout(() => scrollToNow(), 100);
             } else {
                 const shiftDir = direction === 'prev' ? -1 : 1;
 
                 if (viewMode === 'day') {
-                    // Navigate strictly by WEEK
-                    setDateRangeStart(prev => moment(prev).add(shiftDir, 'weeks').startOf('isoWeek'));
-                    setDateRangeEnd(prev => moment(prev).add(shiftDir, 'weeks').endOf('isoWeek'));
+                    setDateRangeStart(prev => startOfISOWeek(addWeeks(prev, shiftDir)));
+                    setDateRangeEnd(prev => endOfISOWeek(addWeeks(prev, shiftDir)));
                 } else {
-                    // Navigate strictly by MONTH
-                    setDateRangeStart(prev => moment(prev).add(shiftDir, 'months').startOf('month'));
-                    setDateRangeEnd(prev => moment(prev).add(shiftDir, 'months').endOf('month'));
+                    setDateRangeStart(prev => startOfMonth(addMonths(prev, shiftDir)));
+                    setDateRangeEnd(prev => endOfMonth(addMonths(prev, shiftDir)));
                 }
             }
         }
@@ -845,7 +814,7 @@ export function GanttSVG({
     const scrollToNow = () => {
         if (!scrollContainerRef.current) return;
 
-        const now = moment();
+        const now = new Date();
         const nowX = timeToX(now);
         const containerWidth = scrollContainerRef.current.clientWidth;
 
@@ -926,15 +895,15 @@ export function GanttSVG({
                                             className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground text-[10px] font-black uppercase tracking-tight flex items-center gap-1.5"
                                             title="Seleccionar fecha"
                                         >
-                                            {moment(selectedDate).locale('es').format('dddd - DD/MMMM/YYYY').toUpperCase()}
+                                            {format(selectedDate, 'EEEE - dd/MMMM/yyyy', { locale: es }).toUpperCase()}
                                             <ChevronRight className="w-3 h-3 rotate-90 opacity-40" />
                                         </button>
                                     </PopoverTrigger>
                                     <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start" side="bottom" sideOffset={10}>
                                         <CalendarUI
                                             mode="single"
-                                            selected={selectedDate.toDate()}
-                                            onSelect={(date) => date && setSelectedDate(moment(date))}
+                                            selected={selectedDate}
+                                            onSelect={(date) => date && setSelectedDate(date)}
                                             initialFocus
                                             locale={es}
                                             className="rounded-xl border-border shadow-2xl bg-background/95 backdrop-blur-md"
@@ -951,15 +920,15 @@ export function GanttSVG({
                                             >
                                                 <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
                                                 <span className="capitalize">
-                                                    {dateRangeStart.format("dddd DD/MM/YYYY")}
+                                                    {format(dateRangeStart, "EEEE dd/MM/yyyy", { locale: es })}
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start">
                                             <CalendarUI
                                                 mode="single"
-                                                selected={dateRangeStart.toDate()}
-                                                onSelect={(date) => date && setDateRangeStart(moment(date))}
+                                                selected={dateRangeStart}
+                                                onSelect={(date) => date && setDateRangeStart(date)}
                                                 initialFocus
                                                 locale={es}
                                             />
@@ -974,15 +943,15 @@ export function GanttSVG({
                                             >
                                                 <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
                                                 <span className="capitalize">
-                                                    {dateRangeEnd.format("dddd DD/MM/YYYY")}
+                                                    {format(dateRangeEnd, "EEEE dd/MM/yyyy", { locale: es })}
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="end">
                                             <CalendarUI
                                                 mode="single"
-                                                selected={dateRangeEnd.toDate()}
-                                                onSelect={(date) => date && setDateRangeEnd(moment(date))}
+                                                selected={dateRangeEnd}
+                                                onSelect={(date) => date && setDateRangeEnd(date)}
                                                 initialFocus
                                                 locale={es}
                                             />
@@ -1196,7 +1165,7 @@ export function GanttSVG({
                                 const isDragging = draggingTask?.id === task.id;
                                 const isResizing = resizingTask?.id === task.id;
                                 const activeTask = isDragging || isResizing;
-                                const isFinishedOrRunning = !!task.check_in || !!task.check_out || moment(task.planned_date).isBefore(currentTime);
+                                const isFinishedOrRunning = !!task.check_in || !!task.check_out || isBefore(new Date(task.planned_date!), currentTime);
                                 const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
 
 
@@ -1357,8 +1326,8 @@ export function GanttSVG({
                                                     setModalData({
                                                         id: task.id,
                                                         machine: task.machine || "Sin Máquina",
-                                                        start: moment(task.planned_date).format("YYYY-MM-DDTHH:mm"),
-                                                        end: moment(task.planned_end).format("YYYY-MM-DDTHH:mm"),
+                                                        start: format(new Date(task.planned_date!), "yyyy-MM-dd'T'HH:mm"),
+                                                        end: format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm"),
                                                         operator: task.operator || "",
                                                         orderId: task.order_id || "",
                                                         activeOrder: task.production_orders
@@ -1383,7 +1352,7 @@ export function GanttSVG({
 
                                                 {width > 100 && (
                                                     <div className="text-[8px] font-bold opacity-90 mt-1 whitespace-nowrap bg-black/10 px-1 py-0.5 rounded-sm self-start">
-                                                        {moment(task.planned_date).format("HH:mm")} - {moment(task.planned_end).format("HH:mm")}
+                                                        {format(new Date(task.planned_date!), "HH:mm")} - {format(new Date(task.planned_end!), "HH:mm")}
                                                     </div>
                                                 )}
                                             </div>
@@ -1505,11 +1474,11 @@ export function GanttSVG({
                                 </div>
                                 <div>
                                     <div className="text-foreground/40 uppercase tracking-wider">Inicio</div>
-                                    <div className="text-foreground font-semibold">{moment(hoveredTask.planned_date).format("DD/MM HH:mm")}</div>
+                                    <div className="text-foreground font-semibold">{format(new Date(hoveredTask.planned_date!), "dd/MM HH:mm")}</div>
                                 </div>
                                 <div>
                                     <div className="text-foreground/40 uppercase tracking-wider">Fin</div>
-                                    <div className="text-foreground font-semibold">{moment(hoveredTask.planned_end).format("DD/MM HH:mm")}</div>
+                                    <div className="text-foreground font-semibold">{format(new Date(hoveredTask.planned_end!), "dd/MM HH:mm")}</div>
                                 </div>
                             </div>
                         </div>
@@ -1533,8 +1502,8 @@ export function GanttSVG({
                             setModalData({
                                 id: task.id,
                                 machine: task.machine || "Sin Máquina",
-                                start: moment(task.planned_date).format("YYYY-MM-DDTHH:mm"),
-                                end: moment(task.planned_end).format("YYYY-MM-DDTHH:mm"),
+                                start: format(new Date(task.planned_date!), "yyyy-MM-dd'T'HH:mm"),
+                                end: format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm"),
                                 operator: task.operator || "",
                                 orderId: task.order_id || "",
                                 activeOrder: task.production_orders
@@ -1549,16 +1518,16 @@ export function GanttSVG({
                     {onToggleLock && !contextMenu.task.isDraft && (
                         <button
                             onClick={() => {
-                                const now = currentTime || moment();
-                                const isFinishedOrRunning = !!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(now);
+                                const now = currentTime || new Date();
+                                const isFinishedOrRunning = !!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), now);
                                 const currentIsLocked = contextMenu.task.locked === true || (contextMenu.task.locked !== false && isFinishedOrRunning);
                                 onToggleLock(contextMenu.task.id, !currentIsLocked);
                                 setContextMenu(null);
                             }}
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
                         >
-                            {(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(currentTime || moment())))) ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                            <span>{(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || moment(contextMenu.task.planned_date).isBefore(currentTime || moment())))) ? 'Desbloquear' : 'Bloquear'}</span>
+                            {(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date())))) ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                            <span>{(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date())))) ? 'Desbloquear' : 'Bloquear'}</span>
                         </button>
                     )}
                 </div>

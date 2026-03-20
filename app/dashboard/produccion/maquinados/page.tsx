@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import moment from "moment";
+import { format, subDays, addDays } from "date-fns";
 import { MachiningRealtimeWrapper } from "@/components/production/machining-realtime-wrapper";
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +26,8 @@ export default async function MaquinadosPage() {
     const operatorName = profile.operator_name;
 
     // Date range: 30 days back + 60 days forward (operator view focuses on near-term)
-    const rangeStart = moment().subtract(30, "days").format("YYYY-MM-DD");
-    const rangeEnd = moment().add(60, "days").format("YYYY-MM-DD");
+    const rangeStart = format(subDays(new Date(), 30), "yyyy-MM-dd");
+    const rangeEnd = format(addDays(new Date(), 60), "yyyy-MM-dd");
 
     // Fetch tasks for this operator
     let tasksQuery = supabase

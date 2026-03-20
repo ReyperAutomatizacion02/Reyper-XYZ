@@ -342,12 +342,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-10: MOMENT.JS EN LUGAR DE DATE-FNS (BUNDLE BLOAT)
+### ✅ H-10: MOMENT.JS EN LUGAR DE DATE-FNS (BUNDLE BLOAT) — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** MEDIA
+- **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** El proyecto importa **ambos** `moment` (72KB gzipped, no tree-shakeable) y `date-fns` (tree-shakeable). `moment` se usa extensivamente en el módulo de producción (50+ instancias) mientras que `date-fns` se usa en otras partes. Esto agrega ~72KB innecesarios al bundle del cliente.
 - **Impacto:** Bundle del cliente inflado. Moment.js está oficialmente en modo de mantenimiento y su equipo recomienda alternativas.
+- **Resolución:** Se migraron los 13 archivos que usaban `moment` a `date-fns`. Se eliminó la dependencia `moment` de `package.json`, ahorrando ~72KB gzipped en el bundle del cliente. 66 tests pasan y el build compila sin errores.
 - **Archivos con moment:**
   - `components/production/production-view.tsx:52-53`
   - `components/production/gantt-svg.tsx`
@@ -551,7 +553,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)~~ ✅ Resuelto 2026-03-20 — Archivo principal reducido de 1,899 a 744 líneas. Extraídos 6 módulos: `useEvaluationFilters` hook (176 lín), `EvaluationSidebar` (405 lín), `StrategyToolbar` (289 lín), `GanttControls` (263 lín), `BlueprintPreviewDialog` (61 lín), `ConfirmationDialogs` (86 lín)
 
 ### Prioridad MEDIA (Semana 3-4)
-- [ ] Reemplazar `moment.js` con `date-fns` en todo el módulo de producción
+- [x] ~~Reemplazar `moment.js` con `date-fns` en todo el módulo de producción~~ ✅ Resuelto 2026-03-20 — Migrados 13 archivos (scheduling-utils, gantt-svg, production-view, machining-view, evaluation-sidebar, use-evaluation-filters, create-task-modal, evaluation-modal, actions.ts, 2 pages, 2 scripts). Dependencia `moment` eliminada de package.json. 66 tests pasan, build exitoso.
 - [ ] Migrar imágenes a `next/image`
 - [ ] Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)
 - [ ] Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)
