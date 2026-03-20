@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deleteQuoteFiles } from '@/app/dashboard/ventas/actions';
+import { deleteQuoteFilesInternal } from '@/lib/storage-utils';
 
 // Ensure this route is not statically optimized
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
             console.log(`[WEBHOOK] Recibido evento DELETE para la cotización: ${quoteId}. Iniciando limpieza de Storage...`);
 
             // 4. Execute the deletion using our robust, Admin-powered function
-            await deleteQuoteFiles(quoteId);
+            await deleteQuoteFilesInternal(quoteId);
 
             return NextResponse.json({ success: true, message: `Archivos de cotización ${quoteId} eliminados correctamente.` });
         }

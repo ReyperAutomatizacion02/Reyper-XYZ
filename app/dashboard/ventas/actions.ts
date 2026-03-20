@@ -19,8 +19,8 @@ import {
     QuoteStatusSchema,
 } from "@/lib/validations/sales";
 import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { requireAuth, requireRole } from "@/lib/auth-guard";
+import { deleteQuoteFilesInternal } from "@/lib/storage-utils";
 
 const VENTAS_ROLES = ["admin", "ventas"];
 
@@ -488,49 +488,28 @@ export async function deleteQuote(id: string, reason: string) {
 }
 
 /**
- * Deletes all files in the storage bucket for a specific quote, including item assets.
- * This version uses the Service Role Key to bypass RLS policies and ensure deletion.
- * It strictly deletes the `quotes/{quoteId}/` folder to avoid deleting shared catalog images.
+ * Server action: Deletes all files in the storage bucket for a specific quote.
+ * Requires authenticated user with ventas/admin role.
+ * Verifies the quote exists and is accessible to the user before delegating to admin deletion.
  */
 export async function deleteQuoteFiles(quoteId: string) {
     const { id: validQuoteId } = IdSchema.parse({ id: quoteId });
-    // Usar el Service Role Key para tener privilegios de borrado absolutos y saltarse RLS
-    const supabaseAdmin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    await requireRole(supabase, VENTAS_ROLES);
 
-    console.log(`[STORAGE] >>> INICIANDO LIMPIEZA DE CARPETA COTIZACIÓN: ${validQuoteId} (ADMIN)`);
+    // Verificar que la cotización existe y es accesible (RLS aplica aquí)
+    const { data: quote } = await supabase
+        .from("sales_quotes")
+        .select("id")
+        .eq("id", validQuoteId)
+        .single();
 
-    // 1. Intentar limpiar la CARPETA entera en el bucket 'quotes' (Basado en el ID de la cotización)
-    try {
-        console.log(`[STORAGE] Listando archivos en 'quotes/${validQuoteId}'...`);
-        const { data: files, error: listError } = await supabaseAdmin.storage
-            .from("quotes")
-            .list(validQuoteId);
-
-        if (listError) {
-            console.error(`[STORAGE] [!] Error al listar 'quotes/${validQuoteId}':`, listError.message);
-        } else if (files && files.length > 0) {
-            const filesToRemove = files.map((f) => `${validQuoteId}/${f.name}`);
-            console.log(`[STORAGE] Encontrados ${files.length} archivos en carpeta. Borrando uno a uno para mayor seguridad...`);
-
-            for (const path of filesToRemove) {
-                const { error: removeError } = await supabaseAdmin.storage.from("quotes").remove([path]);
-                if (removeError) {
-                    console.error(`[STORAGE] [FALLO] No se pudo borrar ${path} en 'quotes':`, removeError.message);
-                } else {
-                    console.log(`[STORAGE] [OK] Borrado exitoso: quotes/${path}`);
-                }
-            }
-        } else {
-            console.log(`[STORAGE] No se encontraron archivos directos en la carpeta 'quotes/${validQuoteId}'.`);
-        }
-    } catch (e: any) {
-        console.error("[STORAGE] [CRITICO] Excepción en limpieza de carpeta 'quotes':", e.message);
+    if (!quote) {
+        throw new Error("Cotización no encontrada o sin permisos.");
     }
 
-    console.log(`[STORAGE] <<< FINALIZADA LIMPIEZA PARA COTIZACIÓN: ${validQuoteId}`);
+    await deleteQuoteFilesInternal(validQuoteId);
 }
 
 export async function getNextProjectCode(clientPrefix: string) {

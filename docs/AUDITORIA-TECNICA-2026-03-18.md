@@ -513,35 +513,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-16: `deleteQuoteFiles()` USA SERVICE ROLE SIN VERIFICACIÓN DE PROPIEDAD
+### ✅ H-16: `deleteQuoteFiles()` USA SERVICE ROLE SIN VERIFICACIÓN DE PROPIEDAD — RESUELTO
 
 - **Categoría:** Seguridad
 - **Gravedad:** ALTA
+- **Estado:** ✅ RESUELTO (2026-03-20)
+- **Resolución:** Se separó la lógica en dos capas: (1) `lib/storage-utils.ts` contiene `deleteQuoteFilesInternal()` — función interna no exportada como server action, usada solo desde código de servidor confiable (webhook). (2) El server action `deleteQuoteFiles()` en `ventas/actions.ts` ahora requiere `requireRole(supabase, VENTAS_ROLES)` y verifica que la cotización exista y sea accesible vía RLS antes de delegar al admin client. El webhook (`api/webhooks/supabase/quotes/route.ts`) importa directamente la función interna, ya que su autenticación se hace via `SUPABASE_WEBHOOK_SECRET`.
 - **Diagnóstico:** La función `deleteQuoteFiles()` en `app/dashboard/ventas/actions.ts:464-502` crea un cliente admin con `SUPABASE_SERVICE_ROLE_KEY` para eliminar archivos de storage, pero no verifica que la cotización pertenezca al usuario autenticado. Si se invoca con un `quoteId` arbitrario, elimina archivos de cualquier cotización.
 - **Impacto:** Un usuario autenticado con rol de ventas podría eliminar archivos de cotizaciones que no le pertenecen.
-- **Refactorización Propuesta:**
-
-  ```typescript
-  export async function deleteQuoteFiles(quoteId: string) {
-    const supabase = await createClient();
-    const { user } = await requireAuth(supabase);
-
-    // Verificar propiedad antes de usar service role
-    const { data: quote } = await supabase
-      .from("sales_quotes")
-      .select("id, created_by")
-      .eq("id", quoteId)
-      .single();
-
-    if (!quote || quote.created_by !== user.id) {
-      throw new Error("No autorizado para eliminar esta cotización");
-    }
-
-    // Ahora sí, usar service role para storage
-    const supabaseAdmin = createAdminClient(/* ... */);
-    // ... resto de la lógica
-  }
-  ```
 
 ---
 
@@ -620,7 +599,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Reemplazar mensajes de error internos con mensajes genéricos al usuario~~ ✅ Resuelto 2026-03-18 — ~50 instancias corregidas en 8 archivos, errores internos solo en console.error con prefijo de módulo
 
 ### Prioridad ALTA (Semana 2-3)
-- [ ] Agregar verificación de propiedad en `deleteQuoteFiles()`
+- [x] ~~Agregar verificación de propiedad en `deleteQuoteFiles()`~~ ✅ Resuelto 2026-03-20 — Separado en `deleteQuoteFilesInternal` (lib/storage-utils.ts) + server action con requireRole y verificación RLS
 - [ ] Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)
 - [ ] Unificar componentes duplicados en `components/shared/`
 - [ ] Agregar security headers en `next.config.ts`

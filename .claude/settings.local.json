@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(echo \"Exit code: $?\")",
-      "Bash(ls -d \"c:/Users/User2/Documents/Reyper XYZ/app/dashboard\"/*/)"
+      "Bash(ls -d \"c:/Users/User2/Documents/Reyper XYZ/app/dashboard\"/*/)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
