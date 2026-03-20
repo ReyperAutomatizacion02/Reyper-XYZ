@@ -404,31 +404,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-12: SIN RATE LIMITING NI SECURITY HEADERS
+### ✅ H-12: SIN RATE LIMITING NI SECURITY HEADERS — PARCIALMENTE RESUELTO
 
 - **Categoría:** Seguridad
 - **Gravedad:** MEDIA
+- **Estado:** ⚠️ PARCIALMENTE RESUELTO (2026-03-20) — Security headers agregados. Rate limiting pendiente (requiere infraestructura adicional como Vercel WAF, Upstash, o middleware con Redis).
+- **Resolución:** Se agregaron 5 security headers en `next.config.ts`: `X-Frame-Options: DENY` (anti-clickjacking), `X-Content-Type-Options: nosniff` (anti-MIME sniffing), `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security` con preload (HSTS), y `Permissions-Policy` (deshabilita camera/mic/geo). El header `X-Powered-By` ya estaba deshabilitado via `poweredByHeader: false`.
 - **Diagnóstico:** No hay rate limiting en ningún endpoint. No hay headers de seguridad configurados (CSP, X-Frame-Options, Strict-Transport-Security). El middleware solo maneja auth y routing.
 - **Impacto:** Vulnerable a ataques de fuerza bruta en login, spam en server actions, y clickjacking. Violación de OWASP A05:2021 (Security Misconfiguration).
-- **Refactorización Propuesta:**
-
-  Agregar headers en `next.config.ts`:
-  ```typescript
-  const nextConfig: NextConfig = {
-    // ... existing config
-    headers: async () => [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-        ],
-      },
-    ],
-  };
-  ```
 
 ---
 
@@ -563,7 +546,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Agregar verificación de propiedad en `deleteQuoteFiles()`~~ ✅ Resuelto 2026-03-20 — Separado en `deleteQuoteFilesInternal` (lib/storage-utils.ts) + server action con requireRole y verificación RLS
 - [x] ~~Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)~~ ✅ Resuelto 2026-03-20 — Filtros por rango de fechas en planeacion (±90/180 días) y maquinados (±30/60 días), eliminados limits arbitrarios y query de operadores redundante
 - [x] ~~Unificar componentes duplicados en `components/shared/`~~ ✅ Resuelto 2026-03-20 — 6 componentes unificados, 12 duplicados eliminados, 3 imports actualizados
-- [ ] Agregar security headers en `next.config.ts`
+- [x] ~~Agregar security headers en `next.config.ts`~~ ✅ Resuelto 2026-03-20 — 5 headers de seguridad agregados (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy). Rate limiting pendiente.
 - [ ] Agregar `loading.tsx` a todas las rutas con fetches pesados
 - [ ] Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)
 
