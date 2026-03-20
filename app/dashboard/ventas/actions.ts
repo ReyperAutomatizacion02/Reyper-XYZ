@@ -32,7 +32,7 @@ export async function createClientEntry(name: string, prefix?: string, business_
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_clients").insert(parsed).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -42,7 +42,7 @@ export async function createContactEntry(name: string, client_id?: string, is_ac
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_contacts").insert(parsed).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -59,7 +59,7 @@ export async function createContactBatch(names: string[], client_id?: string, is
     }));
 
     const { error } = await supabase.from("sales_contacts").insert(records);
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -69,7 +69,7 @@ export async function updateClientEntry(id: string, name: string, prefix?: strin
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_clients").update({ name: parsed.name, prefix: parsed.prefix, business_name: parsed.business_name, is_active: parsed.is_active }).eq("id", parsed.id);
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -79,7 +79,7 @@ export async function deleteClientEntry(id: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_clients").delete().eq("id", validId);
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -89,7 +89,7 @@ export async function updateContactEntry(id: string, name: string, client_id?: s
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_contacts").update({ name: parsed.name, client_id: parsed.client_id, is_active: parsed.is_active }).eq("id", parsed.id);
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -99,7 +99,7 @@ export async function deleteContactEntry(id: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { error } = await supabase.from("sales_contacts").delete().eq("id", validId);
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -110,7 +110,7 @@ export async function createPositionEntry(name: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_positions").insert({ name: parsed.name }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -120,7 +120,7 @@ export async function createAreaEntry(name: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_areas").insert({ name: parsed.name }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -130,7 +130,7 @@ export async function createUnitEntry(name: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_units").insert({ name: parsed.name }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -140,7 +140,7 @@ export async function createMaterialEntry(name: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("sales_materials").insert({ name: parsed.name }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -150,7 +150,7 @@ export async function createTreatmentEntry(name: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, VENTAS_ROLES);
     const { data, error } = await supabase.from("production_treatments").insert({ name: parsed.name }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data?.id;
 }
 
@@ -169,7 +169,7 @@ export async function saveQuote(quoteData: Record<string, unknown>, items: Recor
         .select("id, quote_number")
         .single();
 
-    if (quoteError) throw new Error(quoteError.message);
+    if (quoteError) { console.error("[ventas] saveQuote:", quoteError.message); throw new Error("Error al guardar la cotización."); }
 
     // 2. Insert Items
     const itemsWithQuoteId = parsed.items.map((item, index) => ({
@@ -183,7 +183,8 @@ export async function saveQuote(quoteData: Record<string, unknown>, items: Recor
         if (itemsError) {
             // Optional: Delete quote if items fail
             await supabase.from("sales_quotes").delete().eq("id", quote.id);
-            throw new Error(itemsError.message);
+            console.error("[ventas] saveQuote items:", itemsError.message);
+            throw new Error("Error al guardar las partidas de la cotización.");
         }
     }
 
@@ -241,7 +242,7 @@ export async function getQuotesHistory() {
         .in("status", ["active", "approved", "cancelled"])
         .order("quote_number", { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data;
 }
 
@@ -268,7 +269,7 @@ export async function getActiveProjects() {
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     return (data ?? []).map(project => ({
         ...project,
@@ -353,7 +354,7 @@ export async function getProjectDetails(projectId: string) {
         .eq("project_id", validId)
         .order("part_code", { ascending: true });
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return items.map(item => ({ ...item, status: item.genral_status }));
 }
 
@@ -402,7 +403,7 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
         })
         .eq("id", parsed.id);
 
-    if (quoteError) throw new Error(quoteError.message);
+    if (quoteError) { console.error("[ventas] updateQuote:", quoteError.message); throw new Error("Error al actualizar la cotización."); }
 
     // 3. Delete old items and insert fresh ones (Simplest way to sync)
     await supabase.from("sales_quote_items").delete().eq("quote_id", parsed.id);
@@ -415,7 +416,7 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
 
     if (itemsWithQuoteId.length > 0) {
         const { error: itemsError } = await supabase.from("sales_quote_items").insert(itemsWithQuoteId);
-        if (itemsError) throw new Error(itemsError.message);
+        if (itemsError) { console.error("[ventas] updateQuote items:", itemsError.message); throw new Error("Error al actualizar las partidas."); }
     }
 
     // 4. Cleanup orphaned storage files
@@ -482,7 +483,7 @@ export async function deleteQuote(id: string, reason: string) {
         })
         .eq("id", parsed.id);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 
@@ -544,7 +545,7 @@ export async function getNextProjectCode(clientPrefix: string) {
         .order("code", { ascending: false })
         .limit(1);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     let nextNum = 1;
     if (data && data.length > 0) {
@@ -582,10 +583,10 @@ export async function convertQuoteToProject(
 
         // 1. Get Quote and Items
         const quote = await getQuoteById(quoteId);
-        if (!quote) throw new Error("Quote not found");
-        if (quote.status === QUOTE_STATUS.APPROVED) throw new Error("Quote already approved");
-        if (!quote.client_id) throw new Error("Quote has no client assigned");
-        if (!quote.contact_id) throw new Error("Quote has no contact assigned");
+        if (!quote) throw new Error("Cotización no encontrada.");
+        if (quote.status === QUOTE_STATUS.APPROVED) throw new Error("La cotización ya fue aprobada.");
+        if (!quote.client_id) throw new Error("La cotización no tiene un cliente asignado.");
+        if (!quote.contact_id) throw new Error("La cotización no tiene un contacto asignado.");
 
         // 2. Get Client Prefix
         const { data: client, error: clientError } = await supabase
@@ -594,7 +595,7 @@ export async function convertQuoteToProject(
             .eq("id", quote.client_id)
             .single();
 
-        if (clientError || !client || !client.prefix) throw new Error("Client prefix not found");
+        if (clientError || !client || !client.prefix) throw new Error("Prefijo de cliente no encontrado.");
 
         const projectCode = await getNextProjectCode(client.prefix);
         const finalProjectName = projectName || `COT-${quote.quote_number}`;
@@ -606,7 +607,7 @@ export async function convertQuoteToProject(
             .eq("id", quote.contact_id)
             .single();
 
-        if (contactError) throw new Error("Contact name not found: " + contactError.message);
+        if (contactError) { console.error("[ventas] convertQuote contact:", contactError.message); throw new Error("Nombre de contacto no encontrado."); }
 
         // 4. Create Project
         const { data: project, error: projectError } = await supabase
@@ -625,7 +626,7 @@ export async function convertQuoteToProject(
             .select("id")
             .single();
 
-        if (projectError) throw new Error("Error creating project: " + projectError.message);
+        if (projectError) { console.error("[ventas] convertQuote project:", projectError.message); throw new Error("Error al crear el proyecto."); }
 
         // 5. Transform Quote Items to Production Orders
         let parentCounter = 0;
@@ -664,18 +665,18 @@ export async function convertQuoteToProject(
 
         if (productionOrders.length > 0) {
             const { error: itemsError } = await supabase.from("production_orders").insert(productionOrders);
-            if (itemsError) throw new Error("Error creating project items: " + itemsError.message);
+            if (itemsError) { console.error("[ventas] convertQuote items:", itemsError.message); throw new Error("Error al crear las partidas del proyecto."); }
         }
 
         // 6. Mark Quote as Approved
         const { error: updateError } = await supabase.from("sales_quotes").update({ status: QUOTE_STATUS.APPROVED }).eq("id", quoteId);
-        if (updateError) throw new Error("Error updating quote status: " + updateError.message);
+        if (updateError) { console.error("[ventas] convertQuote status:", updateError.message); throw new Error("Error al actualizar el estatus de la cotización."); }
 
         return { success: true, projectCode, projectId: project.id };
     }
     catch (e: any) {
-        console.error("Error converting quote to project:", e);
-        return { success: false, error: e.message };
+        console.error("[ventas] convertQuoteToProject:", e.message);
+        return { success: false, error: e.message?.startsWith("Error") || e.message?.includes("cotización") || e.message?.includes("cliente") || e.message?.includes("contacto") ? e.message : "Error al convertir la cotización a proyecto." };
     }
 }
 
@@ -690,7 +691,7 @@ export async function updateQuoteStatus(id: string, status: string) {
         .update({ status: parsed.status })
         .eq("id", parsed.id);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return { success: true };
 }
 export async function updateProject(id: string, data: {
@@ -719,11 +720,11 @@ export async function updateProject(id: string, data: {
             .update(data)
             .eq("id", id);
 
-        if (error) throw new Error(error.message);
+        if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
         return { success: true };
     } catch (e: any) {
-        console.error("Error updating project:", e);
-        return { success: false, error: e.message };
+        console.error("[ventas] updateProject:", e.message);
+        return { success: false, error: "Error al actualizar el proyecto." };
     }
 }
 
@@ -757,10 +758,10 @@ export async function updateProductionOrder(id: string, data: {
             .update(data)
             .eq("id", id);
 
-        if (error) throw new Error(error.message);
+        if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
         return { success: true };
     } catch (e: any) {
-        console.error("Error updating production order:", e);
-        return { success: false, error: e.message };
+        console.error("[ventas] updateProductionOrder:", e.message);
+        return { success: false, error: "Error al actualizar la partida." };
     }
 }

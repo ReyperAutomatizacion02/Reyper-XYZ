@@ -358,10 +358,8 @@ export async function clearOrderEvaluation(orderId: string) {
 
     if (error) {
         logger.error("Error clearing order evaluation", error);
-        // Create a detailed error message
-        const errorMessage = `Failed to clear evaluation: ${error.message} (${error.details || 'No details'})`;
-        console.error(errorMessage);
-        throw new Error(errorMessage);
+        console.error(`[produccion] clearOrderEvaluation: ${error.message} (${error.details || 'No details'})`);
+        throw new Error("Error al limpiar la evaluación de la orden.");
     }
 
     revalidatePath("/dashboard/produccion");

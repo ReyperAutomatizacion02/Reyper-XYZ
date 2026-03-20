@@ -43,6 +43,6 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error('[WEBHOOK ERROR] Fallo al procesar la limpieza de Storage:', error);
-        return new NextResponse(`Error Interno: ${error.message}`, { status: 500 });
+        return new NextResponse("Error interno del servidor.", { status: 500 });
     }
 }

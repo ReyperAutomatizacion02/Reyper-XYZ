@@ -62,7 +62,7 @@ export async function approveUser(userId: string, roles: string[], operatorName?
         })
         .eq("id", parsed.userId);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
@@ -83,7 +83,7 @@ export async function rejectUser(userId: string) {
         .delete()
         .eq("id", parsed.userId);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
@@ -121,7 +121,7 @@ export async function updateUserRoles(userId: string, newRoles: string[], operat
         })
         .eq("id", parsed.userId);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
@@ -137,7 +137,7 @@ export async function getPendingUsers() {
         .eq("is_approved", false)
         .order("created_at", { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data;
 }
 
@@ -151,7 +151,7 @@ export async function getApprovedUsers() {
         .eq("is_approved", true)
         .order("created_at", { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
     return data;
 }
 
@@ -210,7 +210,7 @@ export async function upsertEmployee(data: Partial<Employee>) {
         .select()
         .single();
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true, data: result };
@@ -230,7 +230,7 @@ export async function deleteEmployee(id: string) {
         .delete()
         .eq("id", parsed.id);
 
-    if (error) throw new Error(error.message);
+    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };

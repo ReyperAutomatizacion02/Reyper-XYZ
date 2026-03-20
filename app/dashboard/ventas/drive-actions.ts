@@ -69,11 +69,11 @@ export async function scanDriveFolder(folderUrl: string) {
     } catch (error: any) {
         logger.error("Error en Drive API", error);
 
-        let errorMessage = `Error al conectar con Drive: ${error.message || "Desconocido"}`;
+        let errorMessage = "Error al conectar con Google Drive. Intenta de nuevo.";
 
-        // Handle common errors
-        if (error.code === 403) errorMessage = "Error 403: Permiso denegado. Verifica que la API Key sea válida o que la carpeta sea pública.";
-        if (error.code === 404) errorMessage = "Error 404: Carpeta no encontrada. Verifica el Link.";
+        // Handle common errors with user-friendly messages
+        if (error.code === 403) errorMessage = "Permiso denegado. Verifica que la carpeta sea pública o que la API Key sea válida.";
+        if (error.code === 404) errorMessage = "Carpeta no encontrada. Verifica el link.";
 
         return { success: false, error: errorMessage };
     }

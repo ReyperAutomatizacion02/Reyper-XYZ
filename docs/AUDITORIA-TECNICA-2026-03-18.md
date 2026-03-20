@@ -179,11 +179,13 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-04: EXPOSICIÓN DE ERRORES INTERNOS AL CLIENTE
+### ✅ H-04: EXPOSICIÓN DE ERRORES INTERNOS AL CLIENTE — RESUELTO
 
 - **Categoría:** Seguridad
 - **Gravedad:** ALTA
-- **Diagnóstico:** Los mensajes de error de Supabase se propagan directamente al usuario mediante URLs y respuestas HTTP. Esto expone detalles de la infraestructura interna (nombres de tablas, constraints, versión de PostgreSQL). Violación de OWASP A04:2021 (Insecure Design).
+- **Estado:** ✅ RESUELTO (2026-03-18)
+- **Resolución:** Se reemplazaron ~50 instancias de `error.message` expuestos al cliente con mensajes genéricos en español. Los errores internos ahora solo se registran en `console.error` con prefijo de módulo (e.g., `[ventas]`, `[admin]`). Archivos modificados: `auth/actions.ts`, `ventas/actions.ts`, `ventas/project-actions.ts`, `ventas/drive-actions.ts`, `produccion/actions.ts`, `admin-panel/actions.ts`, `actions-updates.ts`, `webhooks/quotes/route.ts`.
+- **Diagnóstico original:** Los mensajes de error de Supabase se propagan directamente al usuario mediante URLs y respuestas HTTP. Esto expone detalles de la infraestructura interna (nombres de tablas, constraints, versión de PostgreSQL). Violación de OWASP A04:2021 (Insecure Design).
 - **Impacto:** Un atacante puede mapear el esquema de la base de datos y entender la lógica interna del sistema mediante mensajes de error provocados.
 - **Archivos afectados:**
   - `app/auth/actions.ts:29,80,98` — `redirect("/login?message=" + encodeURIComponent(error.message))`
@@ -615,7 +617,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios~~ ✅ Resuelto 2026-03-18 — 9 error boundaries creados (global + dashboard + 7 subdirectorios), componente reutilizable `ErrorDisplay`
 - [x] ~~Configurar Vitest y escribir tests para `scheduling-utils.ts` y `auth-guard.ts`~~ ✅ Resuelto 2026-03-18 — 66 tests (55 scheduling + 11 auth), todos pasando, Vitest configurado
 - [x] ~~Corregir open redirect en `auth/callback/route.ts` con whitelist de rutas~~ ✅ Resuelto 2026-03-18 — función `getSafeRedirect()` con whitelist de prefijos permitidos, bloquea URLs protocol-relative y absolutas
-- [ ] Reemplazar mensajes de error internos con mensajes genéricos al usuario
+- [x] ~~Reemplazar mensajes de error internos con mensajes genéricos al usuario~~ ✅ Resuelto 2026-03-18 — ~50 instancias corregidas en 8 archivos, errores internos solo en console.error con prefijo de módulo
 
 ### Prioridad ALTA (Semana 2-3)
 - [ ] Agregar verificación de propiedad en `deleteQuoteFiles()`

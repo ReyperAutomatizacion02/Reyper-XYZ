@@ -106,7 +106,7 @@ export async function createProjectAndItems(
 
     if (projError) {
         console.error("Error creating project:", projError);
-        throw new Error(`Error al crear proyecto: ${projError.message}`);
+        throw new Error("Error al crear el proyecto.");
     }
 
     // 2. Create Items
@@ -138,7 +138,7 @@ export async function createProjectAndItems(
             // If items fail, we log it. Ideally we'd delete the project too.
             await supabase.from("projects").delete().eq("id", project.id);
             console.error("Error creating items:", itemsError);
-            throw new Error(`Error al crear partidas: ${itemsError.message}`);
+            throw new Error("Error al crear las partidas del proyecto.");
         }
     }
 

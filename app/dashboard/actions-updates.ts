@@ -55,7 +55,7 @@ export async function updateSystemUpdate(id: string, updates: Partial<SystemUpda
 
     if (error) {
         console.error("Error updating system update:", error);
-        throw new Error(error.message);
+        throw new Error("Error al actualizar el registro.");
     }
 
     if (!data || data.length === 0) {

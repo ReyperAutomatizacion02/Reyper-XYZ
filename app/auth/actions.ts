@@ -26,7 +26,8 @@ export async function login(formData: FormData) {
     });
 
     if (error) {
-        return redirect("/login?message=" + encodeURIComponent(error.message));
+        console.error("[login] Auth error:", error.message);
+        return redirect("/login?message=" + encodeURIComponent("Credenciales inválidas. Intenta de nuevo."));
     }
 
     revalidatePath("/", "layout");
@@ -61,7 +62,8 @@ export async function signup(formData: FormData) {
     });
 
     if (error) {
-        return redirect("/register?message=" + encodeURIComponent(error.message));
+        console.error("[signup] Auth error:", error.message);
+        return redirect("/register?message=" + encodeURIComponent("No se pudo crear la cuenta. Verifica tus datos e intenta de nuevo."));
     }
 
     // revalidatePath("/", "layout"); // This redirect should only happen after email confirmation
@@ -85,7 +87,8 @@ export async function forgotPassword(formData: FormData) {
     });
 
     if (error) {
-        return redirect("/forgot-password?error=" + encodeURIComponent(error.message));
+        console.error("[forgotPassword] Auth error:", error.message);
+        return redirect("/forgot-password?error=" + encodeURIComponent("No se pudo procesar la solicitud. Intenta de nuevo."));
     }
 
     return redirect("/forgot-password?message=" + encodeURIComponent("Se ha enviado un correo para restablecer tu contraseña."));
