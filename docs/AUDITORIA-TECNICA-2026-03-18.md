@@ -472,14 +472,16 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-17: QUERIES DUPLICADAS Y N+1
+### ✅ H-17: QUERIES DUPLICADAS Y N+1 — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** MEDIA
+- **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** Patrones de consultas ineficientes encontrados en múltiples archivos.
 - **Archivos afectados:**
   - `app/dashboard/ventas/actions.ts:303-315` — Dos queries paralelas a `projects` para obtener columnas diferentes que podrían ser una sola query
   - `app/dashboard/ventas/actions.ts:333-354` — `getQuoteById()` hace 2 queries separadas (quote + items) cuando podría ser una con relaciones
+- **Resolución:** `getFilterOptions()` combinada en 1 sola query (`select("company, requestor")`). `getQuoteById()` combinada en 1 query con relación embebida (`select("*, ..., sales_quote_items(*)")`) — de 3 queries totales a 1+1.
 - **Refactorización Propuesta:**
 
   *Código Actual:* (`getQuoteById`)
@@ -557,7 +559,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 ### Prioridad MEDIA (Semana 3-4)
 - [x] ~~Reemplazar `moment.js` con `date-fns` en todo el módulo de producción~~ ✅ Resuelto 2026-03-20 — Migrados 13 archivos (scheduling-utils, gantt-svg, production-view, machining-view, evaluation-sidebar, use-evaluation-filters, create-task-modal, evaluation-modal, actions.ts, 2 pages, 2 scripts). Dependencia `moment` eliminada de package.json. 66 tests pasan, build exitoso.
 - [x] ~~Migrar imágenes a `next/image`~~ ✅ Resuelto 2026-03-20 — 4 de 6 `<img>` migrados a `next/image` con fill+sizes responsive. 2 excepciones: drawing-viewer (zoom/pan dinámico) y project-form (blob/data URLs)
-- [ ] Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)
+- [x] ~~Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)~~ ✅ Resuelto 2026-03-20 — `getFilterOptions` de 2→1 query, `getQuoteById` de 2→1 query con relación embebida
 - [ ] Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)
 - [ ] Refactorizar `realtime-refresher.tsx` para invalidación granular
 - [ ] Configurar Prettier y extender reglas de ESLint

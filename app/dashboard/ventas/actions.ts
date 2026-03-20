@@ -326,15 +326,15 @@ export async function getFilterOptions() {
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
 
-    // Fetch in parallel for performance
-    const [clientsData, requestorsData] = await Promise.all([
-        supabase.from("projects").select("company").eq("status", "active"),
-        supabase.from("projects").select("requestor").eq("status", "active")
-    ]);
+    // Single query fetching both columns
+    const { data } = await supabase
+        .from("projects")
+        .select("company, requestor")
+        .eq("status", "active");
 
     // Extract unique values
-    const uniqueClients = Array.from(new Set(clientsData.data?.map(d => d.company).filter(Boolean))).sort();
-    const uniqueRequestors = Array.from(new Set(requestorsData.data?.map(d => d.requestor).filter(Boolean))).sort();
+    const uniqueClients = Array.from(new Set(data?.map(d => d.company).filter(Boolean))).sort();
+    const uniqueRequestors = Array.from(new Set(data?.map(d => d.requestor).filter(Boolean))).sort();
 
     return {
         clients: uniqueClients,
@@ -364,23 +364,18 @@ export async function getQuoteById(id: string) {
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
 
-    const { data: quote, error: quoteError } = await supabase
+    const { data: quote, error } = await supabase
         .from("sales_quotes")
-        .select("*, client:sales_clients(name), contact:sales_contacts(name)")
+        .select("*, client:sales_clients(name), contact:sales_contacts(name), sales_quote_items(*)")
         .eq("id", validId)
         .single();
 
-    if (quoteError) throw new Error(quoteError.message);
+    if (error) throw new Error(error.message);
 
-    const { data: items, error: itemsError } = await supabase
-        .from("sales_quote_items")
-        .select("*")
-        .eq("quote_id", validId)
-        .order("sort_order");
-
-    if (itemsError) throw new Error(itemsError.message);
-
-    return { ...quote, items };
+    // Rename embedded relation to `items` for backward compatibility, and sort by sort_order
+    const items = (quote.sales_quote_items ?? []).sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const { sales_quote_items: _, ...rest } = quote;
+    return { ...rest, items };
 }
 
 export async function updateQuote(id: string, quoteData: Record<string, unknown>, items: Record<string, unknown>[]) {
