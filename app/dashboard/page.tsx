@@ -337,8 +337,7 @@ export default async function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            <RealtimeRefresher table="projects" />
-            <RealtimeRefresher table="production_orders" />
+            <RealtimeRefresher tables={["projects", "production_orders"]} />
             <DashboardClientHeader />
 
             {/* KPI Cards */}

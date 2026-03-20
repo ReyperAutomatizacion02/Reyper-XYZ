@@ -1,57 +1,62 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 interface RealtimeRefresherProps {
-    table: string;
+    /** One or more tables to listen for changes */
+    tables: string[];
+    /** Debounce interval in ms (default: 2000) */
+    debounceMs?: number;
 }
 
 /**
- * A client component that listens for real-time changes on a specific table
- * and triggers a router refresh to update server components.
+ * Listens for real-time Postgres changes on one or more tables
+ * and triggers a non-blocking router refresh.
+ *
+ * Uses debouncing to batch rapid changes into a single refresh,
+ * and startTransition to keep the UI responsive during refresh.
  */
-export function RealtimeRefresher({ table }: RealtimeRefresherProps) {
+export function RealtimeRefresher({ tables, debounceMs = 2000 }: RealtimeRefresherProps) {
     const router = useRouter();
     const supabase = useMemo(() => createClient(), []);
-    const lastRefreshRef = useRef(0);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [, startTransition] = useTransition();
+
+    // Stable key for the tables array
+    const tablesKey = tables.join(",");
 
     useEffect(() => {
-        console.log(`Setting up RealtimeRefresher for table: ${table}`);
+        const tableList = tablesKey.split(",");
+        const channelName = `refresher_${tableList.join("_")}_${Math.random().toString(36).substring(7)}`;
 
-        const channel = supabase
-            .channel(`refresher_${table}_${Math.random().toString(36).substring(7)}`)
-            .on(
+        let channel = supabase.channel(channelName);
+
+        // Subscribe to all tables on a single channel
+        for (const table of tableList) {
+            channel = channel.on(
                 'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: table,
-                },
-                (payload) => {
-                    const now = Date.now();
-                    // Throttling to avoid double refreshes within 500ms
-                    if (now - lastRefreshRef.current > 500) {
-                        console.log(`Real-time change detected in ${table} (${payload.eventType}). Refreshing page...`);
-                        lastRefreshRef.current = now;
-                        router.refresh();
-                    }
+                { event: '*', schema: 'public', table },
+                () => {
+                    // Debounce: reset timer on each event, refresh only after quiet period
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                    timerRef.current = setTimeout(() => {
+                        startTransition(() => {
+                            router.refresh();
+                        });
+                    }, debounceMs);
                 }
-            )
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log(`RealtimeRefresher SUBSCRIBED to ${table}`);
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error(`RealtimeRefresher error on ${table}. Data won't update in real-time.`);
-                }
-            });
+            );
+        }
+
+        channel.subscribe();
 
         return () => {
-            console.log(`Removing RealtimeRefresher for ${table}`);
+            if (timerRef.current) clearTimeout(timerRef.current);
             supabase.removeChannel(channel);
         };
-    }, [table, router, supabase]);
+    }, [tablesKey, debounceMs, router, supabase, startTransition]);
 
     return null;
 }

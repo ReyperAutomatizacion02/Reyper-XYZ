@@ -46,8 +46,7 @@ export default async function PlaneacionPage() {
 
     return (
         <>
-            <RealtimeRefresher table="production_orders" />
-            <RealtimeRefresher table="planning" />
+            <RealtimeRefresher tables={["production_orders", "planning"]} />
             <ProductionView
                 machines={machines}
                 orders={orders}

@@ -440,12 +440,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-15: REALTIME REFRESHER CON `router.refresh()` COMPLETO
+### ✅ H-15: REALTIME REFRESHER CON `router.refresh()` COMPLETO — RESUELTO
 
 - **Categoría:** Performance
 - **Gravedad:** MEDIA
+- **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** `components/realtime-refresher.tsx` escucha cambios de Postgres y ejecuta `router.refresh()` que recarga TODOS los server components de la página. El throttle de 500ms es insuficiente para evitar cascadas de re-renders.
 - **Impacto:** Cada cambio en la BD dispara una recarga completa de la página. Con múltiples usuarios editando simultáneamente, la app se vuelve inutilizable.
+- **Resolución:** Refactorizado con 4 mejoras: (1) Acepta múltiples tablas en una sola instancia → de 4 canales Supabase a 2. (2) Debounce de 2s en lugar de throttle de 500ms → cambios rápidos se agrupan en un solo refresh. (3) `router.refresh()` envuelto en `startTransition` → UI no se bloquea durante la recarga. (4) Eliminados 5 console.log de debug.
 - **Refactorización Propuesta:**
 
   Usar React `useOptimistic` o invalidación granular con `revalidatePath`:
@@ -562,7 +564,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Migrar imágenes a `next/image`~~ ✅ Resuelto 2026-03-20 — 4 de 6 `<img>` migrados a `next/image` con fill+sizes responsive. 2 excepciones: drawing-viewer (zoom/pan dinámico) y project-form (blob/data URLs)
 - [x] ~~Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)~~ ✅ Resuelto 2026-03-20 — `getFilterOptions` de 2→1 query, `getQuoteById` de 2→1 query con relación embebida
 - [x] ~~Implementar caching selectivo (remover `force-dynamic` donde no sea necesario)~~ ✅ Resuelto 2026-03-20 — Eliminado `force-dynamic` redundante de 3 páginas (cookies() ya opta en dynamic). Mantenido en webhook API
-- [ ] Refactorizar `realtime-refresher.tsx` para invalidación granular
+- [x] ~~Refactorizar `realtime-refresher.tsx` para invalidación granular~~ ✅ Resuelto 2026-03-20 — Multi-tabla por instancia, debounce 2s, startTransition, eliminados console.logs
 - [ ] Configurar Prettier y extender reglas de ESLint
 
 ### Prioridad BAJA (Mes 2)
