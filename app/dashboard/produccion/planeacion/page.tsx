@@ -4,6 +4,7 @@ import { format, subDays, addDays } from "date-fns";
 import { ProductionView } from "@/components/production/production-view";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { compareOrdersByPriority } from "@/lib/scheduling-utils";
+import logger from "@/utils/logger";
 
 export default async function PlaneacionPage() {
     const cookieStore = await cookies();
@@ -16,13 +17,15 @@ export default async function PlaneacionPage() {
     // Fetch all necessary data in parallel
     const [machinesRes, ordersRes, tasksRes] = await Promise.all([
         supabase.from("machines").select("*").order("name"),
-        supabase.from("production_orders")
+        supabase
+            .from("production_orders")
             .select("*, projects(company, delivery_date)")
             .neq("general_status", "D7-ENTREGADA")
             .neq("general_status", "D8-CANCELADA")
             .neq("material", "ENSAMBLE")
             .order("created_at", { ascending: false }),
-        supabase.from("planning")
+        supabase
+            .from("planning")
             .select("*, production_orders(*)")
             .gte("planned_date", rangeStart)
             .lte("planned_date", rangeEnd)
@@ -33,26 +36,20 @@ export default async function PlaneacionPage() {
     const rawOrders = ordersRes.data || [];
     const tasks = tasksRes.data || [];
     // Derive operators from fetched tasks instead of a separate query
-    const operators = Array.from(new Set(
-        tasks.map(t => t.operator as string).filter(Boolean)
-    )).sort();
+    const operators = Array.from(new Set(tasks.map((t) => t.operator as string).filter(Boolean))).sort();
 
     // Sort orders by priority for initial view
     const orders = rawOrders.sort(compareOrdersByPriority);
 
-    console.log(`[PlaneacionPage] Fetched ${orders.length} orders. Errors:`,
+    logger.debug(
+        `[PlaneacionPage] Fetched ${orders.length} orders. Errors:`,
         ordersRes.error ? ordersRes.error : "none"
     );
 
     return (
         <>
             <RealtimeRefresher tables={["production_orders", "planning"]} />
-            <ProductionView
-                machines={machines}
-                orders={orders}
-                tasks={tasks}
-                operators={operators}
-            />
+            <ProductionView machines={machines} orders={orders} tasks={tasks} operators={operators} />
         </>
     );
 }

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { ClientPrefixSchema, CreateProjectSchema, CreateProjectItemSchema } from "@/lib/validations/sales";
+import { STATUS_IDS } from "@/lib/constants/status";
 
 /**
  * Calculates the next project code for a specific client prefix.
@@ -14,10 +15,7 @@ export async function getNextProjectCode(clientPrefix: string) {
     const supabase = createClient(cookieStore);
 
     // Fetch all project codes starting with the prefix
-    const { data, error } = await supabase
-        .from("projects")
-        .select("code")
-        .ilike("code", `${parsed.clientPrefix}-%`);
+    const { data, error } = await supabase.from("projects").select("code").ilike("code", `${parsed.clientPrefix}-%`);
 
     if (error) {
         console.error("Error fetching project codes:", error);
@@ -83,7 +81,7 @@ export async function createProjectAndItems(
     }>
 ) {
     const parsedProject = CreateProjectSchema.parse(projectData);
-    const parsedItems = items.map(item => CreateProjectItemSchema.parse(item));
+    const parsedItems = items.map((item) => CreateProjectItemSchema.parse(item));
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
@@ -99,7 +97,7 @@ export async function createProjectAndItems(
             requestor_id: projectData.requestor_id,
             start_date: projectData.start_date,
             delivery_date: projectData.delivery_date,
-            status: projectData.status
+            status: projectData.status,
         })
         .select("id")
         .single();
@@ -127,12 +125,10 @@ export async function createProjectAndItems(
             design_no: item.design_no,
             is_sub_item: item.is_sub_item || false,
             general_status: "A0-NUEVO PROYECTO",
-            status_id: '3f454811-5b77-4b11-ab75-458e20c5ae6e', // Fixed status ID
+            status_id: STATUS_IDS.NUEVO_PROYECTO,
         }));
 
-        const { error: itemsError } = await supabase
-            .from("production_orders")
-            .insert(itemsPayload);
+        const { error: itemsError } = await supabase.from("production_orders").insert(itemsPayload);
 
         if (itemsError) {
             // If items fail, we log it. Ideally we'd delete the project too.
@@ -146,12 +142,12 @@ export async function createProjectAndItems(
     if (projectData.source_quote_id) {
         const { error: quoteUpdateError } = await supabase
             .from("sales_quotes")
-            .update({ status: 'approved' })
+            .update({ status: "approved" })
             .eq("id", projectData.source_quote_id);
 
         if (quoteUpdateError) {
             console.error("Error updating quote status:", quoteUpdateError);
-            // We don't throw error to not fail the project creation, 
+            // We don't throw error to not fail the project creation,
             // but we log it. It could be handled via webhook or manually.
         }
     }
