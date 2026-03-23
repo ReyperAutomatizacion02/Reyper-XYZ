@@ -1,19 +1,37 @@
 import {
-    startOfDay, addDays, addHours, addMinutes, addMilliseconds,
-    differenceInDays, differenceInMinutes, differenceInMilliseconds,
-    isBefore, isAfter,
+    startOfDay,
+    addDays,
+    addHours,
+    addMinutes,
+    addMilliseconds,
+    differenceInDays,
+    differenceInMinutes,
+    differenceInMilliseconds,
+    isBefore,
+    isAfter,
     min as minDate,
-    format, getHours, getDay, getMinutes, getSeconds, getMilliseconds,
+    format,
+    getHours,
+    getDay,
+    getMinutes,
+    getSeconds,
+    getMilliseconds,
     set,
 } from "date-fns";
 import { Database } from "@/utils/supabase/types";
+import logger from "@/utils/logger";
 
 export type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 export type PlanningTask = Database["public"]["Tables"]["planning"]["Row"];
 
 /** Order with optional joined relations used in scheduling views */
 export type OrderWithRelations = Order & {
-    projects?: { delivery_date?: string | null; start_date?: string | null; drive_folder_id?: string | null; company?: string | null } | null;
+    projects?: {
+        delivery_date?: string | null;
+        start_date?: string | null;
+        drive_folder_id?: string | null;
+        company?: string | null;
+    } | null;
 };
 
 /** Planning task extended with draft flag used in scheduling UI */
@@ -55,7 +73,15 @@ export interface SavedScenario {
     applied_at: string | null;
 }
 
-export type SchedulingStrategy = "DELIVERY_DATE" | "FAB_TIME" | "FAST_TRACK" | "TREATMENTS" | "CRITICAL_PATH" | "PROJECT_GROUP" | "MATERIAL_OPTIMIZATION" | "URGENCY";
+export type SchedulingStrategy =
+    | "DELIVERY_DATE"
+    | "FAB_TIME"
+    | "FAST_TRACK"
+    | "TREATMENTS"
+    | "CRITICAL_PATH"
+    | "PROJECT_GROUP"
+    | "MATERIAL_OPTIMIZATION"
+    | "URGENCY";
 
 export interface StrategyConfig {
     mainStrategy: SchedulingStrategy;
@@ -81,9 +107,9 @@ export function getPriorityLevel(deliveryDate: string | null): PriorityLevel {
     const diffDays = differenceInDays(delivery, now);
 
     if (diffDays < 0) return "CRITICAL"; // Overdue
-    if (diffDays <= 3) return "SOON";    // Within 3 days
+    if (diffDays <= 3) return "SOON"; // Within 3 days
     if (diffDays <= 10) return "NORMAL"; // 4-10 days
-    return "PLENTY";                    // More than 10 days
+    return "PLENTY"; // More than 10 days
 }
 
 /**
@@ -92,12 +118,18 @@ export function getPriorityLevel(deliveryDate: string | null): PriorityLevel {
  */
 export function getStatusPriority(status: string): number {
     switch (status) {
-        case 'A8-MATERIAL DISPONIBLE': return 2;
-        case 'A7-ESPERANDO MATERIAL': return 3;
-        case 'A5-VERIFICAR MATERIAL': return 4;
-        case 'A0-ESPERANDO MATERIAL': return 5;
-        case 'A0-NUEVO PROYECTO': return 5;
-        default: return 99; // Low priority for others
+        case "A8-MATERIAL DISPONIBLE":
+            return 2;
+        case "A7-ESPERANDO MATERIAL":
+            return 3;
+        case "A5-VERIFICAR MATERIAL":
+            return 4;
+        case "A0-ESPERANDO MATERIAL":
+            return 5;
+        case "A0-NUEVO PROYECTO":
+            return 5;
+        default:
+            return 99; // Low priority for others
     }
 }
 
@@ -135,7 +167,7 @@ export function compareOrdersByPriority(a: Order, b: Order): number {
  */
 export function prepareOrdersForScheduling(orders: Order[], config: StrategyConfig): Order[] {
     return orders
-        .filter(order => {
+        .filter((order) => {
             // Must have evaluation
             const evalData = order.evaluation;
             if (!evalData || !Array.isArray(evalData) || evalData.length === 0) {
@@ -154,7 +186,7 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
 
             // Material Ready filter
             if (config.onlyWithMaterial) {
-                if (order.general_status !== 'A8-MATERIAL DISPONIBLE') return false;
+                if (order.general_status !== "A8-MATERIAL DISPONIBLE") return false;
             }
 
             // Requires Treatment filter
@@ -166,7 +198,11 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
             return true;
         })
         .sort((a, b) => {
-            const getHoursTotal = (o: Order) => (o.evaluation as EvaluationStep[] | null)?.reduce((sum: number, s: EvaluationStep) => sum + (s.hours || 0), 0) ?? 0;
+            const getHoursTotal = (o: Order) =>
+                (o.evaluation as EvaluationStep[] | null)?.reduce(
+                    (sum: number, s: EvaluationStep) => sum + (s.hours || 0),
+                    0
+                ) ?? 0;
 
             switch (config.mainStrategy) {
                 case "FAB_TIME":
@@ -285,12 +321,12 @@ export function generateAutomatedPlanning(
         onlyWithCAD: false,
         onlyWithBlueprint: false,
         onlyWithMaterial: false,
-        requireTreatment: false
+        requireTreatment: false,
     }
 ): SchedulingResult {
-    console.log("[AutoPlan] Starting with", orders.length, "orders, strategy:", config.mainStrategy);
+    logger.info(`[AutoPlan] Starting with ${orders.length} orders, strategy: ${config.mainStrategy}`);
     const preparedOrders = prepareOrdersForScheduling(orders, config);
-    console.log("[AutoPlan] Prepared orders:", preparedOrders.length);
+    logger.info(`[AutoPlan] Prepared orders: ${preparedOrders.length}`);
 
     const draftTasks: any[] = [];
     const skipped: { order: Order; reason: string }[] = [];
@@ -302,17 +338,17 @@ export function generateAutomatedPlanning(
     // Initial tasks to consider for collisions and current state
     // We filter out "flexible" tasks: future, not locked, and not started.
     const allKnownTasks = [...existingTasks]
-        .filter(t => {
+        .filter((t) => {
             const isFuture = !isBefore(new Date(t.planned_date!), globalStart);
             const isLocked = t.locked === true;
             const hasStarted = !!t.check_in;
             const isFixed = isLocked || hasStarted || !isFuture;
             return isFixed;
         })
-        .map(t => ({
+        .map((t) => ({
             ...t,
             startMs: new Date(t.planned_date!).getTime(),
-            endMs: new Date(t.planned_end!).getTime()
+            endMs: new Date(t.planned_end!).getTime(),
         }));
 
     for (const order of preparedOrders) {
@@ -324,7 +360,7 @@ export function generateAutomatedPlanning(
         let pieceSkipped = false;
 
         const pieceFixedTasks = allKnownTasks
-            .filter(t => t.order_id === order.id)
+            .filter((t) => t.order_id === order.id)
             .sort((a, b) => a.startMs - b.startMs);
 
         let fixedTaskIdx = 0;
@@ -374,10 +410,11 @@ export function generateAutomatedPlanning(
                 const segmentDuration = Math.min(remainingHours, hoursInShift);
                 const proposedEnd = addHours(currentSearchStart, segmentDuration);
 
-                const collision = allKnownTasks.find(t =>
-                    (t.machine === step.machine || t.order_id === order.id) &&
-                    t.startMs < proposedEnd.getTime() &&
-                    t.endMs > currentSearchStart.getTime()
+                const collision = allKnownTasks.find(
+                    (t) =>
+                        (t.machine === step.machine || t.order_id === order.id) &&
+                        t.startMs < proposedEnd.getTime() &&
+                        t.endMs > currentSearchStart.getTime()
                 );
 
                 if (collision) {
@@ -392,11 +429,11 @@ export function generateAutomatedPlanning(
                     register: register,
                     planned_date: format(currentSearchStart, "yyyy-MM-dd'T'HH:mm:ss"),
                     planned_end: format(proposedEnd, "yyyy-MM-dd'T'HH:mm:ss"),
-                    status: 'pending',
+                    status: "pending",
                     production_orders: order,
                     isDraft: true,
                     startMs: currentSearchStart.getTime(),
-                    endMs: proposedEnd.getTime()
+                    endMs: proposedEnd.getTime(),
                 };
 
                 pieceTasks.push(newTask);
@@ -425,12 +462,12 @@ export function generateAutomatedPlanning(
         }, 0),
         lateOrders: 0,
         avgLeadTimeDays: 0,
-        machineUtilization: {}
+        machineUtilization: {},
     };
 
     let totalLeadTimeMs = 0;
-    preparedOrders.forEach(order => {
-        const orderTasks = draftTasks.filter(t => t.order_id === order.id);
+    preparedOrders.forEach((order) => {
+        const orderTasks = draftTasks.filter((t) => t.order_id === order.id);
         if (orderTasks.length === 0) return;
 
         const lastTaskEnd = orderTasks.reduce((maxDate: Date, t: any) => {
@@ -452,16 +489,21 @@ export function generateAutomatedPlanning(
     }
 
     // Machine Utilization
-    machines.forEach(m => {
+    machines.forEach((m) => {
         metrics.machineUtilization[m] = draftTasks
-            .filter(t => t.machine === m)
-            .reduce((sum, t) => sum + differenceInMilliseconds(new Date(t.planned_end!), new Date(t.planned_date!)) / (1000 * 60 * 60), 0);
+            .filter((t) => t.machine === m)
+            .reduce(
+                (sum, t) =>
+                    sum +
+                    differenceInMilliseconds(new Date(t.planned_end!), new Date(t.planned_date!)) / (1000 * 60 * 60),
+                0
+            );
     });
 
     return {
         tasks: draftTasks,
         skipped,
-        metrics
+        metrics,
     };
 }
 
@@ -505,9 +547,7 @@ export function shiftScenarioTasks(
 ): Partial<PlanningTask>[] {
     if (offsetDays === 0 || scenarioTasks.length === 0) return scenarioTasks;
 
-    const starts = scenarioTasks
-        .filter(t => t.planned_date)
-        .map(t => new Date(t.planned_date!));
+    const starts = scenarioTasks.filter((t) => t.planned_date).map((t) => new Date(t.planned_date!));
 
     if (starts.length === 0) return scenarioTasks;
 
@@ -534,16 +574,16 @@ export function shiftScenarioTasks(
 
     // Build collision map from existing (non-draft) tasks
     const existingTasksMap = existingTasks
-        .filter(t => !(t as PlanningTaskWithDraft).isDraft)
-        .map(t => ({
+        .filter((t) => !(t as PlanningTaskWithDraft).isDraft)
+        .map((t) => ({
             machine: t.machine,
             order_id: t.order_id,
             startMs: new Date(t.planned_date!).getTime(),
-            endMs: new Date(t.planned_end!).getTime()
+            endMs: new Date(t.planned_end!).getTime(),
         }));
 
     // Shift each task
-    return scenarioTasks.map(task => {
+    return scenarioTasks.map((task) => {
         if (!task.planned_date || !task.planned_end) return task;
 
         let newStart = getNextValidWorkTime(addMilliseconds(new Date(task.planned_date!), offsetMs));
@@ -553,10 +593,11 @@ export function shiftScenarioTasks(
         let newEnd = calculateWorkEnd(newStart, duration);
 
         // Check for collisions and nudge forward if needed
-        const collision = existingTasksMap.find(t =>
-            (t.machine === task.machine || (task.order_id && t.order_id === task.order_id)) &&
-            t.startMs < newEnd.getTime() &&
-            t.endMs > newStart.getTime()
+        const collision = existingTasksMap.find(
+            (t) =>
+                (t.machine === task.machine || (task.order_id && t.order_id === task.order_id)) &&
+                t.startMs < newEnd.getTime() &&
+                t.endMs > newStart.getTime()
         );
 
         if (collision) {
@@ -596,7 +637,7 @@ export function shiftTasksToCurrent(
     const globalStart = getNextValidWorkTime(nowSnapped);
 
     const obstacles = existingTasks
-        .filter(t => {
+        .filter((t) => {
             const taskDate = new Date(t.planned_date!);
             const isFuture = !isBefore(taskDate, globalStart);
             const isLocked = t.locked === true;
@@ -604,27 +645,27 @@ export function shiftTasksToCurrent(
             const isFixed = isLocked || hasStarted || !isFuture;
             return isFixed;
         })
-        .map(t => ({
+        .map((t) => ({
             machine: t.machine,
             order_id: t.order_id,
             startMs: new Date(t.planned_date!).getTime(),
-            endMs: new Date(t.planned_end!).getTime()
+            endMs: new Date(t.planned_end!).getTime(),
         }));
 
     // 2. Group tasks by piece (order_id) and sort chronologically within each piece
     const tasksByPiece: Record<string, Partial<PlanningTask>[]> = {};
-    tasks.forEach(t => {
+    tasks.forEach((t) => {
         if (!t.order_id) return;
         if (!tasksByPiece[t.order_id]) tasksByPiece[t.order_id] = [];
         tasksByPiece[t.order_id].push(t);
     });
 
-    Object.values(tasksByPiece).forEach(pieceTasks => {
+    Object.values(tasksByPiece).forEach((pieceTasks) => {
         pieceTasks.sort((a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime());
     });
 
     // 3. Find global shift based on the earliest task in the ENTIRE scenario
-    const allStarts = tasks.filter(t => t.planned_date).map(t => new Date(t.planned_date!).getTime());
+    const allStarts = tasks.filter((t) => t.planned_date).map((t) => new Date(t.planned_date!).getTime());
     if (allStarts.length === 0) return tasks;
     const earliestOriginalMs = Math.min(...allStarts);
 
@@ -636,8 +677,8 @@ export function shiftTasksToCurrent(
     const piecePointers: Record<string, Date> = {}; // Tracks when each piece is free for its next step
 
     // 4. Flatten all tasks and sort by original date to process them in "logical" order
-    const sortedAllTasks = [...tasks].sort((a, b) =>
-        new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
+    const sortedAllTasks = [...tasks].sort(
+        (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
     );
 
     for (const task of sortedAllTasks) {
@@ -671,10 +712,11 @@ export function shiftTasksToCurrent(
             finalEnd = calculateWorkEnd(finalStart, durationMinutes);
 
             // Check Collision with fixed tasks AND already shifted draft tasks
-            const collision = obstacles.find(f =>
-                (f.machine === task.machine || (task.order_id && f.order_id === task.order_id)) &&
-                f.startMs < finalEnd!.getTime() &&
-                f.endMs > finalStart.getTime()
+            const collision = obstacles.find(
+                (f) =>
+                    (f.machine === task.machine || (task.order_id && f.order_id === task.order_id)) &&
+                    f.startMs < finalEnd!.getTime() &&
+                    f.endMs > finalStart.getTime()
             );
 
             if (collision) {
@@ -701,7 +743,7 @@ export function shiftTasksToCurrent(
             machine: updatedTask.machine || null,
             order_id: updatedTask.order_id || null,
             startMs: finalStart.getTime(),
-            endMs: finalEnd.getTime()
+            endMs: finalEnd.getTime(),
         });
     }
 

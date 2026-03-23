@@ -15,11 +15,11 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ### Top 3 Riesgos Detectados
 
-| # | Riesgo | Impacto |
-|---|--------|---------|
-| 1 | **0% cobertura de tests** + algoritmo de scheduling de 727 líneas sin probar | Un bug silencioso en la lógica de planificación puede corromper la producción entera sin que nadie lo detecte |
-| 2 | **54 casteos `as any`** + tipos Supabase incompletos | TypeScript pierde su razón de existir; errores en runtime que el compilador debería atrapar |
-| 3 | **Validación de inputs ausente** en múltiples server actions + exposición de errores internos | Superficie de ataque abierta: datos malformados entran directamente a la base de datos |
+| #   | Riesgo                                                                                        | Impacto                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1   | **0% cobertura de tests** + algoritmo de scheduling de 727 líneas sin probar                  | Un bug silencioso en la lógica de planificación puede corromper la producción entera sin que nadie lo detecte |
+| 2   | **54 casteos `as any`** + tipos Supabase incompletos                                          | TypeScript pierde su razón de existir; errores en runtime que el compilador debería atrapar                   |
+| 3   | **Validación de inputs ausente** en múltiples server actions + exposición de errores internos | Superficie de ataque abierta: datos malformados entran directamente a la base de datos                        |
 
 ---
 
@@ -36,51 +36,52 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico:** No existe ningún archivo de test (`*.test.ts`, `*.spec.ts`, `__tests__/`), ningún framework de testing configurado (ni Jest, ni Vitest, ni Playwright), y ninguna dependencia de testing en `package.json`. El algoritmo de scheduling en `lib/scheduling-utils.ts` (727 líneas de lógica de negocio pura) opera sin ninguna verificación automatizada.
 - **Impacto:** Cualquier cambio en la lógica de planificación, auth guards, o server actions puede introducir regresiones silenciosas. En un sistema de manufactura CNC, un error en la asignación de tareas a máquinas puede resultar en piezas defectuosas, tiempos muertos de máquina, o incumplimiento de entregas.
 - **Archivos afectados:** Todo el proyecto — especialmente:
-  - `lib/scheduling-utils.ts` — algoritmo de scheduling crítico
-  - `lib/auth-guard.ts` — lógica de autorización
-  - `lib/config/permissions.ts` — configuración RBAC
-  - `app/dashboard/produccion/actions.ts` — mutaciones de producción
+    - `lib/scheduling-utils.ts` — algoritmo de scheduling crítico
+    - `lib/auth-guard.ts` — lógica de autorización
+    - `lib/config/permissions.ts` — configuración RBAC
+    - `app/dashboard/produccion/actions.ts` — mutaciones de producción
 - **Refactorización Propuesta:**
 
-  *Configuración mínima con Vitest:*
-  ```bash
-  npm install -D vitest @testing-library/react @testing-library/jest-dom
-  ```
+    _Configuración mínima con Vitest:_
 
-  ```typescript
-  // vitest.config.ts
-  import { defineConfig } from 'vitest/config'
-  import path from 'path'
+    ```bash
+    npm install -D vitest @testing-library/react @testing-library/jest-dom
+    ```
 
-  export default defineConfig({
-    test: {
-      environment: 'jsdom',
-      globals: true,
-    },
-    resolve: {
-      alias: { '@': path.resolve(__dirname, '.') },
-    },
-  })
-  ```
+    ```typescript
+    // vitest.config.ts
+    import { defineConfig } from "vitest/config";
+    import path from "path";
 
-  ```typescript
-  // lib/__tests__/scheduling-utils.test.ts
-  import { describe, it, expect } from 'vitest'
-  import { autoScheduleTasks } from '../scheduling-utils'
+    export default defineConfig({
+        test: {
+            environment: "jsdom",
+            globals: true,
+        },
+        resolve: {
+            alias: { "@": path.resolve(__dirname, ".") },
+        },
+    });
+    ```
 
-  describe('autoScheduleTasks', () => {
-    it('assigns tasks to available machines respecting capacity', () => {
-      const machines = [{ id: '1', name: 'CNC-01', capacity: 8 }]
-      const tasks = [{ id: 't1', duration: 4, machine: null }]
-      const result = autoScheduleTasks(machines, tasks)
-      expect(result[0].machine).toBe('1')
-    })
+    ```typescript
+    // lib/__tests__/scheduling-utils.test.ts
+    import { describe, it, expect } from "vitest";
+    import { autoScheduleTasks } from "../scheduling-utils";
 
-    it('rejects tasks exceeding machine capacity', () => {
-      // ... test edge cases
-    })
-  })
-  ```
+    describe("autoScheduleTasks", () => {
+        it("assigns tasks to available machines respecting capacity", () => {
+            const machines = [{ id: "1", name: "CNC-01", capacity: 8 }];
+            const tasks = [{ id: "t1", duration: 4, machine: null }];
+            const result = autoScheduleTasks(machines, tasks);
+            expect(result[0].machine).toBe("1");
+        });
+
+        it("rejects tasks exceeding machine capacity", () => {
+            // ... test edge cases
+        });
+    });
+    ```
 
 ---
 
@@ -91,40 +92,43 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Estado:** ✅ RESUELTO (2026-03-18)
 - **Resultado:** Tipos regenerados desde BD live, `<Database>` generic aplicado a todos los clientes Supabase, ~30 archivos corregidos. De ~70 `as any` → 5 irreducibles (canvas PDF.js, drag-and-drop lib, demo data, Supabase Realtime overload ×2). 0 errores TypeScript.
 - **Diagnóstico:** Se encontraron 54 instancias de `as any` distribuidas en 15+ archivos. El caso más grave está en `app/dashboard/produccion/actions.ts` donde **cada operación de base de datos** requiere doble casteo:
-  ```typescript
-  await (supabase.from("planning" as any) as any)
-  ```
-  Esto indica que `utils/supabase/types.ts` no incluye las tablas `planning`, `machines`, `production_orders`, entre otras. TypeScript está efectivamente deshabilitado para todo el módulo de producción.
+    ```typescript
+    await (supabase.from("planning" as any) as any);
+    ```
+    Esto indica que `utils/supabase/types.ts` no incluye las tablas `planning`, `machines`, `production_orders`, entre otras. TypeScript está efectivamente deshabilitado para todo el módulo de producción.
 - **Impacto:** Errores de tipos en runtime (campo inexistente, tipo incorrecto en insert/update) que TypeScript debería atrapar en compilación. Cada refactoring de esquema de BD requiere verificación manual en lugar de automática.
 - **Archivos principales:**
-  - `app/dashboard/produccion/actions.ts` — 14 instancias
-  - `components/production/production-view.tsx` — 11 instancias
-  - `lib/scheduling-utils.ts` — 8 instancias
-  - `components/production/gantt-svg.tsx` — 8 instancias
-  - `app/dashboard/logistica/proyectos/page.tsx` — 7 instancias
-  - `app/dashboard/ventas/proyectos/page.tsx` — 6 instancias
+    - `app/dashboard/produccion/actions.ts` — 14 instancias
+    - `components/production/production-view.tsx` — 11 instancias
+    - `lib/scheduling-utils.ts` — 8 instancias
+    - `components/production/gantt-svg.tsx` — 8 instancias
+    - `app/dashboard/logistica/proyectos/page.tsx` — 7 instancias
+    - `app/dashboard/ventas/proyectos/page.tsx` — 6 instancias
 - **Refactorización Propuesta:**
 
-  *Código Actual:* (`app/dashboard/produccion/actions.ts:17`)
-  ```typescript
-  const { error } = await (supabase.from("planning" as any) as any)
-    .update({ machine, operator, planned_date, shift })
-    .eq("id", taskId);
-  ```
+    _Código Actual:_ (`app/dashboard/produccion/actions.ts:17`)
 
-  *Código Optimizado:*
-  1. Regenerar tipos con `supabase gen types typescript`:
-  ```bash
-  npx supabase gen types typescript --project-id <project-id> > utils/supabase/types.ts
-  ```
+    ```typescript
+    const { error } = await (supabase.from("planning" as any) as any)
+        .update({ machine, operator, planned_date, shift })
+        .eq("id", taskId);
+    ```
 
-  2. Uso correcto sin casteos:
-  ```typescript
-  const { error } = await supabase
-    .from("planning")
-    .update({ machine, operator, planned_date, shift })
-    .eq("id", taskId);
-  ```
+    _Código Optimizado:_
+    1. Regenerar tipos con `supabase gen types typescript`:
+
+    ```bash
+    npx supabase gen types typescript --project-id <project-id> > utils/supabase/types.ts
+    ```
+
+    2. Uso correcto sin casteos:
+
+    ```typescript
+    const { error } = await supabase
+        .from("planning")
+        .update({ machine, operator, planned_date, shift })
+        .eq("id", taskId);
+    ```
 
 ---
 
@@ -137,45 +141,45 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico:** Múltiples server actions aceptan datos directamente sin validación Zod ni sanitización. Mientras que `lib/validations/sales.ts` define schemas para algunas operaciones de ventas, las funciones de creación de catálogos y producción no validan nada.
 - **Impacto:** Datos malformados, strings excesivamente largos, o caracteres especiales entran directamente a Supabase. Aunque Supabase parametriza queries (protege contra SQL injection), no hay protección contra datos basura, strings vacíos, o valores fuera de rango. Violación directa de OWASP A03:2021 (Injection).
 - **Archivos afectados:**
-  - `app/dashboard/ventas/actions.ts:14-21` — `createClientEntry(name, prefix?, business_name?)` sin validación
-  - `app/dashboard/ventas/actions.ts:87-103` — `createPositionEntry()`, `createAreaEntry()`, `createUnitEntry()`, `createMaterialEntry()`, `createTreatmentEntry()` — todas aceptan strings crudos
-  - `app/dashboard/produccion/actions.ts:32-83` — `scheduleNewTask()`, `createPlanningTask()` — aceptan `machine` y `operator` sin checks
-  - `app/dashboard/produccion/actions.ts:168` — `batchSavePlanning()` — operación bulk sin validación
+    - `app/dashboard/ventas/actions.ts:14-21` — `createClientEntry(name, prefix?, business_name?)` sin validación
+    - `app/dashboard/ventas/actions.ts:87-103` — `createPositionEntry()`, `createAreaEntry()`, `createUnitEntry()`, `createMaterialEntry()`, `createTreatmentEntry()` — todas aceptan strings crudos
+    - `app/dashboard/produccion/actions.ts:32-83` — `scheduleNewTask()`, `createPlanningTask()` — aceptan `machine` y `operator` sin checks
+    - `app/dashboard/produccion/actions.ts:168` — `batchSavePlanning()` — operación bulk sin validación
 - **Refactorización Propuesta:**
 
-  *Código Actual:* (`app/dashboard/ventas/actions.ts:87`)
-  ```typescript
-  export async function createPositionEntry(name: string) {
-    const supabase = await createClient();
-    await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_positions").insert({ name });
-    if (error) throw new Error(error.message);
-    revalidatePath("/dashboard/ventas");
-  }
-  ```
+    _Código Actual:_ (`app/dashboard/ventas/actions.ts:87`)
 
-  *Código Optimizado:*
-  ```typescript
-  import { z } from "zod";
+    ```typescript
+    export async function createPositionEntry(name: string) {
+        const supabase = await createClient();
+        await requireRole(supabase, VENTAS_ROLES);
+        const { error } = await supabase.from("sales_positions").insert({ name });
+        if (error) throw new Error(error.message);
+        revalidatePath("/dashboard/ventas");
+    }
+    ```
 
-  const catalogEntrySchema = z.object({
-    name: z.string().min(1, "Nombre requerido").max(100).trim(),
-  });
+    _Código Optimizado:_
 
-  export async function createPositionEntry(name: string) {
-    const supabase = await createClient();
-    await requireRole(supabase, VENTAS_ROLES);
+    ```typescript
+    import { z } from "zod";
 
-    const parsed = catalogEntrySchema.parse({ name });
+    const catalogEntrySchema = z.object({
+        name: z.string().min(1, "Nombre requerido").max(100).trim(),
+    });
 
-    const { error } = await supabase
-      .from("sales_positions")
-      .insert({ name: parsed.name });
+    export async function createPositionEntry(name: string) {
+        const supabase = await createClient();
+        await requireRole(supabase, VENTAS_ROLES);
 
-    if (error) throw new Error("Error al crear posición");
-    revalidatePath("/dashboard/ventas");
-  }
-  ```
+        const parsed = catalogEntrySchema.parse({ name });
+
+        const { error } = await supabase.from("sales_positions").insert({ name: parsed.name });
+
+        if (error) throw new Error("Error al crear posición");
+        revalidatePath("/dashboard/ventas");
+    }
+    ```
 
 ---
 
@@ -188,26 +192,28 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico original:** Los mensajes de error de Supabase se propagan directamente al usuario mediante URLs y respuestas HTTP. Esto expone detalles de la infraestructura interna (nombres de tablas, constraints, versión de PostgreSQL). Violación de OWASP A04:2021 (Insecure Design).
 - **Impacto:** Un atacante puede mapear el esquema de la base de datos y entender la lógica interna del sistema mediante mensajes de error provocados.
 - **Archivos afectados:**
-  - `app/auth/actions.ts:29,80,98` — `redirect("/login?message=" + encodeURIComponent(error.message))`
-  - `app/dashboard/ventas/actions.ts:56` — `throw new Error(error.message)`
-  - `app/api/webhooks/supabase/quotes/route.ts:46` — `return new NextResponse("Error Interno: ${error.message}", { status: 500 })`
+    - `app/auth/actions.ts:29,80,98` — `redirect("/login?message=" + encodeURIComponent(error.message))`
+    - `app/dashboard/ventas/actions.ts:56` — `throw new Error(error.message)`
+    - `app/api/webhooks/supabase/quotes/route.ts:46` — `return new NextResponse("Error Interno: ${error.message}", { status: 500 })`
 - **Refactorización Propuesta:**
 
-  *Código Actual:* (`app/auth/actions.ts:29`)
-  ```typescript
-  return redirect("/login?message=" + encodeURIComponent(error.message));
-  ```
+    _Código Actual:_ (`app/auth/actions.ts:29`)
 
-  *Código Optimizado:*
-  ```typescript
-  import { logger } from "@/utils/logger";
+    ```typescript
+    return redirect("/login?message=" + encodeURIComponent(error.message));
+    ```
 
-  // Log el error real server-side
-  logger.error("Login failed", { email: data.email, error: error.message });
+    _Código Optimizado:_
 
-  // Devolver mensaje genérico al usuario
-  return redirect("/login?message=" + encodeURIComponent("Credenciales inválidas. Intenta de nuevo."));
-  ```
+    ```typescript
+    import { logger } from "@/utils/logger";
+
+    // Log el error real server-side
+    logger.error("Login failed", { email: data.email, error: error.message });
+
+    // Devolver mensaje genérico al usuario
+    return redirect("/login?message=" + encodeURIComponent("Credenciales inválidas. Intenta de nuevo."));
+    ```
 
 ---
 
@@ -222,19 +228,21 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Archivo:** `app/auth/callback/route.ts:6-16`
 - **Refactorización Propuesta:**
 
-  *Código Actual:*
-  ```typescript
-  const next = searchParams.get("next") ?? "/dashboard";
-  return NextResponse.redirect(`${origin}${next}`);
-  ```
+    _Código Actual:_
 
-  *Código Optimizado:*
-  ```typescript
-  const SAFE_REDIRECTS = ['/dashboard', '/pending-approval', '/account/update-password'];
-  const requestedNext = searchParams.get("next") ?? "/dashboard";
-  const next = SAFE_REDIRECTS.includes(requestedNext) ? requestedNext : "/dashboard";
-  return NextResponse.redirect(`${origin}${next}`);
-  ```
+    ```typescript
+    const next = searchParams.get("next") ?? "/dashboard";
+    return NextResponse.redirect(`${origin}${next}`);
+    ```
+
+    _Código Optimizado:_
+
+    ```typescript
+    const SAFE_REDIRECTS = ["/dashboard", "/pending-approval", "/account/update-password"];
+    const requestedNext = searchParams.get("next") ?? "/dashboard";
+    const next = SAFE_REDIRECTS.includes(requestedNext) ? requestedNext : "/dashboard";
+    return NextResponse.redirect(`${origin}${next}`);
+    ```
 
 ---
 
@@ -247,9 +255,9 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico:** Múltiples páginas cargan miles de registros en una sola query sin paginación ni streaming. Conforme la base de datos crezca, estos endpoints se convertirán en cuellos de botella que degradan la experiencia del usuario y pueden causar timeouts.
 - **Impacto:** Con 5,000+ registros: tiempos de carga de 3-10 segundos, consumo excesivo de memoria en el servidor, transferencia de datos innecesaria al cliente. A 50,000 registros: timeouts y crashes.
 - **Archivos afectados:**
-  - `app/dashboard/produccion/planeacion/page.tsx:22-23` — `.limit(5000)` en `production_orders` y `planning`
-  - `app/dashboard/produccion/maquinados/page.tsx:45` — `.limit(1000)` en tasks
-  - `app/dashboard/produccion/planeacion/page.tsx:15` — `machines.select("*")` sin límite
+    - `app/dashboard/produccion/planeacion/page.tsx:22-23` — `.limit(5000)` en `production_orders` y `planning`
+    - `app/dashboard/produccion/maquinados/page.tsx:45` — `.limit(1000)` en tasks
+    - `app/dashboard/produccion/planeacion/page.tsx:15` — `machines.select("*")` sin límite
 
 ---
 
@@ -260,27 +268,28 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico:** Tres componentes exceden las 1,400 líneas, violando el Principio de Responsabilidad Única (SRP de SOLID). Son imposibles de testear, difíciles de mantener, y aumentan el bundle size del cliente innecesariamente.
 - **Impacto:** Cada cambio en cualquier parte del componente requiere recargar las 1,900 líneas completas. Code splitting imposible. Bugs difíciles de aislar. Onboarding de nuevos desarrolladores severamente impactado.
 - **Archivos afectados:**
-  - `components/production/production-view.tsx` — **1,899 líneas**
-  - `components/production/gantt-svg.tsx` — **1,569 líneas**
-  - `app/dashboard/ventas/cotizador/page.tsx` — **1,490 líneas**
+    - `components/production/production-view.tsx` — **1,899 líneas**
+    - `components/production/gantt-svg.tsx` — **1,569 líneas**
+    - `app/dashboard/ventas/cotizador/page.tsx` — **1,490 líneas**
 - **Refactorización Propuesta para `production-view.tsx`:**
 
-  Dividir en módulos con responsabilidad única:
-  ```
-  components/production/
-  ├── production-view.tsx          (~200 líneas - orquestador)
-  ├── production-toolbar.tsx       (~150 líneas - filtros y acciones)
-  ├── production-calendar.tsx      (~200 líneas - vista de calendario)
-  ├── production-task-list.tsx     (~200 líneas - lista de tareas)
-  ├── production-task-card.tsx     (~100 líneas - tarjeta individual)
-  ├── production-modals/
-  │   ├── create-task-modal.tsx    (ya existe)
-  │   ├── task-detail-modal.tsx
-  │   └── auto-plan-dialog.tsx     (ya existe)
-  └── hooks/
-      ├── use-production-state.ts  (~100 líneas - estado centralizado)
-      └── use-production-filters.ts
-  ```
+    Dividir en módulos con responsabilidad única:
+
+    ```
+    components/production/
+    ├── production-view.tsx          (~200 líneas - orquestador)
+    ├── production-toolbar.tsx       (~150 líneas - filtros y acciones)
+    ├── production-calendar.tsx      (~200 líneas - vista de calendario)
+    ├── production-task-list.tsx     (~200 líneas - lista de tareas)
+    ├── production-task-card.tsx     (~100 líneas - tarjeta individual)
+    ├── production-modals/
+    │   ├── create-task-modal.tsx    (ya existe)
+    │   ├── task-detail-modal.tsx
+    │   └── auto-plan-dialog.tsx     (ya existe)
+    └── hooks/
+        ├── use-production-state.ts  (~100 líneas - estado centralizado)
+        └── use-production-filters.ts
+    ```
 
 ---
 
@@ -293,8 +302,8 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Diagnóstico:** Existen componentes prácticamente idénticos (~95% overlap) en dos directorios diferentes. Esto viola el principio DRY y crea un riesgo real de divergencia.
 - **Impacto:** Bugs corregidos en un componente no se corrigen en el duplicado. Doble trabajo de mantenimiento. Inconsistencias de UI entre módulos de ventas y proyectos.
 - **Archivos unificados en `components/shared/`:**
-  - `production-item-detail.tsx`, `project-details-panel.tsx`, `projects-table.tsx`
-  - `projects-filter.tsx`, `project-header-form.tsx`, `production-item-summary.tsx`
+    - `production-item-detail.tsx`, `project-details-panel.tsx`, `projects-table.tsx`
+    - `projects-filter.tsx`, `project-header-form.tsx`, `production-item-summary.tsx`
 
 ---
 
@@ -308,37 +317,37 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Impacto:** Experiencia de usuario degradada: sin feedback visual durante cargas pesadas, sin recuperación elegante ante errores. En un entorno de manufactura donde la app se usa en planta, esto genera frustración y llamadas innecesarias a soporte.
 - **Refactorización Propuesta:**
 
-  ```typescript
-  // app/dashboard/error.tsx
-  "use client";
+    ```typescript
+    // app/dashboard/error.tsx
+    "use client";
 
-  export default function DashboardError({
-    error,
-    reset,
-  }: {
-    error: Error & { digest?: string };
-    reset: () => void;
-  }) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-        <h2 className="text-xl font-semibold">Algo salió mal</h2>
-        <p className="text-muted-foreground">
-          Ocurrió un error inesperado. Intenta de nuevo.
-        </p>
-        <button onClick={reset} className="btn btn-primary">
-          Reintentar
-        </button>
-      </div>
-    );
-  }
-  ```
+    export default function DashboardError({
+      error,
+      reset,
+    }: {
+      error: Error & { digest?: string };
+      reset: () => void;
+    }) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+          <h2 className="text-xl font-semibold">Algo salió mal</h2>
+          <p className="text-muted-foreground">
+            Ocurrió un error inesperado. Intenta de nuevo.
+          </p>
+          <button onClick={reset} className="btn btn-primary">
+            Reintentar
+          </button>
+        </div>
+      );
+    }
+    ```
 
-  ```typescript
-  // app/dashboard/produccion/planeacion/loading.tsx
-  export default function PlanningLoading() {
-    return <div className="animate-pulse p-8">Cargando planificación...</div>;
-  }
-  ```
+    ```typescript
+    // app/dashboard/produccion/planeacion/loading.tsx
+    export default function PlanningLoading() {
+      return <div className="animate-pulse p-8">Cargando planificación...</div>;
+    }
+    ```
 
 ---
 
@@ -351,28 +360,30 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Impacto:** Bundle del cliente inflado. Moment.js está oficialmente en modo de mantenimiento y su equipo recomienda alternativas.
 - **Resolución:** Se migraron los 13 archivos que usaban `moment` a `date-fns`. Se eliminó la dependencia `moment` de `package.json`, ahorrando ~72KB gzipped en el bundle del cliente. 66 tests pasan y el build compila sin errores.
 - **Archivos con moment:**
-  - `components/production/production-view.tsx:52-53`
-  - `components/production/gantt-svg.tsx`
-  - `lib/scheduling-utils.ts`
+    - `components/production/production-view.tsx:52-53`
+    - `components/production/gantt-svg.tsx`
+    - `lib/scheduling-utils.ts`
 - **Refactorización Propuesta:**
 
-  *Código Actual:*
-  ```typescript
-  import moment from "moment";
-  import "moment/locale/es";
+    _Código Actual:_
 
-  const startOfWeek = moment().startOf("week");
-  const formatted = moment(date).format("DD/MM/YYYY");
-  ```
+    ```typescript
+    import moment from "moment";
+    import "moment/locale/es";
 
-  *Código Optimizado:*
-  ```typescript
-  import { startOfWeek, format } from "date-fns";
-  import { es } from "date-fns/locale";
+    const startOfWeek = moment().startOf("week");
+    const formatted = moment(date).format("DD/MM/YYYY");
+    ```
 
-  const weekStart = startOfWeek(new Date(), { locale: es });
-  const formatted = format(date, "dd/MM/yyyy", { locale: es });
-  ```
+    _Código Optimizado:_
+
+    ```typescript
+    import { startOfWeek, format } from "date-fns";
+    import { es } from "date-fns/locale";
+
+    const weekStart = startOfWeek(new Date(), { locale: es });
+    const formatted = format(date, "dd/MM/yyyy", { locale: es });
+    ```
 
 ---
 
@@ -386,25 +397,27 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Resolución:** Migrados 4 de 6 usos de `<img>` a `next/image` con `fill` y `sizes` responsive: planner-sidebar.tsx, gantt-svg.tsx, actualizaciones/page.tsx, edit-update-dialog.tsx. Se mantienen 2 excepciones justificadas: drawing-viewer.tsx (visor con zoom/pan dinámico vía motion.div) y project-form.tsx (usa blob URLs y data URLs no compatibles con next/image).
 - **Refactorización Propuesta:**
 
-  *Código Actual:*
-  ```tsx
-  <img src={item.image} alt={item.part_name} className="w-16 h-16 object-cover" />
-  ```
+    _Código Actual:_
 
-  *Código Optimizado:*
-  ```tsx
-  import Image from "next/image";
+    ```tsx
+    <img src={item.image} alt={item.part_name} className="h-16 w-16 object-cover" />
+    ```
 
-  <Image
-    src={item.image}
-    alt={item.part_name}
-    width={64}
-    height={64}
-    className="object-cover"
-    placeholder="blur"
-    blurDataURL="data:image/png;base64,..."
-  />
-  ```
+    _Código Optimizado:_
+
+    ```tsx
+    import Image from "next/image";
+
+    <Image
+        src={item.image}
+        alt={item.part_name}
+        width={64}
+        height={64}
+        className="object-cover"
+        placeholder="blur"
+        blurDataURL="data:image/png;base64,..."
+    />;
+    ```
 
 ---
 
@@ -419,24 +432,23 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 
 ---
 
-### 🚩 H-13: DIRECTORIO `src/app` HUÉRFANO
+### ✅ H-13: DIRECTORIO `src/app` HUÉRFANO — RESUELTO
 
 - **Categoría:** Limpieza
 - **Gravedad:** BAJA
+- **Estado:** ✅ RESUELTO (2026-03-23)
+- **Resolución:** Eliminados los 4 archivos huérfanos (`favicon.ico`, `globals.css`, `layout.tsx`, `page.tsx`) y el directorio `src/` completo vía `git rm -r src/`.
 - **Diagnóstico:** Existen dos directorios de app: `/app` (activo) y `/src/app` (huérfano con `layout.tsx`, `page.tsx`, `favicon.ico`, `globals.css`). Next.js usa `/app` por la configuración actual.
-- **Impacto:** Confusión para nuevos desarrolladores. Potencial conflicto si alguien modifica el archivo equivocado.
-- **Refactorización:** Eliminar `/src/app` completamente.
 
 ---
 
-### 🚩 H-14: CAMPO DE BD MAL ESCRITO: `genral_status`
+### ✅ H-14: CAMPO DE BD MAL ESCRITO: `genral_status` — RESUELTO
 
 - **Categoría:** Limpieza / Lógica
 - **Gravedad:** BAJA (pero molesto)
+- **Estado:** ✅ RESUELTO (2026-03-23)
+- **Resolución:** Migración SQL ejecutada en Supabase (`ALTER TABLE production_orders RENAME COLUMN genral_status TO general_status`). Search-and-replace global en 17 archivos de código fuente y `supabase/project_status_trigger.sql`. 0 ocurrencias restantes.
 - **Diagnóstico:** El campo `genral_status` (falta la "e" en "general") se usa en 20+ archivos. Es un error tipográfico en el esquema de la base de datos que se propagó a todo el código.
-- **Impacto:** Confusión para desarrolladores, queries difíciles de buscar, profesionalismo del codebase reducido.
-- **Archivos afectados:** `scheduling-utils.ts`, `production-item-detail.tsx`, `produccion/actions.ts`, `ventas/actions.ts`, y otros.
-- **Refactorización:** Migración de Supabase para renombrar la columna + search-and-replace global.
 
 ---
 
@@ -450,16 +462,17 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Resolución:** Refactorizado con 4 mejoras: (1) Acepta múltiples tablas en una sola instancia → de 4 canales Supabase a 2. (2) Debounce de 2s en lugar de throttle de 500ms → cambios rápidos se agrupan en un solo refresh. (3) `router.refresh()` envuelto en `startTransition` → UI no se bloquea durante la recarga. (4) Eliminados 5 console.log de debug.
 - **Refactorización Propuesta:**
 
-  Usar React `useOptimistic` o invalidación granular con `revalidatePath`:
-  ```typescript
-  // En lugar de router.refresh() global
-  // Usar SWR/React Query con invalidación por key
-  const { mutate } = useSWR(`/api/planning/${taskId}`);
-  // En el listener:
-  channel.on('postgres_changes', { event: 'UPDATE', table: 'planning' }, () => {
-    mutate(); // Solo re-fetch los datos afectados
-  });
-  ```
+    Usar React `useOptimistic` o invalidación granular con `revalidatePath`:
+
+    ```typescript
+    // En lugar de router.refresh() global
+    // Usar SWR/React Query con invalidación por key
+    const { mutate } = useSWR(`/api/planning/${taskId}`);
+    // En el listener:
+    channel.on("postgres_changes", { event: "UPDATE", table: "planning" }, () => {
+        mutate(); // Solo re-fetch los datos afectados
+    });
+    ```
 
 ---
 
@@ -481,25 +494,23 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Estado:** ✅ Resuelto 2026-03-20
 - **Diagnóstico:** Patrones de consultas ineficientes encontrados en múltiples archivos.
 - **Archivos afectados:**
-  - `app/dashboard/ventas/actions.ts:303-315` — Dos queries paralelas a `projects` para obtener columnas diferentes que podrían ser una sola query
-  - `app/dashboard/ventas/actions.ts:333-354` — `getQuoteById()` hace 2 queries separadas (quote + items) cuando podría ser una con relaciones
+    - `app/dashboard/ventas/actions.ts:303-315` — Dos queries paralelas a `projects` para obtener columnas diferentes que podrían ser una sola query
+    - `app/dashboard/ventas/actions.ts:333-354` — `getQuoteById()` hace 2 queries separadas (quote + items) cuando podría ser una con relaciones
 - **Resolución:** `getFilterOptions()` combinada en 1 sola query (`select("company, requestor")`). `getQuoteById()` combinada en 1 query con relación embebida (`select("*, ..., sales_quote_items(*)")`) — de 3 queries totales a 1+1.
 - **Refactorización Propuesta:**
 
-  *Código Actual:* (`getQuoteById`)
-  ```typescript
-  const { data: quote } = await supabase.from("sales_quotes").select("*").eq("id", id).single();
-  const { data: items } = await supabase.from("sales_quote_items").select("*").eq("quote_id", id);
-  ```
+    _Código Actual:_ (`getQuoteById`)
 
-  *Código Optimizado:*
-  ```typescript
-  const { data: quote } = await supabase
-    .from("sales_quotes")
-    .select("*, sales_quote_items(*)")
-    .eq("id", id)
-    .single();
-  ```
+    ```typescript
+    const { data: quote } = await supabase.from("sales_quotes").select("*").eq("id", id).single();
+    const { data: items } = await supabase.from("sales_quote_items").select("*").eq("quote_id", id);
+    ```
+
+    _Código Optimizado:_
+
+    ```typescript
+    const { data: quote } = await supabase.from("sales_quotes").select("*, sales_quote_items(*)").eq("id", id).single();
+    ```
 
 ---
 
@@ -521,9 +532,9 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Gravedad:** BAJA
 - **Diagnóstico:** Código de demo y hardcoded IDs encontrados en archivos de producción.
 - **Archivos:**
-  - `app/dashboard/ventas/nuevo-proyecto/project-form.tsx:338` — `setDriveFolderUrl("https://drive.google.com/drive/folders/demo-folder-id")`
-  - `components/production/production-view.tsx:816` — Comentario: `// Cast to any to avoid strict type checking on demo data`
-  - `app/dashboard/ventas/project-actions.ts:126` — UUID hardcodeado: `status_id: '3f454811-5b77-4b11-ab75-458e20c5ae6e'`
+    - `app/dashboard/ventas/nuevo-proyecto/project-form.tsx:338` — `setDriveFolderUrl("https://drive.google.com/drive/folders/demo-folder-id")`
+    - `components/production/production-view.tsx:816` — Comentario: `// Cast to any to avoid strict type checking on demo data`
+    - `app/dashboard/ventas/project-actions.ts:126` — UUID hardcodeado: `status_id: '3f454811-5b77-4b11-ab75-458e20c5ae6e'`
 - **Refactorización:** Mover IDs a constantes en `lib/constants/`, eliminar código demo.
 
 ---
@@ -534,9 +545,9 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - **Gravedad:** BAJA
 - **Diagnóstico:** 78 `console.log` / `console.error` directos encontrados en código de producción. El proyecto tiene `utils/logger.ts` pero no se usa consistentemente. Algunos logs incluyen datos potencialmente sensibles.
 - **Archivos con más instancias:**
-  - `app/dashboard/ventas/actions.ts` — 16 instancias (incluyendo logs de rutas de storage en líneas 471, 481)
-  - `app/dashboard/actions-updates.ts` — 5 instancias
-  - `components/realtime-refresher.tsx` — 5 instancias (debug logs)
+    - `app/dashboard/ventas/actions.ts` — 16 instancias (incluyendo logs de rutas de storage en líneas 471, 481)
+    - `app/dashboard/actions-updates.ts` — 5 instancias
+    - `components/realtime-refresher.tsx` — 5 instancias (debug logs)
 - **Refactorización:** Reemplazar todos los `console.log` con el `logger` existente y configurarlo para silenciarse en producción.
 
 ---
@@ -544,6 +555,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 ## 3. LISTA DE VERIFICACIÓN POST-AUDITORÍA
 
 ### Prioridad CRÍTICA (Semana 1)
+
 - [x] ~~Regenerar tipos Supabase con `supabase gen types typescript` y eliminar los 54 `as any`~~ ✅ Resuelto 2026-03-18 — 0 errores TS, solo 5 `as any` irreducibles
 - [x] ~~Agregar validación Zod a TODOS los server actions que aceptan input de usuario~~ ✅ Resuelto 2026-03-18 — 35 funciones validadas, 4 archivos de schemas creados
 - [x] ~~Implementar error boundaries (`error.tsx`) en `/app/dashboard/` y subdirectorios~~ ✅ Resuelto 2026-03-18 — 9 error boundaries creados (global + dashboard + 7 subdirectorios), componente reutilizable `ErrorDisplay`
@@ -552,6 +564,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Reemplazar mensajes de error internos con mensajes genéricos al usuario~~ ✅ Resuelto 2026-03-18 — ~50 instancias corregidas en 8 archivos, errores internos solo en console.error con prefijo de módulo
 
 ### Prioridad ALTA (Semana 2-3)
+
 - [x] ~~Agregar verificación de propiedad en `deleteQuoteFiles()`~~ ✅ Resuelto 2026-03-20 — Separado en `deleteQuoteFilesInternal` (lib/storage-utils.ts) + server action con requireRole y verificación RLS
 - [x] ~~Implementar paginación en queries de producción/planeación (remover `.limit(5000)`)~~ ✅ Resuelto 2026-03-20 — Filtros por rango de fechas en planeacion (±90/180 días) y maquinados (±30/60 días), eliminados limits arbitrarios y query de operadores redundante
 - [x] ~~Unificar componentes duplicados en `components/shared/`~~ ✅ Resuelto 2026-03-20 — 6 componentes unificados, 12 duplicados eliminados, 3 imports actualizados
@@ -560,6 +573,7 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Comenzar refactoring de `production-view.tsx` (1,899 líneas → 5-10 componentes)~~ ✅ Resuelto 2026-03-20 — Archivo principal reducido de 1,899 a 744 líneas. Extraídos 6 módulos: `useEvaluationFilters` hook (176 lín), `EvaluationSidebar` (405 lín), `StrategyToolbar` (289 lín), `GanttControls` (263 lín), `BlueprintPreviewDialog` (61 lín), `ConfirmationDialogs` (86 lín)
 
 ### Prioridad MEDIA (Semana 3-4)
+
 - [x] ~~Reemplazar `moment.js` con `date-fns` en todo el módulo de producción~~ ✅ Resuelto 2026-03-20 — Migrados 13 archivos (scheduling-utils, gantt-svg, production-view, machining-view, evaluation-sidebar, use-evaluation-filters, create-task-modal, evaluation-modal, actions.ts, 2 pages, 2 scripts). Dependencia `moment` eliminada de package.json. 66 tests pasan, build exitoso.
 - [x] ~~Migrar imágenes a `next/image`~~ ✅ Resuelto 2026-03-20 — 4 de 6 `<img>` migrados a `next/image` con fill+sizes responsive. 2 excepciones: drawing-viewer (zoom/pan dinámico) y project-form (blob/data URLs)
 - [x] ~~Combinar queries N+1 (`getQuoteById`, `getFilterOptions`)~~ ✅ Resuelto 2026-03-20 — `getFilterOptions` de 2→1 query, `getQuoteById` de 2→1 query con relación embebida
@@ -568,13 +582,14 @@ El proyecto tiene una base arquitectónica razonable (Next.js App Router, server
 - [x] ~~Configurar Prettier y extender reglas de ESLint~~ ✅ Resuelto 2026-03-20 — Prettier configurado (.prettierrc con tailwindcss plugin, 4-space, double quotes, semicolons). ESLint extendido con eslint-config-prettier + reglas: no-console (warn), no-duplicate-imports, no-unused-vars con ignore pattern `^_`. Scripts `format` y `format:check` agregados
 
 ### Prioridad BAJA (Mes 2)
-- [ ] Eliminar directorio `src/app` huérfano
-- [ ] Corregir typo `genral_status` → `general_status` (requiere migración de BD)
-- [ ] Eliminar código demo/placeholder
-- [ ] Reemplazar 78 `console.log` con `logger.ts`
-- [ ] Mover UUIDs hardcodeados a `lib/constants/`
-- [ ] Configurar pre-commit hooks con Husky + lint-staged
+
+- [x] ~~Eliminar directorio `src/app` huérfano~~ ✅ Resuelto 2026-03-23 — Eliminados 4 archivos huérfanos (`favicon.ico`, `globals.css`, `layout.tsx`, `page.tsx`) y el directorio `src/` completo vía `git rm -r`.
+- [x] ~~Corregir typo `genral_status` → `general_status`~~ ✅ Resuelto 2026-03-23 — Migración SQL ejecutada en Supabase (`ALTER TABLE production_orders RENAME COLUMN`). Search-and-replace en 17 archivos de código + `supabase/project_status_trigger.sql`.
+- [x] ~~Eliminar código demo/placeholder~~ ✅ Resuelto 2026-03-23 — URL falsa `demo-folder-id` reemplazada con cadena vacía en `project-form.tsx`. El resto de código demo pertenece a los tours de ayuda (funcionalidad válida).
+- [x] ~~Reemplazar 78 `console.log` con `logger.ts`~~ ✅ Resuelto 2026-03-23 — 20 instancias migradas a `logger.debug/info/error` en 9 archivos (`storage-utils.ts`, `scheduling-utils.ts`, `use-realtime.ts`, `actions-updates.ts`, `task-modal.tsx`, `machining-realtime-wrapper.tsx`, `project-details-panel.tsx`, `quotes/route.ts`, `planeacion/page.tsx`). `console.log` restantes son en scripts (permitidos).
+- [x] ~~Mover UUIDs hardcodeados a `lib/constants/`~~ ✅ Resuelto 2026-03-23 — UUID de `status_id` movido a `STATUS_IDS.NUEVO_PROYECTO` en `lib/constants/status.ts`. Referencia actualizada en `project-actions.ts`.
+- [x] ~~Configurar pre-commit hooks con Husky + lint-staged~~ ✅ Resuelto 2026-03-23 — Husky 9 + lint-staged instalados. Hook `.husky/pre-commit` ejecuta `prettier --write` + `eslint --fix` en archivos `.ts/.tsx` staged. ESLint configurado con todos los errores legacy degradados a `warn` para no bloquear commits. 0 errores · 483 warnings.
 
 ---
 
-*Fin del reporte. Este documento debe revisarse mensualmente para trackear el progreso de remediación.*
+_Fin del reporte. Este documento debe revisarse mensualmente para trackear el progreso de remediación._

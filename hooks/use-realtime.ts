@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import logger from "@/utils/logger";
 
 /**
  * Hook to subscribe to real-time changes in a Supabase table.
- * 
+ *
  * @param table - The table name to subscribe to.
  * @param callback - Function to execute when a change occurs.
  * @param event - The type of event to listen for (INSERT, UPDATE, DELETE, or *).
@@ -14,7 +15,7 @@ import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 export function useRealtime(
     table: string,
     callback: (payload: RealtimePostgresChangesPayload<any>) => void,
-    event: 'INSERT' | 'UPDATE' | 'DELETE' | '*' = '*'
+    event: "INSERT" | "UPDATE" | "DELETE" | "*" = "*"
 ) {
     const supabase = useMemo(() => createClient(), []);
     const callbackRef = useRef(callback);
@@ -28,10 +29,10 @@ export function useRealtime(
         const channel = supabase
             .channel(`realtime_${table}_${event}_${Math.random().toString(36).substring(7)}`)
             .on(
-                'postgres_changes' as any,
+                "postgres_changes" as any,
                 {
                     event: event,
-                    schema: 'public',
+                    schema: "public",
                     table: table,
                 } as any,
                 (payload: RealtimePostgresChangesPayload<any>) => {
@@ -39,8 +40,8 @@ export function useRealtime(
                 }
             )
             .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log(`Subscribed to ${table} changes`);
+                if (status === "SUBSCRIBED") {
+                    logger.debug(`Subscribed to ${table} changes`);
                 }
             });
 

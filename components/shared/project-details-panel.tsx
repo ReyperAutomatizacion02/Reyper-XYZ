@@ -4,6 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/utils/cn";
+import logger from "@/utils/logger";
 import {
     X,
     Calendar,
@@ -19,7 +20,7 @@ import {
     ExternalLink,
     AlertCircle,
     Eye,
-    Check
+    Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,8 +107,8 @@ export function ProjectDetailsPanel({
     treatments = [],
     config = {
         header: { allowEdit: true, hiddenFields: [], readOnlyFields: [] },
-        items: { allowEdit: true, hiddenFields: [], readOnlyFields: [] }
-    }
+        items: { allowEdit: true, hiddenFields: [], readOnlyFields: [] },
+    },
 }: ProjectDetailsPanelProps) {
     const [items, setItems] = useState<ProjectItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -178,7 +179,7 @@ export function ProjectDetailsPanel({
 
             // Sync selected item if viewing detail
             if (selectedItem) {
-                const updated = itemsList.find(i => i.id === selectedItem.id);
+                const updated = itemsList.find((i) => i.id === selectedItem.id);
                 if (updated) setSelectedItem(updated);
             }
         } catch (error: any) {
@@ -210,7 +211,7 @@ export function ProjectDetailsPanel({
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
                                 className={cn(
-                                    "fixed top-16 bottom-0 right-[500px] bg-slate-100/90 backdrop-blur-sm border-r border-border z-[15] transition-all duration-300",
+                                    "fixed bottom-0 right-[500px] top-16 z-[15] border-r border-border bg-slate-100/90 backdrop-blur-sm transition-all duration-300",
                                     isCollapsed ? "left-[80px]" : "left-[288px]",
                                     "max-lg:left-0"
                                 )}
@@ -231,22 +232,20 @@ export function ProjectDetailsPanel({
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 inset-y-0 w-full max-w-[500px] bg-background border-l border-border shadow-2xl z-20 flex flex-col pt-16"
+                        className="fixed inset-y-0 right-0 top-0 z-20 flex w-full max-w-[500px] flex-col border-l border-border bg-background pt-16 shadow-2xl"
                         id="project-details-panel"
                     >
-
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={selectedItem ? "detail" : "list"}
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -20 }}
-                                className="flex flex-col h-full"
+                                className="flex h-full flex-col"
                             >
-                                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 bg-slate-50/30 dark:bg-transparent flex flex-col h-full">
-
+                                <div className="scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 flex h-full flex-1 flex-col overflow-y-auto bg-slate-50/30 dark:bg-transparent">
                                     {!selectedItem ? (
-                                        <div className="flex flex-col flex-1">
+                                        <div className="flex flex-1 flex-col">
                                             <ProjectHeaderForm
                                                 project={project}
                                                 isEditing={isEditing}
@@ -262,53 +261,78 @@ export function ProjectDetailsPanel({
                                             />
 
                                             {!isEditing && (
-                                                <div className="p-5 space-y-8 flex-1">
-                                                    {!config.header?.hiddenFields?.includes('times') && (
+                                                <div className="flex-1 space-y-8 p-5">
+                                                    {!config.header?.hiddenFields?.includes("times") && (
                                                         <div className="flex flex-col gap-3">
-                                                            <div className="flex items-center gap-2 text-slate-500 pl-1">
-                                                                <Calendar className="w-4 h-4" />
-                                                                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Tiempos</span>
+                                                            <div className="flex items-center gap-2 pl-1 text-slate-500">
+                                                                <Calendar className="h-4 w-4" />
+                                                                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">
+                                                                    Tiempos
+                                                                </span>
                                                             </div>
-                                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                                                                <div className="flex justify-between items-start mb-6">
+                                                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                                                                <div className="mb-6 flex items-start justify-between">
                                                                     <div className="flex flex-col">
-                                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Inicio</span>
-                                                                        <span className="text-[15px] font-bold text-slate-900 dark:text-white capitalize">
-                                                                            {format(parseLocalDate(project.start_date) || new Date(), "dd MMM yyyy", { locale: es })}
+                                                                        <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                                                            Inicio
+                                                                        </span>
+                                                                        <span className="text-[15px] font-bold capitalize text-slate-900 dark:text-white">
+                                                                            {format(
+                                                                                parseLocalDate(project.start_date) ||
+                                                                                    new Date(),
+                                                                                "dd MMM yyyy",
+                                                                                { locale: es }
+                                                                            )}
                                                                         </span>
                                                                     </div>
                                                                     <div className="flex flex-col text-right">
-                                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Entrega</span>
-                                                                        <span className="text-[15px] font-bold text-[#EC1C21] capitalize">
-                                                                            {format(parseLocalDate(project.delivery_date) || new Date(), "dd MMM yyyy", { locale: es })}
+                                                                        <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                                                            Entrega
+                                                                        </span>
+                                                                        <span className="text-[15px] font-bold capitalize text-[#EC1C21]">
+                                                                            {format(
+                                                                                parseLocalDate(project.delivery_date) ||
+                                                                                    new Date(),
+                                                                                "dd MMM yyyy",
+                                                                                { locale: es }
+                                                                            )}
                                                                         </span>
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex flex-col gap-2">
-                                                                    <div className="flex justify-between items-center">
-                                                                        <span className="text-[11px] font-bold text-slate-900 dark:text-white">Progreso de tiempo</span>
-                                                                        <span className="text-[11px] font-bold text-slate-900 dark:text-white">{Math.round(progress)}%</span>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                                                                            Progreso de tiempo
+                                                                        </span>
+                                                                        <span className="text-[11px] font-bold text-slate-900 dark:text-white">
+                                                                            {Math.round(progress)}%
+                                                                        </span>
                                                                     </div>
-                                                                    <Progress value={progress} className="h-1.5 [&>div]:bg-[#EC1C21] bg-slate-100 dark:bg-slate-800" />
+                                                                    <Progress
+                                                                        value={progress}
+                                                                        className="h-1.5 bg-slate-100 dark:bg-slate-800 [&>div]:bg-[#EC1C21]"
+                                                                    />
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
 
                                                     <div className="flex flex-col gap-4">
-                                                        <div className="flex items-center gap-2 text-slate-500 pl-1 mb-1">
-                                                            <Package className="w-4 h-4" />
-                                                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">Partidas ({items.length})</span>
+                                                        <div className="mb-1 flex items-center gap-2 pl-1 text-slate-500">
+                                                            <Package className="h-4 w-4" />
+                                                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 text-opacity-80">
+                                                                Partidas ({items.length})
+                                                            </span>
                                                         </div>
 
                                                         <div className="space-y-4">
                                                             {loading ? (
                                                                 <div className="flex justify-center p-8">
-                                                                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                                                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                                                                 </div>
                                                             ) : items.length === 0 ? (
-                                                                <div className="text-center p-8 text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
-                                                                    <Package className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                                                <div className="rounded-lg border border-dashed bg-muted/30 p-8 text-center text-muted-foreground">
+                                                                    <Package className="mx-auto mb-2 h-8 w-8 opacity-20" />
                                                                     <p>No hay partidas registradas</p>
                                                                 </div>
                                                             ) : (
@@ -329,9 +353,9 @@ export function ProjectDetailsPanel({
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col flex-1 h-full bg-slate-50/50 dark:bg-slate-900/10">
+                                        <div className="flex h-full flex-1 flex-col bg-slate-50/50 dark:bg-slate-900/10">
                                             {/* Drill-down Header: New Layout */}
-                                            <div className="flex items-center justify-between h-16 p-4 bg-background border-b border-border sticky top-0 z-10 shrink-0">
+                                            <div className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background p-4">
                                                 <div className="flex items-center gap-3">
                                                     {/* Back Button */}
                                                     <Button
@@ -341,49 +365,63 @@ export function ProjectDetailsPanel({
                                                             setSelectedItem(null);
                                                             setIsEditing(false);
                                                         }}
-                                                        className="h-9 w-9 p-0 rounded-full hover:bg-slate-100 text-slate-500"
+                                                        className="h-9 w-9 rounded-full p-0 text-slate-500 hover:bg-slate-100"
                                                     >
-                                                        <ChevronLeft className="w-5 h-5" />
+                                                        <ChevronLeft className="h-5 w-5" />
                                                     </Button>
 
                                                     {/* Part Code */}
-                                                    <Badge variant="secondary" className="bg-red-50 text-red-600 hover:bg-red-100 border-none px-4 py-1.5 font-mono text-xs font-bold tracking-widest shadow-none rounded-xl">
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="rounded-xl border-none bg-red-50 px-4 py-1.5 font-mono text-xs font-bold tracking-widest text-red-600 shadow-none hover:bg-red-100"
+                                                    >
                                                         {selectedItem.part_code}
                                                     </Badge>
 
                                                     {/* Item Navigation - Hidden in Edit Mode to reduce saturation */}
                                                     {!isEditing && (
-                                                        <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                                                        <div className="flex items-center gap-1 rounded-lg border border-slate-200/50 bg-slate-100/50 p-1 dark:border-slate-700/50 dark:bg-slate-800/50">
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 onClick={() => {
-                                                                    const idx = items.findIndex(i => i.id === selectedItem.id);
+                                                                    const idx = items.findIndex(
+                                                                        (i) => i.id === selectedItem.id
+                                                                    );
                                                                     if (idx > 0) {
                                                                         setSelectedItem(items[idx - 1]);
                                                                     }
                                                                 }}
-                                                                disabled={items.findIndex(i => i.id === selectedItem.id) === 0}
-                                                                className="h-6 w-6 p-0 hover:bg-white dark:hover:bg-slate-700 text-slate-400"
+                                                                disabled={
+                                                                    items.findIndex((i) => i.id === selectedItem.id) ===
+                                                                    0
+                                                                }
+                                                                className="h-6 w-6 p-0 text-slate-400 hover:bg-white dark:hover:bg-slate-700"
                                                             >
-                                                                <ChevronLeft className="w-4 h-4" />
+                                                                <ChevronLeft className="h-4 w-4" />
                                                             </Button>
-                                                            <span className="text-[9px] font-bold font-mono text-slate-400 px-1 select-none">
-                                                                {items.findIndex(i => i.id === selectedItem.id) + 1}/{items.length}
+                                                            <span className="select-none px-1 font-mono text-[9px] font-bold text-slate-400">
+                                                                {items.findIndex((i) => i.id === selectedItem.id) + 1}/
+                                                                {items.length}
                                                             </span>
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 onClick={() => {
-                                                                    const idx = items.findIndex(i => i.id === selectedItem.id);
+                                                                    const idx = items.findIndex(
+                                                                        (i) => i.id === selectedItem.id
+                                                                    );
                                                                     if (idx < items.length - 1) {
                                                                         setSelectedItem(items[idx + 1]);
                                                                     }
                                                                 }}
-                                                                disabled={items.findIndex(i => i.id === selectedItem.id) === items.length - 1}
-                                                                className="h-6 w-6 p-0 hover:bg-white dark:hover:bg-slate-700 text-slate-400"
+                                                                disabled={
+                                                                    items.findIndex((i) => i.id === selectedItem.id) ===
+                                                                    items.length - 1
+                                                                }
+                                                                className="h-6 w-6 p-0 text-slate-400 hover:bg-white dark:hover:bg-slate-700"
                                                             >
-                                                                <ChevronRight className="w-4 h-4" />
+                                                                <ChevronRight className="h-4 w-4" />
                                                             </Button>
                                                         </div>
                                                     )}
@@ -391,41 +429,53 @@ export function ProjectDetailsPanel({
 
                                                 <div className="flex items-center gap-2">
                                                     {isEditing ? (
-                                                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                                                        <div className="flex items-center gap-2 duration-300 animate-in fade-in slide-in-from-right-4">
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
                                                                 onClick={() => setIsEditing(false)}
                                                                 disabled={isSaving}
-                                                                className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-slate-200 hover:bg-slate-50 bg-white dark:bg-slate-900 rounded-lg transition-all"
+                                                                className="h-8 rounded-lg border-slate-200 bg-white px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 transition-all hover:bg-slate-50 dark:bg-slate-900"
                                                             >
                                                                 Cancelar
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    const btn = document.getElementById('trigger-save-item');
+                                                                    const btn =
+                                                                        document.getElementById("trigger-save-item");
                                                                     if (btn) btn.click();
                                                                 }}
-                                                                className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest bg-[#EC1C21] hover:bg-[#D1181C] text-white rounded-lg shadow-lg shadow-red-500/10 border-none transition-all hover:scale-[1.02]"
+                                                                className="h-8 rounded-lg border-none bg-[#EC1C21] px-4 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-red-500/10 transition-all hover:scale-[1.02] hover:bg-[#D1181C]"
                                                             >
-                                                                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                                                                {isSaving ? (
+                                                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <Check className="mr-1.5 h-3.5 w-3.5" />
+                                                                )}
                                                                 {isSaving ? "Guardando..." : "Guardar"}
                                                             </Button>
                                                         </div>
-                                                    ) : config.items?.allowEdit && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setIsEditing(true)}
-                                                            className="h-8 px-4 text-[10px] font-bold uppercase tracking-widest text-red-600 border-red-100 hover:bg-red-50 bg-white dark:bg-slate-950 rounded-lg transition-all"
-                                                        >
-                                                            EDITAR
-                                                        </Button>
+                                                    ) : (
+                                                        config.items?.allowEdit && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => setIsEditing(true)}
+                                                                className="h-8 rounded-lg border-red-100 bg-white px-4 text-[10px] font-bold uppercase tracking-widest text-red-600 transition-all hover:bg-red-50 dark:bg-slate-950"
+                                                            >
+                                                                EDITAR
+                                                            </Button>
+                                                        )
                                                     )}
 
-                                                    <Button variant="ghost" size="icon" onClick={onClose} className="h-9 w-9 text-slate-400 hover:text-slate-600 ml-1">
-                                                        <X className="w-5 h-5" />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={onClose}
+                                                        className="ml-1 h-9 w-9 text-slate-400 hover:text-slate-600"
+                                                    >
+                                                        <X className="h-5 w-5" />
                                                     </Button>
                                                 </div>
                                             </div>
@@ -444,7 +494,7 @@ export function ProjectDetailsPanel({
                                                     hiddenFields={config.items?.hiddenFields}
                                                     readOnlyFields={config.items?.readOnlyFields}
                                                     onViewDrawing={(url: string, title: string) => {
-                                                        console.log("Setting side drawing:", { url, title });
+                                                        logger.debug("Setting side drawing:", { url, title });
                                                         setSideDrawing({ url, title });
                                                     }}
                                                 />

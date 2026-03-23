@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requireRole } from "@/lib/auth-guard";
 import { UpdateSystemUpdateSchema } from "@/lib/validations/updates";
+import logger from "@/utils/logger";
 
 export interface SystemUpdate {
     id: string;
@@ -45,13 +46,9 @@ export async function updateSystemUpdate(id: string, updates: Partial<SystemUpda
     const supabase = await createClient(cookieStore);
     await requireRole(supabase, ["admin"]);
 
-    console.log("Saving update to Supabase:", { id: parsed.id, updates: parsed.updates }); // Debug log
+    logger.debug("Saving update to Supabase:", { id: parsed.id, updates: parsed.updates });
 
-    const { data, error } = await supabase
-        .from("system_updates")
-        .update(parsed.updates)
-        .eq("id", parsed.id)
-        .select();
+    const { data, error } = await supabase.from("system_updates").update(parsed.updates).eq("id", parsed.id).select();
 
     if (error) {
         console.error("Error updating system update:", error);
@@ -63,7 +60,7 @@ export async function updateSystemUpdate(id: string, updates: Partial<SystemUpda
         return null;
     }
 
-    console.log("Update successful, returned data:", data[0]);
+    logger.debug("Update successful, returned data:", data[0]);
     revalidatePath("/dashboard/actualizaciones");
     return data[0] as SystemUpdate;
 }
