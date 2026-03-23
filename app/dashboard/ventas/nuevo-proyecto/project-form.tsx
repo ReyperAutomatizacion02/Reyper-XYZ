@@ -335,7 +335,7 @@ export function ProjectForm({ clients, contacts, units, materials, treatments, i
             setProjectCode("PRJ-DEMO-001");
             setProjectName("Proyecto de Demostración (Tour)");
             if (clients.length > 0) setSelectedClient(clients[0].id);
-            setDriveFolderUrl("https://drive.google.com/drive/folders/demo-folder-id");
+            setDriveFolderUrl("");
             setItemsToGenerate(5);
 
             // Populate Staging Area (Selection Zone)

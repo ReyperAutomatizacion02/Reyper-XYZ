@@ -126,7 +126,7 @@ export async function createProjectAndItems(
             unit: item.unit,
             design_no: item.design_no,
             is_sub_item: item.is_sub_item || false,
-            genral_status: "A0-NUEVO PROYECTO",
+            general_status: "A0-NUEVO PROYECTO",
             status_id: '3f454811-5b77-4b11-ab75-458e20c5ae6e', // Fixed status ID
         }));
 

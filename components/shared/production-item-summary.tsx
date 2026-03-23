@@ -48,7 +48,7 @@ export function ProductionItemSummary({ item, onClick, hiddenFields = [] }: Prod
                     </span>
                     {!hiddenFields.includes('status') && (
                         <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-[8px] uppercase tracking-wider px-2 py-0 border-none">
-                            {item.status || item.genral_status}
+                            {item.status || item.general_status}
                         </Badge>
                     )}
                 </div>

@@ -91,7 +91,7 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
     }
 
     // Update order status if needed - using general_status from types
-    await supabase.from("production_orders").update({ genral_status: 'En Proceso' }).eq('id', parsed.orderId);
+    await supabase.from("production_orders").update({ general_status: 'En Proceso' }).eq('id', parsed.orderId);
 
     revalidatePath("/dashboard/produccion");
 }
@@ -351,7 +351,7 @@ export async function clearOrderEvaluation(orderId: string) {
     const { error } = await supabase
         .from("production_orders")
         .update({
-            genral_status: "A0-NUEVO PROYECTO",
+            general_status: "A0-NUEVO PROYECTO",
             evaluation: null,
         })
         .eq("id", parsed.orderId);

@@ -184,7 +184,7 @@ async function run() {
 
     const [pjs, itm, maq] = await Promise.all([
         fetchAll(supabase.from("projects").select("id, notion_id, status")),
-        fetchAll(supabase.from("production_orders").select("id, notion_id, genral_status, image, part_code")),
+        fetchAll(supabase.from("production_orders").select("id, notion_id, general_status, image, part_code")),
         supabase.from("machines").select("name")
     ]);
 
@@ -339,7 +339,7 @@ async function run() {
                     const data = {
                         part_code: code,
                         part_name: props["01-NOMBRE DE LA PIEZA"]?.rich_text?.[0]?.plain_text || null,
-                        genral_status: genStatus || null,
+                        general_status: genStatus || null,
                         material: props["01-MATERIAL PIEZA"]?.select?.name || null,
                         material_confirmation: props["06-CONFIRMACION O CAMBIO DE MATERIAL"]?.select?.name || null,
                         quantity: props["01-CANTIDAD F.*"]?.number || 0,
@@ -453,9 +453,9 @@ async function run() {
     try {
         const { data: active } = await supabase.from("production_orders")
             .select("project_id")
-            .not("genral_status", "ilike", "D7%")
-            .not("genral_status", "ilike", "D8%")
-            .not("genral_status", "ilike", "%CANCELAD%");
+            .not("general_status", "ilike", "D7%")
+            .not("general_status", "ilike", "D8%")
+            .not("general_status", "ilike", "%CANCELAD%");
 
         if (active?.length) {
             const ids = Array.from(new Set(active.map(a => a.project_id).filter(Boolean))) as string[];

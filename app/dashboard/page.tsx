@@ -165,20 +165,20 @@ export default async function DashboardPage() {
         .from("projects")
         .select(`
             *,
-            production_orders(project_id, genral_status)
+            production_orders(project_id, general_status)
         `)
         .eq("status", "active")
         .order("delivery_date", { ascending: true });
 
     // Filter projects and extract active parts in one pass
     const projects = [];
-    const activeParts: { project_id: string | null; genral_status: string | null }[] = [];
+    const activeParts: { project_id: string | null; general_status: string | null }[] = [];
 
     if (projectsWithOrders) {
         for (const pj of projectsWithOrders) {
             const parts = pj.production_orders || [];
             const pjActiveParts = parts.filter(part => {
-                const s = (part.genral_status || "").toUpperCase();
+                const s = (part.general_status || "").toUpperCase();
                 return !s.includes("D7-ENTREGADA") && !s.includes("D8-CANCELADA");
             });
 
@@ -217,7 +217,7 @@ export default async function DashboardPage() {
         partsByCompany[company] = (partsByCompany[company] || 0) + 1;
 
         // Status Stats & Grouping
-        const rawStatus = (part.genral_status || "").toUpperCase();
+        const rawStatus = (part.general_status || "").toUpperCase();
         let group = "Otros";
 
         if (rawStatus.startsWith("A")) {

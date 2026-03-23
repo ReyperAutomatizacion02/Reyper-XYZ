@@ -65,7 +65,7 @@ export function useEvaluationFilters(orders: OrderWithRelations[]): EvaluationFi
 
     const ordersPendingEvaluation = useMemo(() => {
         let filtered = orders.filter(o => {
-            const isFinished = o.genral_status === 'D7-ENTREGADA' || o.genral_status === 'D8-CANCELADA';
+            const isFinished = o.general_status === 'D7-ENTREGADA' || o.general_status === 'D8-CANCELADA';
             if (isFinished) return false;
             if (o.material === 'ENSAMBLE') return false;
 

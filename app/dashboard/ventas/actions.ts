@@ -300,7 +300,7 @@ export async function getAuditData() {
                 part_code,
                 part_name,
                 quantity,
-                genral_status,
+                general_status,
                 material,
                 material_id,
                 status_id,
@@ -350,12 +350,12 @@ export async function getProjectDetails(projectId: string) {
 
     const { data: items, error } = await supabase
         .from("production_orders")
-        .select("id, part_code, part_name, quantity, genral_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url, model_url, render_url, material_confirmation")
+        .select("id, part_code, part_name, quantity, general_status, image, material, material_id, status_id, unit, treatment, treatment_id, production_treatments(name), design_no, urgencia, drawing_url, model_url, render_url, material_confirmation")
         .eq("project_id", validId)
         .order("part_code", { ascending: true });
 
     if (error) { console.error("[ventas]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
-    return items.map(item => ({ ...item, status: item.genral_status }));
+    return items.map(item => ({ ...item, status: item.general_status }));
 }
 
 export async function getQuoteById(id: string) {
@@ -630,7 +630,7 @@ export async function convertQuoteToProject(
                 part_name: finalPartName, // USE CUSTOM OR FALLBACK
                 quantity: item.quantity,
                 material: "POR DEFINIR", // Default
-                genral_status: ITEM_STATUS.RE_ORDER_POINT, // Default start status uses constant
+                general_status: ITEM_STATUS.RE_ORDER_POINT, // Default start status uses constant
                 design_no: item.design_no,
                 drawing_url: item.drawing_url,
                 unit: item.unit
@@ -706,7 +706,7 @@ export async function updateProductionOrder(id: string, data: {
     part_name?: string;
     material?: string;
     quantity?: number;
-    genral_status?: string;
+    general_status?: string;
     treatment_id?: string | null;
     treatment_name?: string | null;
     urgencia?: boolean;

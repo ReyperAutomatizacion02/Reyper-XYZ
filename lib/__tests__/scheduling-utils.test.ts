@@ -23,7 +23,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     return {
         id: overrides.id ?? crypto.randomUUID(),
         part_code: "P-001",
-        genral_status: "A8-MATERIAL DISPONIBLE",
+        general_status: "A8-MATERIAL DISPONIBLE",
         evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
         urgencia: false,
         created_at: "2026-03-01T06:00:00",
@@ -159,26 +159,26 @@ describe("compareOrdersByPriority", () => {
     });
 
     it("sorts by status priority when urgency is equal", () => {
-        const highPrio = makeOrder({ genral_status: "A8-MATERIAL DISPONIBLE" });
-        const lowPrio = makeOrder({ genral_status: "A0-NUEVO PROYECTO" });
+        const highPrio = makeOrder({ general_status: "A8-MATERIAL DISPONIBLE" });
+        const lowPrio = makeOrder({ general_status: "A0-NUEVO PROYECTO" });
         expect(compareOrdersByPriority(highPrio, lowPrio)).toBeLessThan(0);
     });
 
     it("sorts by delivery date when status is equal", () => {
         const earlier = makeOrder({
-            genral_status: "A8-MATERIAL DISPONIBLE",
+            general_status: "A8-MATERIAL DISPONIBLE",
             projects: { delivery_date: "2026-03-10", start_date: null, drive_folder_id: null, company: null },
         } as Partial<Order>);
         const later = makeOrder({
-            genral_status: "A8-MATERIAL DISPONIBLE",
+            general_status: "A8-MATERIAL DISPONIBLE",
             projects: { delivery_date: "2026-03-20", start_date: null, drive_folder_id: null, company: null },
         } as Partial<Order>);
         expect(compareOrdersByPriority(earlier, later)).toBeLessThan(0);
     });
 
     it("returns 0 for identical priority orders without delivery dates", () => {
-        const a = makeOrder({ genral_status: "A8-MATERIAL DISPONIBLE" });
-        const b = makeOrder({ genral_status: "A8-MATERIAL DISPONIBLE" });
+        const a = makeOrder({ general_status: "A8-MATERIAL DISPONIBLE" });
+        const b = makeOrder({ general_status: "A8-MATERIAL DISPONIBLE" });
         expect(compareOrdersByPriority(a, b)).toBe(0);
     });
 });
@@ -306,11 +306,11 @@ describe("prepareOrdersForScheduling", () => {
 
     it("filters by material availability", () => {
         const config: StrategyConfig = { ...DEFAULT_CONFIG, onlyWithMaterial: true };
-        const available = makeOrder({ genral_status: "A8-MATERIAL DISPONIBLE" });
-        const waiting = makeOrder({ genral_status: "A7-ESPERANDO MATERIAL" });
+        const available = makeOrder({ general_status: "A8-MATERIAL DISPONIBLE" });
+        const waiting = makeOrder({ general_status: "A7-ESPERANDO MATERIAL" });
         const result = prepareOrdersForScheduling([available, waiting], config);
         expect(result).toHaveLength(1);
-        expect(result[0].genral_status).toBe("A8-MATERIAL DISPONIBLE");
+        expect(result[0].general_status).toBe("A8-MATERIAL DISPONIBLE");
     });
 
     it("filters by treatment requirement", () => {

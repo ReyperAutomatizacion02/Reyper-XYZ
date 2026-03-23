@@ -27,7 +27,7 @@ BEGIN
         SELECT count(*) INTO incomplete_count
         FROM production_orders
         WHERE project_id = target_project_id
-        AND (genral_status IS NULL OR genral_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'));
+        AND (general_status IS NULL OR general_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'));
 
         -- 3. Actualizar estado del proyecto
         IF incomplete_count = 0 THEN
@@ -69,7 +69,7 @@ WHERE status != 'completed'
     SELECT 1 
     FROM production_orders po 
     WHERE po.project_id = p.id 
-      AND (po.genral_status IS NULL OR po.genral_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'))
+      AND (po.general_status IS NULL OR po.general_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'))
   );
 
 -- B) Marcar como ACTIVOS los que tienen pendientes (por si alguno estaba mal marcado)
@@ -81,6 +81,6 @@ WHERE status != 'active'
     SELECT 1 
     FROM production_orders po 
     WHERE po.project_id = p.id 
-      AND (po.genral_status IS NULL OR po.genral_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'))
+      AND (po.general_status IS NULL OR po.general_status NOT IN ('D7-ENTREGADA', 'D8-CANCELADA'))
   );
 END $$;

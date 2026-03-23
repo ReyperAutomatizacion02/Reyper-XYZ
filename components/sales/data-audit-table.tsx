@@ -31,7 +31,7 @@ interface ProductionOrder {
     part_code: string;
     part_name: string;
     quantity: number;
-    genral_status: string;
+    general_status: string;
     material: string;
     material_id?: string | null;
     treatment?: string | null;

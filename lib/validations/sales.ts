@@ -10,7 +10,7 @@ export const ItemSchema = z.object({
     material: z.string().optional().nullable(),
     treatment_id: z.string().optional().nullable(),
     treatment_name: z.string().optional().nullable(),
-    genral_status: z.string().min(1, "El estatus general es obligatorio"),
+    general_status: z.string().min(1, "El estatus general es obligatorio"),
     drawing_url: z.string().optional().nullable(),
     is_sub_item: z.boolean().optional(),
     design_no: z.string().optional().nullable(),
@@ -61,7 +61,7 @@ export const UpdateProductionOrderSchema = z.object({
     part_name: z.string().min(1, "El nombre de partida es obligatorio"),
     material: z.string().min(1, "El material es obligatorio"),
     quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
-    genral_status: z.string().min(1, "El estatus es obligatorio"),
+    general_status: z.string().min(1, "El estatus es obligatorio"),
     treatment_id: z.string().nullable().optional(), // Treatment can be null if not selected
     treatment_name: z.string().nullable().optional(),
     urgencia: z.boolean().optional(),

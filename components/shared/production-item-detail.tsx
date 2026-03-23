@@ -51,7 +51,7 @@ export function ProductionItemDetail({
     const [editName, setEditName] = useState(item.part_name || "");
     const [editQuantity, setEditQuantity] = useState(item.quantity !== undefined && item.quantity !== null ? item.quantity : 1);
     const [editMaterial, setEditMaterial] = useState(item.material || "");
-    const [editStatus, setEditStatus] = useState(item.genral_status || item.status || "");
+    const [editStatus, setEditStatus] = useState(item.general_status || item.status || "");
     const [editUrgency, setEditUrgency] = useState(item.urgencia || item.urgency_level === "Urgente" || false);
     const [editImage, setEditImage] = useState(item.image || "");
     const [editDrawingUrl, setEditDrawingUrl] = useState(item.drawing_url || "");
@@ -95,7 +95,7 @@ export function ProductionItemDetail({
         setEditName(item.part_name || "");
         setEditQuantity(item.quantity !== undefined && item.quantity !== null ? item.quantity : 1);
         setEditMaterial(item.material || "");
-        setEditStatus(item.genral_status || item.status || "");
+        setEditStatus(item.general_status || item.status || "");
         setEditUrgency(item.urgencia || item.urgency_level === "Urgente" || false);
         setEditImage(item.image || "");
         setEditDrawingUrl(item.drawing_url || "");
@@ -112,7 +112,7 @@ export function ProductionItemDetail({
                 part_name: editName,
                 quantity: editQuantity,
                 material: editMaterial,
-                genral_status: editStatus,
+                general_status: editStatus,
                 urgencia: editUrgency,
                 treatment_id: editTreatmentId === "none" ? null : editTreatmentId,
                 image: editImage,
@@ -251,7 +251,7 @@ export function ProductionItemDetail({
                                 </div>
                             ) : (
                                 <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-[9px] uppercase tracking-wider px-2.5 py-1 pointer-events-none shadow-sm shadow-black/5 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
-                                    {item.genral_status || item.status}
+                                    {item.general_status || item.status}
                                 </Badge>
                             )}
                         </>

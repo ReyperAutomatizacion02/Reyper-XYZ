@@ -215,7 +215,7 @@ export type Database = {
           design_no: string | null
           drawing_url: string | null
           evaluation: Json | null
-          genral_status: string | null
+          general_status: string | null
           id: string
           image: string | null
           is_sub_item: boolean | null
@@ -242,7 +242,7 @@ export type Database = {
           design_no?: string | null
           drawing_url?: string | null
           evaluation?: Json | null
-          genral_status?: string | null
+          general_status?: string | null
           id?: string
           image?: string | null
           is_sub_item?: boolean | null
@@ -269,7 +269,7 @@ export type Database = {
           design_no?: string | null
           drawing_url?: string | null
           evaluation?: Json | null
-          genral_status?: string | null
+          general_status?: string | null
           id?: string
           image?: string | null
           is_sub_item?: boolean | null

@@ -63,7 +63,7 @@ interface ProjectItem {
     design_no?: string | null;
     urgencia?: boolean | null;
     drawing_url?: string | null;
-    genral_status?: string | null;
+    general_status?: string | null;
     urgency_level?: string;
     material_confirmation?: string | null;
     model_url?: string | null;

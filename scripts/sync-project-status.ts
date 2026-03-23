@@ -39,7 +39,7 @@ async function syncProjectStatuses() {
         // 2. Fetch all orders for this project
         const { data: orders, error: ordersError } = await supabase
             .from('production_orders')
-            .select('genral_status')
+            .select('general_status')
             .eq('project_id', project.id);
 
         if (ordersError) {
@@ -52,7 +52,7 @@ async function syncProjectStatuses() {
         } else {
             // 3. Check if ALL orders are in terminal status
             const allFinished = orders.every(order =>
-                TERMINAL_STATUSES.includes(order.genral_status || '')
+                TERMINAL_STATUSES.includes(order.general_status || '')
             );
 
             if (!allFinished) {

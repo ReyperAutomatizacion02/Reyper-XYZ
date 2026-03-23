@@ -111,8 +111,8 @@ export function compareOrdersByPriority(a: Order, b: Order): number {
     if (urgA !== urgB) return urgA - urgB;
 
     // 1. Sort by Status Priority
-    const prioA = getStatusPriority(a.genral_status ?? "");
-    const prioB = getStatusPriority(b.genral_status ?? "");
+    const prioA = getStatusPriority(a.general_status ?? "");
+    const prioB = getStatusPriority(b.general_status ?? "");
 
     if (prioA !== prioB) {
         return prioA - prioB; // Lower priority number first
@@ -154,7 +154,7 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
 
             // Material Ready filter
             if (config.onlyWithMaterial) {
-                if (order.genral_status !== 'A8-MATERIAL DISPONIBLE') return false;
+                if (order.general_status !== 'A8-MATERIAL DISPONIBLE') return false;
             }
 
             // Requires Treatment filter
