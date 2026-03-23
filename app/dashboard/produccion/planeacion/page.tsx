@@ -16,7 +16,7 @@ export default async function PlaneacionPage() {
 
     // Fetch all necessary data in parallel
     const [machinesRes, ordersRes, tasksRes] = await Promise.all([
-        supabase.from("machines").select("*").order("name"),
+        supabase.from("machines").select("*").neq("is_active", false).order("name"),
         supabase
             .from("production_orders")
             .select("*, projects(company, delivery_date)")

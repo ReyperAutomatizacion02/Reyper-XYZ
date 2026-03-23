@@ -91,19 +91,37 @@ export type Database = {
             };
             machines: {
                 Row: {
+                    brand: string | null;
+                    cover_image_url: string | null;
                     created_at: string | null;
                     id: string;
+                    is_active: boolean | null;
+                    location: string | null;
+                    model: string | null;
                     name: string;
+                    serial_number: string | null;
                 };
                 Insert: {
+                    brand?: string | null;
+                    cover_image_url?: string | null;
                     created_at?: string | null;
                     id?: string;
+                    is_active?: boolean | null;
+                    location?: string | null;
+                    model?: string | null;
                     name: string;
+                    serial_number?: string | null;
                 };
                 Update: {
+                    brand?: string | null;
+                    cover_image_url?: string | null;
                     created_at?: string | null;
                     id?: string;
+                    is_active?: boolean | null;
+                    location?: string | null;
+                    model?: string | null;
                     name?: string;
+                    serial_number?: string | null;
                 };
                 Relationships: [];
             };

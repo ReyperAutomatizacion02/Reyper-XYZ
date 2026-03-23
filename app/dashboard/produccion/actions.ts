@@ -17,6 +17,9 @@ import {
     BatchSavePlanningSchema,
     SaveScenarioSchema,
     ScenarioIdSchema,
+    UpsertMachineSchema,
+    MachineIdSchema,
+    SetMachineCoverImageSchema,
 } from "@/lib/validations/production";
 
 const PRODUCCION_ROLES = ["admin", "produccion", "automatizacion", "operador"];
@@ -27,7 +30,8 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
+    const { error } = await supabase
+        .from("planning")
         .update({
             planned_date: parsed.start,
             planned_end: parsed.end,
@@ -56,34 +60,32 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
     // Client should calculate end time to be safe with local timezone.
     // However, keeping duration logic for now but parsing start string is hard.
     // If start is string, we can't easily do math on it without parsing.
-    // But we want to avoid server timezone. 
+    // But we want to avoid server timezone.
     // Best: Client sends both start and end strings.
     // But strictly following signature:
 
     // For creating new task, usually usage is from a specific action.
-    // I will convert string to Timestamp to add duration, then to ISO? 
-    // If I use new Date(start), I get Server Date. 
-    // This function seems risky. 
+    // I will convert string to Timestamp to add duration, then to ISO?
+    // If I use new Date(start), I get Server Date.
+    // This function seems risky.
     // But USER ONLY complained about REDIMENSIONAR (Resize/Move).
     // I will only update updateTaskSchedule signature to be safe.
 
     // Actually, I'll revert changing scheduleNewTask signature to avoid breaking other calls I don't see.
     // I'll only change updateTaskSchedule.
 
-    // Wait, I already selected lines including scheduleNewTask. 
+    // Wait, I already selected lines including scheduleNewTask.
     // I will keep scheduleNewTask as is (Date) but verify it later.
     // I'll only change updateTaskSchedule.
 
     const end = new Date(new Date(parsed.start).getTime() + parsed.durationHours * 60 * 60 * 1000);
 
-    const { error } = await supabase.from("planning")
-        .insert({
-            order_id: parsed.orderId,
-            machine: machine.name,
-            planned_date: parsed.start,
-            planned_end: end.toISOString(),
-        });
-
+    const { error } = await supabase.from("planning").insert({
+        order_id: parsed.orderId,
+        machine: machine.name,
+        planned_date: parsed.start,
+        planned_end: end.toISOString(),
+    });
 
     if (error) {
         logger.error("Error creating task", error);
@@ -91,25 +93,30 @@ export async function scheduleNewTask(orderId: string, machineId: string, start:
     }
 
     // Update order status if needed - using general_status from types
-    await supabase.from("production_orders").update({ general_status: 'En Proceso' }).eq('id', parsed.orderId);
+    await supabase.from("production_orders").update({ general_status: "En Proceso" }).eq("id", parsed.orderId);
 
     revalidatePath("/dashboard/produccion");
 }
 
-export async function createPlanningTask(orderId: string, machine: string, start: string, end: string, operator?: string) {
+export async function createPlanningTask(
+    orderId: string,
+    machine: string,
+    start: string,
+    end: string,
+    operator?: string
+) {
     const parsed = CreatePlanningTaskSchema.parse({ orderId, machine, start, end, operator });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
-        .insert({
-            order_id: parsed.orderId,
-            machine: parsed.machine,
-            planned_date: parsed.start,
-            planned_end: parsed.end,
-            operator: parsed.operator || null,
-        });
+    const { error } = await supabase.from("planning").insert({
+        order_id: parsed.orderId,
+        machine: parsed.machine,
+        planned_date: parsed.start,
+        planned_end: parsed.end,
+        operator: parsed.operator || null,
+    });
 
     if (error) {
         logger.error("Error creating planning task", error);
@@ -119,13 +126,21 @@ export async function createPlanningTask(orderId: string, machine: string, start
     revalidatePath("/dashboard/produccion");
 }
 
-export async function updateTaskDetails(taskId: string, orderId: string, machine: string, start: string, end: string, operator?: string) {
+export async function updateTaskDetails(
+    taskId: string,
+    orderId: string,
+    machine: string,
+    start: string,
+    end: string,
+    operator?: string
+) {
     const parsed = UpdateTaskDetailsSchema.parse({ taskId, orderId, machine, start, end, operator });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
+    const { error } = await supabase
+        .from("planning")
         .update({
             order_id: parsed.orderId,
             machine: parsed.machine,
@@ -149,7 +164,8 @@ export async function recordCheckIn(taskId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
+    const { error } = await supabase
+        .from("planning")
         .update({
             check_in: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
         })
@@ -169,7 +185,8 @@ export async function recordCheckOut(taskId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
+    const { error } = await supabase
+        .from("planning")
         .update({
             check_out: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
         })
@@ -183,7 +200,10 @@ export async function recordCheckOut(taskId: string) {
     revalidatePath("/dashboard/produccion/maquinados");
 }
 
-export async function batchSavePlanning(draftTasks: Record<string, unknown>[], changedTasks: Record<string, unknown>[]) {
+export async function batchSavePlanning(
+    draftTasks: Record<string, unknown>[],
+    changedTasks: Record<string, unknown>[]
+) {
     const parsed = BatchSavePlanningSchema.parse({ draftTasks, changedTasks });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -191,7 +211,7 @@ export async function batchSavePlanning(draftTasks: Record<string, unknown>[], c
 
     // 1. Insert Draft Tasks
     if (parsed.draftTasks.length > 0) {
-        const toInsert = parsed.draftTasks.map(t => ({
+        const toInsert = parsed.draftTasks.map((t) => ({
             order_id: t.order_id,
             machine: t.machine,
             planned_date: t.planned_date,
@@ -208,7 +228,7 @@ export async function batchSavePlanning(draftTasks: Record<string, unknown>[], c
 
     // 2. Update Changed Tasks
     if (parsed.changedTasks.length > 0) {
-        const toUpdate = parsed.changedTasks.map(t => ({
+        const toUpdate = parsed.changedTasks.map((t) => ({
             id: t.id,
             order_id: t.order_id,
             machine: t.machine,
@@ -237,14 +257,13 @@ export async function fetchScenarios() {
 
     // Auto-cleanup: delete scenarios older than 7 days
     const sevenDaysAgo = subDays(new Date(), 7).toISOString();
-    await supabase.from("planning_scenarios")
-        .delete()
-        .lt('created_at', sevenDaysAgo);
+    await supabase.from("planning_scenarios").delete().lt("created_at", sevenDaysAgo);
 
     // Fetch remaining scenarios
-    const { data, error } = await supabase.from("planning_scenarios")
-        .select('*')
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+        .from("planning_scenarios")
+        .select("*")
+        .order("created_at", { ascending: false });
 
     if (error) {
         logger.error("Error fetching scenarios", error);
@@ -267,7 +286,8 @@ export async function saveScenario(scenario: {
     const supabase = createClient(cookieStore);
     const { user } = await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { data, error } = await supabase.from("planning_scenarios")
+    const { data, error } = await supabase
+        .from("planning_scenarios")
         .insert({
             name: parsed.name,
             strategy: parsed.strategy,
@@ -294,9 +314,7 @@ export async function deleteScenario(scenarioId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning_scenarios")
-        .delete()
-        .eq('id', parsed.scenarioId);
+    const { error } = await supabase.from("planning_scenarios").delete().eq("id", parsed.scenarioId);
 
     if (error) {
         logger.error("Error deleting scenario", error);
@@ -310,7 +328,8 @@ export async function markScenarioApplied(scenarioId: string) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning_scenarios")
+    const { error } = await supabase
+        .from("planning_scenarios")
         .update({ applied_at: new Date().toISOString() })
         .eq("id", parsed.scenarioId);
 
@@ -330,9 +349,7 @@ export async function toggleTaskLocked(taskId: string, locked: boolean) {
     const supabase = createClient(cookieStore);
     await requireRole(supabase, PRODUCCION_ROLES);
 
-    const { error } = await supabase.from("planning")
-        .update({ locked: parsed.locked })
-        .eq("id", parsed.taskId);
+    const { error } = await supabase.from("planning").update({ locked: parsed.locked }).eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error toggling task lock", error);
@@ -358,9 +375,102 @@ export async function clearOrderEvaluation(orderId: string) {
 
     if (error) {
         logger.error("Error clearing order evaluation", error);
-        console.error(`[produccion] clearOrderEvaluation: ${error.message} (${error.details || 'No details'})`);
+        console.error(`[produccion] clearOrderEvaluation: ${error.message} (${error.details || "No details"})`);
         throw new Error("Error al limpiar la evaluación de la orden.");
     }
 
     revalidatePath("/dashboard/produccion");
+}
+
+// ===== MACHINE MANAGEMENT =====
+
+const MAQUINAS_ROLES = ["admin", "produccion"];
+
+export async function upsertMachine(data: {
+    id?: string;
+    name: string;
+    brand?: string | null;
+    model?: string | null;
+    serial_number?: string | null;
+    location?: string | null;
+    is_active?: boolean;
+    cover_image_url?: string | null;
+}) {
+    const parsed = UpsertMachineSchema.parse(data);
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    await requireRole(supabase, MAQUINAS_ROLES);
+
+    const payload = {
+        name: parsed.name,
+        brand: parsed.brand ?? null,
+        model: parsed.model ?? null,
+        serial_number: parsed.serial_number ?? null,
+        location: parsed.location ?? null,
+        is_active: parsed.is_active ?? true,
+        cover_image_url: parsed.cover_image_url ?? null,
+        ...(parsed.id ? { id: parsed.id } : { created_at: new Date().toISOString() }),
+    };
+
+    const { data: result, error } = await supabase.from("machines").upsert(payload).select().single();
+
+    if (error) {
+        logger.error("Error upserting machine", error);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
+
+    revalidatePath("/dashboard/produccion/maquinas");
+    revalidatePath("/dashboard/produccion/planeacion");
+    return { success: true, data: result };
+}
+
+export async function deleteMachine(id: string) {
+    const parsed = MachineIdSchema.parse({ id });
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    await requireRole(supabase, MAQUINAS_ROLES);
+
+    // Get machine name to check planning references (planning uses name, not id)
+    const { data: machine } = await supabase.from("machines").select("name").eq("id", parsed.id).single();
+    if (!machine) throw new Error("Máquina no encontrada.");
+
+    const { count } = await supabase
+        .from("planning")
+        .select("id", { count: "exact", head: true })
+        .eq("machine", machine.name);
+
+    if (count && count > 0) {
+        throw new Error("No se puede eliminar: la máquina tiene tareas de planeación asignadas.");
+    }
+
+    const { error } = await supabase.from("machines").delete().eq("id", parsed.id);
+
+    if (error) {
+        logger.error("Error deleting machine", error);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
+
+    revalidatePath("/dashboard/produccion/maquinas");
+    revalidatePath("/dashboard/produccion/planeacion");
+    return { success: true };
+}
+
+export async function setMachineCoverImage(machineId: string, imageUrl: string | null) {
+    const parsed = SetMachineCoverImageSchema.parse({ machineId, imageUrl });
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    await requireRole(supabase, MAQUINAS_ROLES);
+
+    const { error } = await supabase
+        .from("machines")
+        .update({ cover_image_url: parsed.imageUrl })
+        .eq("id", parsed.machineId);
+
+    if (error) {
+        logger.error("Error setting machine cover image", error);
+        throw new Error("Error al actualizar la imagen principal.");
+    }
+
+    revalidatePath("/dashboard/produccion/maquinas");
+    return { success: true };
 }

@@ -78,3 +78,25 @@ export const SaveScenarioSchema = z.object({
 export const ScenarioIdSchema = z.object({
     scenarioId: z.string().uuid("ID de escenario inválido"),
 });
+
+// --- Machine schemas ---
+
+export const UpsertMachineSchema = z.object({
+    id: z.string().uuid().optional(),
+    name: z.string().min(1, "El nombre es obligatorio").max(200).trim(),
+    brand: z.string().max(200).trim().nullable().optional(),
+    model: z.string().max(200).trim().nullable().optional(),
+    serial_number: z.string().max(100).trim().nullable().optional(),
+    location: z.string().max(200).trim().nullable().optional(),
+    is_active: z.boolean().default(true),
+    cover_image_url: z.string().url().nullable().optional(),
+});
+
+export const MachineIdSchema = z.object({
+    id: z.string().uuid("ID de máquina inválido"),
+});
+
+export const SetMachineCoverImageSchema = z.object({
+    machineId: z.string().uuid("ID de máquina inválido"),
+    imageUrl: z.string().url("URL inválida").nullable(),
+});

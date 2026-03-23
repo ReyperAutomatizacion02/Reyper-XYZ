@@ -1,7 +1,7 @@
 "use server";
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/config/permissions";
+import { ROLE_DEFAULT_PERMISSIONS, type Permission } from "@/lib/config/permissions";
 
 /**
  * Verificación de autenticación para Server Actions.
@@ -104,7 +104,7 @@ export async function requirePermission(supabase: SupabaseClient, requiredPermis
     } else {
         // Fallback: derivar permisos desde los roles (comportamiento previo a la migración)
         const rolePermissions = userRoles.flatMap((role) => ROLE_DEFAULT_PERMISSIONS[role] || []);
-        const hasAccess = requiredPermissions.some((p) => rolePermissions.includes(p));
+        const hasAccess = requiredPermissions.some((p) => rolePermissions.includes(p as Permission));
         if (!hasAccess) throw new Error("No autorizado");
     }
 

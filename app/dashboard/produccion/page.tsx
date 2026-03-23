@@ -1,4 +1,4 @@
-import { Calendar, Wrench, Clock } from "lucide-react";
+import { Calendar, Wrench, Clock, Cpu } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { DashboardHeader } from "@/components/dashboard-header";
@@ -25,6 +25,16 @@ const TOOLS = [
         bgClass: "bg-blue-500/10",
         permission: PERMISSIONS.PRODUCCION_MAQUINADOS,
         legacyRoles: ["admin", "operador"],
+    },
+    {
+        name: "Máquinas",
+        description: "Gestión del catálogo de máquinas de producción",
+        href: "/dashboard/produccion/maquinas",
+        icon: Cpu,
+        colorClass: "text-orange-500",
+        bgClass: "bg-orange-500/10",
+        permission: PERMISSIONS.PRODUCCION_MAQUINAS,
+        legacyRoles: ["admin", "produccion"],
     },
 ];
 
