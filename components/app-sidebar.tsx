@@ -26,8 +26,7 @@ import {
     X,
     Truck,
 } from "lucide-react";
-import { ROLE_ROUTE_ACCESS } from "@/lib/config/permissions";
-
+import { ROLE_ROUTE_ACCESS, hasPermissionForRoute } from "@/lib/config/permissions";
 
 // Role-based access mapping imported from config
 
@@ -45,6 +44,7 @@ const sidebarItems = [
 
 export function AppSidebar() {
     const [userRoles, setUserRoles] = useState<string[]>([]);
+    const [userPermissions, setUserPermissions] = useState<string[] | null>(null);
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
@@ -71,20 +71,23 @@ export function AppSidebar() {
         updateSidebarPref({ isCollapsed: newValue });
     };
 
-    // Check user roles (array)
+    // Check user roles and permissions
     useEffect(() => {
-        const checkRoles = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+        const checkProfile = async () => {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase
                     .from("user_profiles")
-                    .select("roles")
+                    .select("roles, permissions")
                     .eq("id", user.id)
                     .single();
                 setUserRoles(profile?.roles || []);
+                setUserPermissions(profile?.permissions ?? null);
             }
         };
-        checkRoles();
+        checkProfile();
     }, [supabase]);
 
     const handleLogout = async () => {
@@ -92,25 +95,26 @@ export function AppSidebar() {
         router.push("/login");
     };
 
-    // Check if user is admin
     const isAdmin = userRoles.includes("admin");
 
-    // Aggregate allowed routes from all user roles
-    const allAllowedRoutes = new Set<string>();
-    userRoles.forEach(role => {
-        const routes = ROLE_ROUTE_ACCESS[role] || [];
-        routes.forEach(r => allAllowedRoutes.add(r));
-    });
-
-    // Filter sidebar items based on roles
-    const filteredItems = sidebarItems.filter(item => {
+    // Filter sidebar items based on permissions (or roles as fallback)
+    const filteredItems = sidebarItems.filter((item) => {
         if (userRoles.length === 0) return false;
         if (isAdmin) return true;
 
-        return Array.from(allAllowedRoutes).some(route => {
-            if (route === "/dashboard") {
-                return item.href === "/dashboard";
-            }
+        if (userPermissions !== null) {
+            // Nuevo sistema: usar permisos
+            return hasPermissionForRoute(item.href, userPermissions);
+        }
+
+        // Legacy fallback: usar roles
+        const allAllowedRoutes = new Set<string>();
+        userRoles.forEach((role) => {
+            const routes = ROLE_ROUTE_ACCESS[role] || [];
+            routes.forEach((r) => allAllowedRoutes.add(r));
+        });
+        return Array.from(allAllowedRoutes).some((route) => {
+            if (route === "/dashboard") return item.href === "/dashboard";
             return item.href === route || item.href.startsWith(route + "/");
         });
     });
@@ -125,7 +129,7 @@ export function AppSidebar() {
             {/* Backdrop for mobile */}
             {isMobileOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-[9998] lg:hidden backdrop-blur-sm transition-opacity animate-in fade-in duration-300"
+                    className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in lg:hidden"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
@@ -133,17 +137,17 @@ export function AppSidebar() {
             <aside
                 id="app-sidebar"
                 className={cn(
-                    "h-[100dvh] inset-y-0 bg-sidebar-bg border-r border-navbar-border transition-all duration-300 flex flex-col z-[9999] fixed lg:relative shadow-xl",
+                    "fixed inset-y-0 z-[9999] flex h-[100dvh] flex-col border-r border-navbar-border bg-sidebar-bg shadow-xl transition-all duration-300 lg:relative",
                     isCollapsed ? "lg:w-20" : "lg:w-72",
-                    isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full lg:translate-x-0"
+                    isMobileOpen ? "w-[280px] translate-x-0" : "-translate-x-full lg:translate-x-0"
                 )}
             >
-                <div className="h-16 flex items-center justify-between px-4 border-b border-navbar-border bg-sidebar-bg shrink-0">
+                <div className="flex h-16 shrink-0 items-center justify-between border-b border-navbar-border bg-sidebar-bg px-4">
                     <span
                         id="sidebar-logo"
                         className={cn(
-                            "font-black text-xl tracking-tight transition-opacity duration-300",
-                            isCollapsed && "lg:opacity-0 lg:hidden"
+                            "text-xl font-black tracking-tight transition-opacity duration-300",
+                            isCollapsed && "lg:hidden lg:opacity-0"
                         )}
                     >
                         Reyper<span className="text-primary">XYZ</span>
@@ -153,22 +157,22 @@ export function AppSidebar() {
                         {/* Mobile close button */}
                         <button
                             onClick={() => setIsMobileOpen(false)}
-                            className="lg:hidden p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground transition-colors"
+                            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-sidebar-hover lg:hidden"
                         >
-                            <X className="w-5 h-5" />
+                            <X className="h-5 w-5" />
                         </button>
 
                         {/* Desktop collapse button */}
                         <button
                             onClick={handleToggleCollapse}
-                            className="hidden lg:block p-2 rounded-lg hover:bg-sidebar-hover text-muted-foreground hover:text-foreground transition-colors"
+                            className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-sidebar-hover hover:text-foreground lg:block"
                         >
-                            {isCollapsed ? <Menu className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                            {isCollapsed ? <Menu className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
                         </button>
                     </div>
                 </div>
 
-                <nav id="sidebar-nav" className="flex-1 overflow-y-auto py-6 px-3">
+                <nav id="sidebar-nav" className="flex-1 overflow-y-auto px-3 py-6">
                     <ul className="space-y-1.5">
                         {filteredItems.map((item) => {
                             const isActive =
@@ -180,18 +184,25 @@ export function AppSidebar() {
                                     <Link
                                         href={item.href}
                                         className={cn(
-                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
+                                            "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition-all duration-200",
                                             isActive
                                                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                                : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                             isCollapsed && "lg:justify-center"
                                         )}
                                     >
-                                        <item.icon className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", isActive && "animate-pulse")} />
+                                        <item.icon
+                                            className={cn(
+                                                "h-5 w-5 min-w-[1.25rem] transition-transform group-hover:scale-110",
+                                                isActive && "animate-pulse"
+                                            )}
+                                        />
                                         <span
                                             className={cn(
-                                                "whitespace-nowrap transition-all duration-300 font-medium",
-                                                isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
+                                                "whitespace-nowrap font-medium transition-all duration-300",
+                                                isCollapsed
+                                                    ? "lg:hidden lg:w-0 lg:opacity-0"
+                                                    : "block w-auto opacity-100"
                                             )}
                                         >
                                             {item.name}
@@ -203,22 +214,30 @@ export function AppSidebar() {
 
                         {/* Admin Panel - Solo visible para admins */}
                         {isAdmin && (
-                            <li className="pt-4 mt-4 border-t border-border">
+                            <li className="mt-4 border-t border-border pt-4">
                                 <Link
                                     href="/dashboard/admin-panel"
                                     className={cn(
-                                        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                                        pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")
+                                        "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition-all duration-200",
+                                        pathname === "/dashboard/admin-panel" ||
+                                            pathname.startsWith("/dashboard/admin-panel/")
                                             ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
-                                            : "text-red-500 hover:text-red-600 hover:bg-red-500/10",
+                                            : "text-red-500 hover:bg-red-500/10 hover:text-red-600",
                                         isCollapsed && "lg:justify-center"
                                     )}
                                 >
-                                    <Shield className={cn("w-5 h-5 min-w-[1.25rem] transition-transform group-hover:scale-110", (pathname === "/dashboard/admin-panel" || pathname.startsWith("/dashboard/admin-panel/")) && "animate-pulse")} />
+                                    <Shield
+                                        className={cn(
+                                            "h-5 w-5 min-w-[1.25rem] transition-transform group-hover:scale-110",
+                                            (pathname === "/dashboard/admin-panel" ||
+                                                pathname.startsWith("/dashboard/admin-panel/")) &&
+                                                "animate-pulse"
+                                        )}
+                                    />
                                     <span
                                         className={cn(
-                                            "whitespace-nowrap transition-all duration-300 font-medium",
-                                            isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
+                                            "whitespace-nowrap font-medium transition-all duration-300",
+                                            isCollapsed ? "lg:hidden lg:w-0 lg:opacity-0" : "block w-auto opacity-100"
                                         )}
                                     >
                                         Panel Admin
@@ -229,19 +248,19 @@ export function AppSidebar() {
                     </ul>
                 </nav>
 
-                <div className="p-4 border-t border-border bg-background/30">
+                <div className="border-t border-border bg-background/30 p-4">
                     <button
                         onClick={handleLogout}
                         className={cn(
-                            "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-destructive hover:bg-destructive/10 transition-colors group",
+                            "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-destructive transition-colors hover:bg-destructive/10",
                             isCollapsed && "lg:justify-center"
                         )}
                     >
-                        <LogOut className="w-5 h-5 min-w-[1.25rem] group-hover:-translate-x-1 transition-transform" />
+                        <LogOut className="h-5 w-5 min-w-[1.25rem] transition-transform group-hover:-translate-x-1" />
                         <span
                             className={cn(
-                                "whitespace-nowrap transition-all duration-300 font-medium",
-                                isCollapsed ? "lg:w-0 lg:opacity-0 lg:hidden" : "w-auto opacity-100 block"
+                                "whitespace-nowrap font-medium transition-all duration-300",
+                                isCollapsed ? "lg:hidden lg:w-0 lg:opacity-0" : "block w-auto opacity-100"
                             )}
                         >
                             Cerrar Sesión

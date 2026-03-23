@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { ROLE_ROUTE_ACCESS, PUBLIC_ROUTES } from "./lib/config/permissions";
+import { ROLE_ROUTE_ACCESS, PUBLIC_ROUTES, hasPermissionForRoute } from "./lib/config/permissions";
 
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -16,9 +16,7 @@ export async function middleware(request: NextRequest) {
                     return request.cookies.getAll();
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        request.cookies.set(name, value)
-                    );
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
                     supabaseResponse = NextResponse.next({
                         request,
                     });
@@ -36,71 +34,69 @@ export async function middleware(request: NextRequest) {
 
     const pathname = request.nextUrl.pathname;
 
-    // Public routes that don't require authentication
-    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith("/auth/"));
+    // Rutas públicas que no requieren autenticación
+    const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route) || pathname.startsWith("/auth/");
 
-    // API routes (like webhooks) do not require user session authentication
-    // Webhooks handle their own security (e.g., via Secret Tokens)
+    // Las rutas API manejan su propia seguridad (ej. webhooks con token secreto)
     const isApiRoute = pathname.startsWith("/api/");
 
-    // If not authenticated and trying to access protected route
     if (!user && !isPublicRoute && !isApiRoute) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
     }
 
-    // If authenticated, check approval status for protected routes
     if (user && pathname.startsWith("/dashboard")) {
-        // Fetch user profile to check approval status
         const { data: profile } = await supabase
             .from("user_profiles")
-            .select("is_approved, roles")
+            .select("is_approved, roles, permissions")
             .eq("id", user.id)
             .single();
 
-        // If profile doesn't exist or user is not approved, redirect to pending
         if (!profile || !profile.is_approved) {
             const url = request.nextUrl.clone();
             url.pathname = "/pending-approval";
             return NextResponse.redirect(url);
         }
 
-        // Role-based route permissions imported from centralized config
-        const roleRouteAccess = ROLE_ROUTE_ACCESS;
-
-        // Get user roles (array) and aggregate allowed routes
-        const userRoles: string[] = profile.roles || ["pending"];
+        const userRoles: string[] = profile.roles || [];
         const isAdmin = userRoles.includes("admin");
 
-        // Collect all allowed routes from all user roles
-        const allAllowedRoutes = new Set<string>();
-        userRoles.forEach(role => {
-            const routes = roleRouteAccess[role] || [];
-            routes.forEach(r => allAllowedRoutes.add(r));
-        });
-
-        // Admin has full access
         if (!isAdmin) {
-            // Check if user has access to this route
-            const hasAccess = Array.from(allAllowedRoutes).some(route => {
-                if (route === "/dashboard") {
-                    return pathname === "/dashboard";
-                }
-                return pathname === route || pathname.startsWith(route + "/");
-            });
-
-            // Special case: admin-panel is always admin-only
+            // Admin-panel siempre es exclusivo para admins
             if (pathname.startsWith("/dashboard/admin-panel")) {
                 const url = request.nextUrl.clone();
                 url.pathname = "/dashboard";
                 return NextResponse.redirect(url);
             }
 
-            if (!hasAccess && pathname !== "/dashboard") {
-                const url = request.nextUrl.clone();
-                url.pathname = "/dashboard";
-                return NextResponse.redirect(url);
+            const userPermissions: string[] | null = profile.permissions ?? null;
+
+            if (userPermissions !== null) {
+                // ── Nuevo sistema: verificación por permisos ──────────────────
+                if (!hasPermissionForRoute(pathname, userPermissions)) {
+                    const url = request.nextUrl.clone();
+                    url.pathname = "/dashboard";
+                    return NextResponse.redirect(url);
+                }
+            } else {
+                // ── Legacy: verificación por roles (fallback para usuarios sin permisos) ──
+                const allAllowedRoutes = new Set<string>();
+                userRoles.forEach((role) => {
+                    const routes = ROLE_ROUTE_ACCESS[role] || [];
+                    routes.forEach((r) => allAllowedRoutes.add(r));
+                });
+
+                const hasAccess = Array.from(allAllowedRoutes).some((route) => {
+                    if (route === "/dashboard") return pathname === "/dashboard";
+                    return pathname === route || pathname.startsWith(route + "/");
+                });
+
+                if (!hasAccess && pathname !== "/dashboard") {
+                    const url = request.nextUrl.clone();
+                    url.pathname = "/dashboard";
+                    return NextResponse.redirect(url);
+                }
             }
         }
     }
@@ -109,14 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder
-         */
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-    ],
+    matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

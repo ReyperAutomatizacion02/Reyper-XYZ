@@ -18,6 +18,7 @@ const VALID_ROLES = [
 export const ApproveUserSchema = z.object({
     userId: z.string().uuid("ID de usuario inválido"),
     roles: z.array(z.enum(VALID_ROLES, { message: "Rol inválido" })).min(1, "Debe seleccionar al menos un rol"),
+    permissions: z.array(z.string().min(1)).default([]),
     operatorName: z.string().max(200).optional(),
 });
 
@@ -28,6 +29,7 @@ export const RejectUserSchema = z.object({
 export const UpdateUserRolesSchema = z.object({
     userId: z.string().uuid("ID de usuario inválido"),
     newRoles: z.array(z.enum(VALID_ROLES, { message: "Rol inválido" })).min(1, "Debe seleccionar al menos un rol"),
+    permissions: z.array(z.string().min(1)).default([]),
     operatorName: z.string().max(200).optional(),
 });
 

@@ -26,28 +26,26 @@ const VALID_ROLES = [
     "almacen",
 ] as const;
 
-type ValidRole = typeof VALID_ROLES[number];
+type ValidRole = (typeof VALID_ROLES)[number];
 
 // Helper to check if caller is admin
 async function verifyAdmin(supabase: any, userId: string) {
-    const { data: callerProfile } = await supabase
-        .from("user_profiles")
-        .select("roles")
-        .eq("id", userId)
-        .single();
+    const { data: callerProfile } = await supabase.from("user_profiles").select("roles").eq("id", userId).single();
 
     if (!callerProfile?.roles?.includes("admin")) {
         throw new Error("No autorizado");
     }
 }
 
-// Approve user with multiple roles
-export async function approveUser(userId: string, roles: string[], operatorName?: string) {
-    const parsed = ApproveUserSchema.parse({ userId, roles, operatorName });
+// Approve user with multiple roles and permissions
+export async function approveUser(userId: string, roles: string[], permissions: string[], operatorName?: string) {
+    const parsed = ApproveUserSchema.parse({ userId, roles, permissions, operatorName });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("No autenticado");
 
     await verifyAdmin(supabase, user.id);
@@ -57,12 +55,16 @@ export async function approveUser(userId: string, roles: string[], operatorName?
         .update({
             is_approved: true,
             roles: parsed.roles,
+            permissions: parsed.permissions,
             operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", parsed.userId);
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
@@ -73,39 +75,45 @@ export async function rejectUser(userId: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("No autenticado");
 
     await verifyAdmin(supabase, user.id);
 
-    const { error } = await supabase
-        .from("user_profiles")
-        .delete()
-        .eq("id", parsed.userId);
+    const { error } = await supabase.from("user_profiles").delete().eq("id", parsed.userId);
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
 }
 
-// Update user roles (accepts array)
-export async function updateUserRoles(userId: string, newRoles: string[], operatorName?: string) {
-    const parsed = UpdateUserRolesSchema.parse({ userId, newRoles, operatorName });
+// Update user roles and permissions
+export async function updateUserRoles(
+    userId: string,
+    newRoles: string[],
+    permissions: string[],
+    operatorName?: string
+) {
+    const parsed = UpdateUserRolesSchema.parse({ userId, newRoles, permissions, operatorName });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("No autenticado");
 
     await verifyAdmin(supabase, user.id);
 
     // Prevent removing admin from self if last admin
     if (parsed.userId === user.id && !parsed.newRoles.includes("admin")) {
-        const { data: adminUsers } = await supabase
-            .from("user_profiles")
-            .select("id")
-            .contains("roles", ["admin"]);
+        const { data: adminUsers } = await supabase.from("user_profiles").select("id").contains("roles", ["admin"]);
 
         if (adminUsers && adminUsers.length <= 1) {
             throw new Error("No puedes quitar el último administrador");
@@ -116,12 +124,16 @@ export async function updateUserRoles(userId: string, newRoles: string[], operat
         .from("user_profiles")
         .update({
             roles: [...parsed.newRoles],
+            permissions: parsed.permissions,
             operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", parsed.userId);
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };
@@ -137,7 +149,10 @@ export async function getPendingUsers() {
         .eq("is_approved", false)
         .order("created_at", { ascending: false });
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
     return data;
 }
 
@@ -151,7 +166,10 @@ export async function getApprovedUsers() {
         .eq("is_approved", true)
         .order("created_at", { ascending: false });
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
     return data;
 }
 
@@ -165,16 +183,16 @@ export type Employee = {
     is_active: boolean | null;
     created_at: string | null;
     updated_at: string | null;
-}
+};
 
 export async function getEmployees() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
     const { data: employees, error } = await supabase
-        .from('employees')
-        .select('*')
-        .order('full_name', { ascending: true });
+        .from("employees")
+        .select("*")
+        .order("full_name", { ascending: true });
 
     if (error) {
         console.error("Error fetching employees:", error);
@@ -189,7 +207,9 @@ export async function upsertEmployee(data: Partial<Employee>) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("No autenticado");
     await verifyAdmin(supabase, user.id);
 
@@ -204,13 +224,12 @@ export async function upsertEmployee(data: Partial<Employee>) {
         ...(parsed.id ? { id: parsed.id } : { created_at: new Date().toISOString() }),
     };
 
-    const { data: result, error } = await supabase
-        .from("employees")
-        .upsert(payload)
-        .select()
-        .single();
+    const { data: result, error } = await supabase.from("employees").upsert(payload).select().single();
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true, data: result };
@@ -221,16 +240,18 @@ export async function deleteEmployee(id: string) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new Error("No autenticado");
     await verifyAdmin(supabase, user.id);
 
-    const { error } = await supabase
-        .from("employees")
-        .delete()
-        .eq("id", parsed.id);
+    const { error } = await supabase.from("employees").delete().eq("id", parsed.id);
 
-    if (error) { console.error("[admin]", error.message); throw new Error("Error en la operación. Intenta de nuevo."); }
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true };

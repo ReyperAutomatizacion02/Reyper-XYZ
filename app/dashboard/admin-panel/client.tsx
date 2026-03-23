@@ -18,10 +18,17 @@ import {
     Trash2,
     ArrowUpDown,
     Activity,
-    HardHat
+    HardHat,
+    X,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { approveUser, rejectUser, updateUserRoles, upsertEmployee, deleteEmployee, type Employee } from "./actions";
+import {
+    ROLE_AVAILABLE_PERMISSIONS,
+    ROLE_DEFAULT_PERMISSIONS,
+    PERMISSION_LABELS,
+    type Permission,
+} from "@/lib/config/permissions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
     Dialog,
@@ -55,6 +62,7 @@ type UserProfile = {
     full_name: string | null;
     username: string | null;
     roles: string[] | null;
+    permissions: string[] | null;
     is_approved: boolean | null;
     operator_name: string | null;
     created_at: string | null;
@@ -72,55 +80,149 @@ interface AdminPanelClientProps {
 function RolesSelector({
     selectedRoles,
     onChange,
-    disabled = false
+    disabled = false,
 }: {
-    selectedRoles: string[],
-    onChange: (roles: string[]) => void,
-    disabled?: boolean
+    selectedRoles: string[];
+    onChange: (roles: string[]) => void;
+    disabled?: boolean;
 }) {
     const toggleRole = (roleValue: string) => {
         if (selectedRoles.includes(roleValue)) {
-            onChange(selectedRoles.filter(r => r !== roleValue));
+            onChange(selectedRoles.filter((r) => r !== roleValue));
         } else {
             onChange([...selectedRoles, roleValue]);
         }
     };
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {ROLES.map(role => (
-                <label
-                    key={role.value}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${selectedRoles.includes(role.value)
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border hover:border-primary/50 text-muted-foreground'
-                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                    <input
-                        type="checkbox"
-                        checked={selectedRoles.includes(role.value)}
-                        onChange={() => toggleRole(role.value)}
-                        disabled={disabled}
-                        className="sr-only"
-                    />
-                    <div className={`w-3 h-3 rounded-sm flex items-center justify-center ${selectedRoles.includes(role.value) ? role.color : 'bg-muted'
-                        }`}>
-                        {selectedRoles.includes(role.value) && (
-                            <Check className="w-2 h-2 text-white" />
-                        )}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            {ROLES.map((role) => {
+                const checked = selectedRoles.includes(role.value);
+                return (
+                    <div
+                        key={role.value}
+                        role="checkbox"
+                        aria-checked={checked}
+                        onClick={() => !disabled && toggleRole(role.value)}
+                        onKeyDown={(e) => {
+                            if (!disabled && (e.key === " " || e.key === "Enter")) {
+                                e.preventDefault();
+                                toggleRole(role.value);
+                            }
+                        }}
+                        tabIndex={disabled ? -1 : 0}
+                        className={`flex cursor-pointer select-none items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                            checked
+                                ? "border-primary bg-primary/10 text-foreground"
+                                : "border-border text-muted-foreground hover:border-primary/50"
+                        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                    >
+                        <div
+                            className={`flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-sm ${checked ? role.color : "bg-muted"}`}
+                        >
+                            {checked && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        <span className="truncate">{role.label}</span>
                     </div>
-                    <span className="truncate">{role.label}</span>
-                </label>
+                );
+            })}
+        </div>
+    );
+}
+
+const AREA_LABELS: Record<string, string> = {
+    produccion: "Producción",
+    ventas: "Ventas",
+    almacen: "Almacén",
+    logistica: "Logística",
+    general: "General",
+};
+
+function PermissionsSelector({
+    selectedRoles,
+    selectedPermissions,
+    onChange,
+    disabled = false,
+}: {
+    selectedRoles: string[];
+    selectedPermissions: string[];
+    onChange: (permissions: string[]) => void;
+    disabled?: boolean;
+}) {
+    const availablePermissions = Array.from(
+        new Set(selectedRoles.flatMap((role) => ROLE_AVAILABLE_PERMISSIONS[role] || []))
+    ) as Permission[];
+
+    if (availablePermissions.length === 0) return null;
+
+    const grouped = availablePermissions.reduce<Record<string, Permission[]>>((acc, perm) => {
+        const area = perm.includes(":") ? perm.split(":")[0] : "general";
+        if (!acc[area]) acc[area] = [];
+        acc[area].push(perm);
+        return acc;
+    }, {});
+
+    const toggle = (perm: string) => {
+        if (selectedPermissions.includes(perm)) {
+            onChange(selectedPermissions.filter((p) => p !== perm));
+        } else {
+            onChange([...selectedPermissions, perm]);
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <p className="text-sm font-medium">Accesos específicos:</p>
+            {Object.entries(grouped).map(([area, perms]) => (
+                <div key={area} className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {AREA_LABELS[area] || area}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {perms.map((perm) => {
+                            const checked = selectedPermissions.includes(perm);
+                            return (
+                                <div
+                                    key={perm}
+                                    role="checkbox"
+                                    aria-checked={checked}
+                                    onClick={() => !disabled && toggle(perm)}
+                                    onKeyDown={(e) => {
+                                        if (!disabled && (e.key === " " || e.key === "Enter")) {
+                                            e.preventDefault();
+                                            toggle(perm);
+                                        }
+                                    }}
+                                    tabIndex={disabled ? -1 : 0}
+                                    className={`flex cursor-pointer select-none items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                                        checked
+                                            ? "border-primary bg-primary/10 text-foreground"
+                                            : "border-border text-muted-foreground hover:border-primary/50"
+                                    } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                                >
+                                    <div
+                                        className={`flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-sm ${
+                                            checked ? "bg-primary" : "bg-muted"
+                                        }`}
+                                    >
+                                        {checked && <Check className="h-2 w-2 text-white" />}
+                                    </div>
+                                    <span className="truncate">{PERMISSION_LABELS[perm]}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             ))}
         </div>
     );
 }
 
-function StatsCard({ title, value, icon: Icon, color }: { title: string, value: number, icon: any, color: string }) {
+function StatsCard({ title, value, icon: Icon, color }: { title: string; value: number; icon: any; color: string }) {
     return (
-        <div className="p-4 rounded-xl border bg-card text-card-foreground shadow-sm flex items-center space-x-4">
-            <div className={`p-2 rounded-lg ${color}`}>
-                <Icon className="w-5 h-5 text-white" />
+        <div className="flex items-center space-x-4 rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
+            <div className={`rounded-lg p-2 ${color}`}>
+                <Icon className="h-5 w-5 text-white" />
             </div>
             <div>
                 <p className="text-sm font-medium text-muted-foreground">{title}</p>
@@ -132,7 +234,7 @@ function StatsCard({ title, value, icon: Icon, color }: { title: string, value: 
 
 type SortConfig = {
     key: keyof Employee;
-    direction: 'asc' | 'desc';
+    direction: "asc" | "desc";
 } | null;
 
 function EmployeesTab({ employees }: { employees: Employee[] }) {
@@ -153,21 +255,22 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
     });
 
     const handleSort = (key: keyof Employee) => {
-        setSortConfig(current => {
+        setSortConfig((current) => {
             if (current && current.key === key) {
-                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+                return { key, direction: current.direction === "asc" ? "desc" : "asc" };
             }
-            return { key, direction: 'asc' };
+            return { key, direction: "asc" };
         });
     };
 
     const sortedEmployees = useMemo(() => {
         let sortableItems = [...employees];
         if (searchTerm) {
-            sortableItems = sortableItems.filter(emp =>
-                emp.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                emp.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                emp.employee_number?.toLowerCase().includes(searchTerm.toLowerCase())
+            sortableItems = sortableItems.filter(
+                (emp) =>
+                    emp.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    emp.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    emp.employee_number?.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
@@ -181,10 +284,10 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                 if (bValue === null || bValue === undefined) return -1;
 
                 if (aValue < bValue) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
+                    return sortConfig.direction === "asc" ? -1 : 1;
                 }
                 if (aValue > bValue) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
+                    return sortConfig.direction === "asc" ? 1 : -1;
                 }
                 return 0;
             });
@@ -192,11 +295,14 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
         return sortableItems;
     }, [employees, searchTerm, sortConfig]);
 
-    const stats = useMemo(() => ({
-        total: employees.length,
-        active: employees.filter(e => e.is_active).length,
-        operators: employees.filter(e => e.is_operator).length
-    }), [employees]);
+    const stats = useMemo(
+        () => ({
+            total: employees.length,
+            active: employees.filter((e) => e.is_active).length,
+            operators: employees.filter((e) => e.is_operator).length,
+        }),
+        [employees]
+    );
 
     const handleOpenDialog = (employee?: Employee) => {
         if (employee) {
@@ -217,7 +323,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                 department: "",
                 position: "",
                 is_operator: false,
-                is_active: true
+                is_active: true,
             });
         }
         setIsDialogOpen(true);
@@ -230,7 +336,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
             try {
                 await upsertEmployee({
                     id: editingEmployee?.id,
-                    ...formData
+                    ...formData,
                 });
                 setIsDialogOpen(false);
             } catch (error: any) {
@@ -251,16 +357,31 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
     };
 
     const SortIcon = ({ column }: { column: keyof Employee }) => {
-        if (sortConfig?.key !== column) return <ArrowUpDown className="w-4 h-4 text-muted-foreground opacity-50 ml-1" />;
-        return <ArrowUpDown className={`w-4 h-4 ml-1 ${sortConfig.direction === 'asc' ? 'text-primary' : 'text-primary rotate-180'}`} />;
+        if (sortConfig?.key !== column)
+            return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground opacity-50" />;
+        return (
+            <ArrowUpDown
+                className={`ml-1 h-4 w-4 ${sortConfig.direction === "asc" ? "text-primary" : "rotate-180 text-primary"}`}
+            />
+        );
     };
 
-    const SortableHeader = ({ label, column, align = 'left' }: { label: string, column: keyof Employee, align?: 'left' | 'center' | 'right' }) => (
+    const SortableHeader = ({
+        label,
+        column,
+        align = "left",
+    }: {
+        label: string;
+        column: keyof Employee;
+        align?: "left" | "center" | "right";
+    }) => (
         <th
-            className={`px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors select-none text-${align}`}
+            className={`cursor-pointer select-none px-4 py-3 font-medium transition-colors hover:bg-muted/80 text-${align}`}
             onClick={() => handleSort(column)}
         >
-            <div className={`flex items-center ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'}`}>
+            <div
+                className={`flex items-center ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"}`}
+            >
                 {label}
                 <SortIcon column={column} />
             </div>
@@ -270,30 +391,15 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
     return (
         <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatsCard
-                    title="Total Colaboradores"
-                    value={stats.total}
-                    icon={Users}
-                    color="bg-blue-500"
-                />
-                <StatsCard
-                    title="Colaboradores Activos"
-                    value={stats.active}
-                    icon={Activity}
-                    color="bg-green-500"
-                />
-                <StatsCard
-                    title="Operadores"
-                    value={stats.operators}
-                    icon={HardHat}
-                    color="bg-orange-500"
-                />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <StatsCard title="Total Colaboradores" value={stats.total} icon={Users} color="bg-blue-500" />
+                <StatsCard title="Colaboradores Activos" value={stats.active} icon={Activity} color="bg-green-500" />
+                <StatsCard title="Operadores" value={stats.operators} icon={HardHat} color="bg-orange-500" />
             </div>
 
-            <div className="flex justify-between items-center">
+            <div className="flex items-center justify-between">
                 <div className="relative w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                         placeholder="Buscar por nombre, puesto o n.º..."
                         value={searchTerm}
@@ -302,15 +408,15 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                     />
                 </div>
                 <Button onClick={() => handleOpenDialog()} className="gap-2">
-                    <Plus className="w-4 h-4" />
+                    <Plus className="h-4 w-4" />
                     Nuevo Colaborador
                 </Button>
             </div>
 
             <div className="rounded-xl border bg-card text-card-foreground shadow">
                 <div className="w-full overflow-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <SortableHeader label="No. Emp" column="employee_number" />
                                 <SortableHeader label="Nombre" column="full_name" />
@@ -318,7 +424,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <SortableHeader label="Puesto" column="position" />
                                 <SortableHeader label="Es Operador" column="is_operator" align="center" />
                                 <SortableHeader label="Estado" column="is_active" align="center" />
-                                <th className="px-4 py-3 font-medium text-right">Acciones</th>
+                                <th className="px-4 py-3 text-right font-medium">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -330,14 +436,16 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 </tr>
                             ) : (
                                 sortedEmployees.map((emp) => (
-                                    <tr key={emp.id} className="hover:bg-muted/50 transition-colors">
-                                        <td className="px-4 py-3 text-muted-foreground">{emp.employee_number || "-"}</td>
+                                    <tr key={emp.id} className="transition-colors hover:bg-muted/50">
+                                        <td className="px-4 py-3 text-muted-foreground">
+                                            {emp.employee_number || "-"}
+                                        </td>
                                         <td className="px-4 py-3 font-medium">{emp.full_name}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{emp.department || "-"}</td>
                                         <td className="px-4 py-3">{emp.position || "-"}</td>
                                         <td className="px-4 py-3 text-center">
                                             {emp.is_operator ? (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                                <span className="inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
                                                     Sí
                                                 </span>
                                             ) : (
@@ -346,17 +454,33 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             {emp.is_active ? (
-                                                <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Activo"></span>
+                                                <span
+                                                    className="inline-block h-2 w-2 rounded-full bg-green-500"
+                                                    title="Activo"
+                                                ></span>
                                             ) : (
-                                                <span className="inline-block w-2 h-2 rounded-full bg-red-500" title="Inactivo"></span>
+                                                <span
+                                                    className="inline-block h-2 w-2 rounded-full bg-red-500"
+                                                    title="Inactivo"
+                                                ></span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-right space-x-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(emp)}>
-                                                <Pencil className="w-4 h-4" />
+                                        <td className="space-x-1 px-4 py-3 text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                onClick={() => handleOpenDialog(emp)}
+                                            >
+                                                <Pencil className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(emp.id)}>
-                                                <Trash2 className="w-4 h-4" />
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                onClick={() => handleDelete(emp.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </td>
                                     </tr>
@@ -381,7 +505,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <label className="text-sm font-medium">Nombre Completo</label>
                                 <Input
                                     value={formData.full_name}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
                                     placeholder="Ej: Juan Perez"
                                 />
                             </div>
@@ -389,7 +513,9 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <label className="text-sm font-medium">No. Empleado</label>
                                 <Input
                                     value={formData.employee_number}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, employee_number: e.target.value }))}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({ ...prev, employee_number: e.target.value }))
+                                    }
                                     placeholder="Ej: EMP-001"
                                 />
                             </div>
@@ -399,7 +525,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <label className="text-sm font-medium">Departamento</label>
                                 <Input
                                     value={formData.department}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))}
                                     placeholder="Ej: Producción"
                                 />
                             </div>
@@ -407,7 +533,7 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <label className="text-sm font-medium">Cargo / Puesto</label>
                                 <Input
                                     value={formData.position}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, position: e.target.value }))}
                                     placeholder="Ej: Supervisor"
                                 />
                             </div>
@@ -418,11 +544,13 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <input
                                     type="checkbox"
                                     id="is_operator"
-                                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                     checked={formData.is_operator}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, is_operator: e.target.checked }))}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({ ...prev, is_operator: e.target.checked }))
+                                    }
                                 />
-                                <label htmlFor="is_operator" className="text-sm font-medium cursor-pointer">
+                                <label htmlFor="is_operator" className="cursor-pointer text-sm font-medium">
                                     ¿Es Operador? (Aparecerá en la lista de asignación)
                                 </label>
                             </div>
@@ -430,18 +558,20 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
                                 <input
                                     type="checkbox"
                                     id="is_active"
-                                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                     checked={formData.is_active}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                                 />
-                                <label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
+                                <label htmlFor="is_active" className="cursor-pointer text-sm font-medium">
                                     ¿Activo?
                                 </label>
                             </div>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                            Cancelar
+                        </Button>
                         <Button onClick={handleSave} disabled={isPending}>
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Guardar
@@ -456,9 +586,31 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
 export function AdminPanelClient({ pendingUsers, approvedUsers, employees, currentUserId }: AdminPanelClientProps) {
     const [isPending, startTransition] = useTransition();
     const [selectedRoles, setSelectedRoles] = useState<Record<string, string[]>>({});
+    const [selectedPermissions, setSelectedPermissions] = useState<Record<string, string[]>>({});
     const [operatorNames, setOperatorNames] = useState<Record<string, string>>({});
     const [editingUser, setEditingUser] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'users' | 'collaborators'>('users');
+    const [activeTab, setActiveTab] = useState<"users" | "collaborators">("users");
+
+    const handleRolesChange = (userId: string, newRoles: string[]) => {
+        const prevRoles = selectedRoles[userId] || [];
+        setSelectedRoles((prev) => ({ ...prev, [userId]: newRoles }));
+
+        const prevPerms = new Set(selectedPermissions[userId] || []);
+
+        // Add defaults for newly added roles
+        const addedRoles = newRoles.filter((r) => !prevRoles.includes(r));
+        for (const role of addedRoles) {
+            for (const perm of ROLE_DEFAULT_PERMISSIONS[role] || []) {
+                prevPerms.add(perm);
+            }
+        }
+
+        // Remove permissions that no longer belong to any remaining role
+        const availableInRemaining = new Set(newRoles.flatMap((r) => ROLE_AVAILABLE_PERMISSIONS[r] || []));
+        const newPerms = Array.from(prevPerms).filter((p) => availableInRemaining.has(p as Permission));
+
+        setSelectedPermissions((prev) => ({ ...prev, [userId]: newPerms }));
+    };
 
     const handleApprove = (userId: string) => {
         const roles = selectedRoles[userId] || ["produccion"];
@@ -469,7 +621,8 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
         startTransition(async () => {
             try {
                 const operatorName = operatorNames[userId];
-                await approveUser(userId, roles, operatorName);
+                const permissions = selectedPermissions[userId] || [];
+                await approveUser(userId, roles, permissions, operatorName);
             } catch (error: any) {
                 console.error(error);
                 alert(error.message || "Error al aprobar usuario");
@@ -498,7 +651,8 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
         startTransition(async () => {
             try {
                 const operatorName = operatorNames[userId];
-                await updateUserRoles(userId, roles, operatorName);
+                const permissions = selectedPermissions[userId] || [];
+                await updateUserRoles(userId, roles, permissions, operatorName);
                 setEditingUser(null);
             } catch (error: any) {
                 console.error(error);
@@ -508,47 +662,51 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
     };
 
     const getRoleBadges = (roles: string[]) => {
-        return roles?.slice(0, 3).map(r => {
-            const role = ROLES.find(role => role.value === r);
-            return (
-                <span
-                    key={r}
-                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${role?.color || 'bg-muted'} text-white`}
-                >
-                    {role?.label || r}
-                </span>
-            );
-        }) || null;
+        return (
+            roles?.slice(0, 3).map((r) => {
+                const role = ROLES.find((role) => role.value === r);
+                return (
+                    <span
+                        key={r}
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${role?.color || "bg-muted"} text-white`}
+                    >
+                        {role?.label || r}
+                    </span>
+                );
+            }) || null
+        );
     };
 
     // Prepare employee options (all active employees)
     const employeeOptions = employees
-        .filter(e => e.is_active)
-        .map(e => ({ label: e.full_name, value: e.full_name }));
+        .filter((e) => e.is_active)
+        .map((e) => ({ label: e.full_name, value: e.full_name }));
 
     return (
-        <div className="p-6 max-w-6xl mx-auto space-y-8">
+        <div className="mx-auto max-w-6xl space-y-8 p-6">
             <DashboardHeader
                 title="Panel Admin"
                 description="Gestiona usuarios y colaboradores"
-                icon={<Shield className="w-8 h-8 text-primary" />}
+                icon={<Shield className="h-8 w-8 text-primary" />}
                 children={
-                    <div className="flex p-1 bg-muted rounded-lg">
+                    <div className="flex rounded-lg bg-muted p-1">
                         <button
-                            onClick={() => setActiveTab('users')}
-                            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'users'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                                }`}
+                            onClick={() => setActiveTab("users")}
+                            className={`rounded-md px-4 py-2 text-sm font-medium transition-all ${
+                                activeTab === "users"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
                         >
                             Usuarios del Sistema
                         </button>
                         <button
-                            onClick={() => setActiveTab('collaborators')}
-                            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'collaborators'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                                }`}
+                            onClick={() => setActiveTab("collaborators")}
+                            className={`rounded-md px-4 py-2 text-sm font-medium transition-all ${
+                                activeTab === "collaborators"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
                         >
                             Colaboradores / Operadores
                         </button>
@@ -556,69 +714,87 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                 }
             />
 
-            {activeTab === 'collaborators' ? (
+            {activeTab === "collaborators" ? (
                 <EmployeesTab employees={employees} />
             ) : (
                 <>
                     {/* Pending Users Section */}
                     <section className="space-y-4">
                         <div className="flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-orange-500" />
+                            <Clock className="h-5 w-5 text-orange-500" />
                             <h2 className="text-lg font-semibold">Usuarios Pendientes</h2>
                             {pendingUsers.length > 0 && (
-                                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-orange-500/10 text-orange-500">
+                                <span className="rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-bold text-orange-500">
                                     {pendingUsers.length}
                                 </span>
                             )}
                         </div>
 
                         {pendingUsers.length === 0 ? (
-                            <div className="p-8 text-center rounded-xl border border-dashed border-border bg-muted/20">
-                                <UserCheck className="w-12 h-12 mx-auto text-muted-foreground/50 mb-2" />
+                            <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center">
+                                <UserCheck className="mx-auto mb-2 h-12 w-12 text-muted-foreground/50" />
                                 <p className="text-muted-foreground">No hay usuarios pendientes</p>
                             </div>
                         ) : (
                             <div className="grid gap-4">
-                                {pendingUsers.map(user => (
-                                    <div
-                                        key={user.id}
-                                        className="p-4 rounded-xl border border-border bg-card"
-                                    >
-                                        <div className="flex items-start justify-between gap-4 mb-4">
+                                {pendingUsers.map((user) => (
+                                    <div key={user.id} className="rounded-xl border border-border bg-card p-4">
+                                        <div className="mb-4 flex items-start justify-between gap-4">
                                             <div>
                                                 <p className="font-semibold">{user.full_name || "Sin nombre"}</p>
-                                                <p className="text-sm text-muted-foreground">@{user.username || "sin-usuario"}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Registrado: {new Date(user.created_at ?? "").toLocaleDateString('es-MX', {
-                                                        day: 'numeric',
-                                                        month: 'short',
-                                                        year: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
+                                                <p className="text-sm text-muted-foreground">
+                                                    @{user.username || "sin-usuario"}
+                                                </p>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    Registrado:{" "}
+                                                    {new Date(user.created_at ?? "").toLocaleDateString("es-MX", {
+                                                        day: "numeric",
+                                                        month: "short",
+                                                        year: "numeric",
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
                                                     })}
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="mb-4">
-                                            <p className="text-sm font-medium mb-2">Seleccionar Roles:</p>
+                                            <p className="mb-2 text-sm font-medium">Seleccionar Roles:</p>
                                             <RolesSelector
                                                 selectedRoles={selectedRoles[user.id] || ["produccion"]}
-                                                onChange={(roles) => setSelectedRoles(prev => ({ ...prev, [user.id]: roles }))}
+                                                onChange={(roles) => handleRolesChange(user.id, roles)}
                                                 disabled={isPending}
                                             />
                                         </div>
 
-                                        <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <label className="text-sm font-medium mb-1.5 block">Vincular con Colaborador:</label>
+                                        <div className="mb-4">
+                                            <PermissionsSelector
+                                                selectedRoles={selectedRoles[user.id] || ["produccion"]}
+                                                selectedPermissions={selectedPermissions[user.id] || []}
+                                                onChange={(perms) =>
+                                                    setSelectedPermissions((prev) => ({
+                                                        ...prev,
+                                                        [user.id]: perms,
+                                                    }))
+                                                }
+                                                disabled={isPending}
+                                            />
+                                        </div>
+
+                                        <div className="mb-4 duration-200 animate-in fade-in slide-in-from-top-2">
+                                            <label className="mb-1.5 block text-sm font-medium">
+                                                Vincular con Colaborador:
+                                            </label>
                                             <SearchableSelect
                                                 options={employeeOptions}
                                                 value={operatorNames[user.id] || ""}
-                                                onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
+                                                onChange={(val) =>
+                                                    setOperatorNames((prev) => ({ ...prev, [user.id]: val }))
+                                                }
                                                 placeholder="Buscar colaborador..."
                                                 className="w-full"
                                             />
-                                            <p className="text-xs text-muted-foreground mt-1">
+                                            <p className="mt-1 text-xs text-muted-foreground">
                                                 Vincula este usuario con un registro de colaborador.
                                             </p>
                                         </div>
@@ -627,17 +803,25 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                             <button
                                                 onClick={() => handleApprove(user.id)}
                                                 disabled={isPending}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500 text-white font-semibold hover:bg-green-600 transition-colors disabled:opacity-50"
+                                                className="flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-green-600 disabled:opacity-50"
                                             >
-                                                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                                {isPending ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="h-4 w-4" />
+                                                )}
                                                 Aprobar
                                             </button>
                                             <button
                                                 onClick={() => handleReject(user.id)}
                                                 disabled={isPending}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-destructive-foreground font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                                                className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                                             >
-                                                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                                                {isPending ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <XCircle className="h-4 w-4" />
+                                                )}
                                                 Rechazar
                                             </button>
                                         </div>
@@ -650,40 +834,44 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                     {/* Approved Users Section */}
                     <section className="space-y-4">
                         <div className="flex items-center gap-2">
-                            <Users className="w-5 h-5 text-primary" />
+                            <Users className="h-5 w-5 text-primary" />
                             <h2 className="text-lg font-semibold">Usuarios Activos</h2>
-                            <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-primary/10 text-primary">
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                                 {approvedUsers.length}
                             </span>
                         </div>
 
                         <div className="grid gap-4">
-                            {approvedUsers.map(user => (
-                                <div
-                                    key={user.id}
-                                    className="p-4 rounded-xl border border-border bg-card"
-                                >
-                                    <div className="flex items-start justify-between gap-4 mb-3">
+                            {approvedUsers.map((user) => (
+                                <div key={user.id} className="rounded-xl border border-border bg-card p-4">
+                                    <div className="mb-3 flex items-start justify-between gap-4">
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <p className="font-semibold">{user.full_name || "Sin nombre"}</p>
                                                 {user.id === currentUserId && (
-                                                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Tú</span>
+                                                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                        Tú
+                                                    </span>
                                                 )}
                                             </div>
                                             <p className="text-sm text-muted-foreground">@{user.username}</p>
                                             {user.operator_name && (
                                                 <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                    <Briefcase className="w-3 h-3" />
-                                                    <span>Operador: <span className="font-medium text-foreground">{user.operator_name}</span></span>
+                                                    <Briefcase className="h-3 w-3" />
+                                                    <span>
+                                                        Operador:{" "}
+                                                        <span className="font-medium text-foreground">
+                                                            {user.operator_name}
+                                                        </span>
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
-                                            {new Date(user.updated_at ?? "").toLocaleDateString('es-MX', {
-                                                day: 'numeric',
-                                                month: 'short',
-                                                year: 'numeric'
+                                            {new Date(user.updated_at ?? "").toLocaleDateString("es-MX", {
+                                                day: "numeric",
+                                                month: "short",
+                                                year: "numeric",
                                             })}
                                         </p>
                                     </div>
@@ -692,35 +880,89 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                         <div className="space-y-3">
                                             <RolesSelector
                                                 selectedRoles={selectedRoles[user.id] || user.roles || []}
-                                                onChange={(roles) => setSelectedRoles(prev => ({ ...prev, [user.id]: roles }))}
+                                                onChange={(roles) => handleRolesChange(user.id, roles)}
                                                 disabled={isPending}
                                             />
-                                            <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <label className="text-sm font-medium mb-1.5 block">Vincular con Colaborador:</label>
-                                                <SearchableSelect
-                                                    options={employeeOptions}
-                                                    value={operatorNames[user.id] === undefined ? (user.operator_name || "") : operatorNames[user.id]}
-                                                    onChange={(val) => setOperatorNames(prev => ({ ...prev, [user.id]: val }))}
-                                                    placeholder="Buscar colaborador..."
-                                                    className="w-full"
-                                                />
+                                            <PermissionsSelector
+                                                selectedRoles={selectedRoles[user.id] || user.roles || []}
+                                                selectedPermissions={selectedPermissions[user.id] || []}
+                                                onChange={(perms) =>
+                                                    setSelectedPermissions((prev) => ({
+                                                        ...prev,
+                                                        [user.id]: perms,
+                                                    }))
+                                                }
+                                                disabled={isPending}
+                                            />
+                                            <div className="duration-200 animate-in fade-in slide-in-from-top-2">
+                                                <label className="mb-1.5 block text-sm font-medium">
+                                                    Vincular con Colaborador:
+                                                </label>
+                                                {(() => {
+                                                    const currentVal =
+                                                        operatorNames[user.id] === undefined
+                                                            ? user.operator_name || ""
+                                                            : operatorNames[user.id];
+                                                    return (
+                                                        <div className="flex items-center gap-2">
+                                                            <SearchableSelect
+                                                                options={employeeOptions}
+                                                                value={currentVal}
+                                                                onChange={(val) =>
+                                                                    setOperatorNames((prev) => ({
+                                                                        ...prev,
+                                                                        [user.id]: val,
+                                                                    }))
+                                                                }
+                                                                placeholder="Buscar colaborador..."
+                                                                className="flex-1"
+                                                            />
+                                                            {currentVal && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setOperatorNames((prev) => ({
+                                                                            ...prev,
+                                                                            [user.id]: "",
+                                                                        }))
+                                                                    }
+                                                                    title="Desvincular colaborador"
+                                                                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleUpdateRoles(user.id)}
                                                     disabled={isPending}
-                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                                                    className="flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
                                                 >
-                                                    {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                                    {isPending ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                    ) : (
+                                                        <Check className="h-3 w-3" />
+                                                    )}
                                                     Guardar
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setEditingUser(null);
-                                                        setSelectedRoles(prev => ({ ...prev, [user.id]: user.roles || [] }));
+                                                        setSelectedRoles((prev) => ({
+                                                            ...prev,
+                                                            [user.id]: user.roles || [],
+                                                        }));
+                                                        setSelectedPermissions((prev) => ({
+                                                            ...prev,
+                                                            [user.id]: user.permissions || [],
+                                                        }));
                                                     }}
                                                     disabled={isPending}
-                                                    className="px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-muted disabled:opacity-50"
+                                                    className="rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
                                                 >
                                                     Cancelar
                                                 </button>
@@ -731,20 +973,38 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                                             <div className="flex flex-wrap gap-1">
                                                 {getRoleBadges(user.roles || [])}
                                                 {(user.roles?.length ?? 0) > 3 && (
-                                                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-muted text-muted-foreground">
+                                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                                                         +{(user.roles?.length ?? 0) - 3} más
                                                     </span>
                                                 )}
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    setSelectedRoles(prev => ({ ...prev, [user.id]: user.roles || [] }));
-                                                    setOperatorNames(prev => ({ ...prev, [user.id]: user.operator_name || "" }));
+                                                    setSelectedRoles((prev) => ({
+                                                        ...prev,
+                                                        [user.id]: user.roles || [],
+                                                    }));
+                                                    setSelectedPermissions((prev) => ({
+                                                        ...prev,
+                                                        [user.id]:
+                                                            user.permissions ??
+                                                            Array.from(
+                                                                new Set(
+                                                                    (user.roles || []).flatMap(
+                                                                        (r) => ROLE_DEFAULT_PERMISSIONS[r] || []
+                                                                    )
+                                                                )
+                                                            ),
+                                                    }));
+                                                    setOperatorNames((prev) => ({
+                                                        ...prev,
+                                                        [user.id]: user.operator_name || "",
+                                                    }));
                                                     setEditingUser(user.id);
                                                 }}
                                                 className="text-sm font-medium text-primary hover:underline"
                                             >
-                                                Editar Roles
+                                                Editar Roles y Permisos
                                             </button>
                                         </div>
                                     )}
