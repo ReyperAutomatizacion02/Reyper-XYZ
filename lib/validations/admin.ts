@@ -13,6 +13,7 @@ const VALID_ROLES = [
     "operador",
     "calidad",
     "almacen",
+    "logistica",
 ] as const;
 
 export const ApproveUserSchema = z.object({

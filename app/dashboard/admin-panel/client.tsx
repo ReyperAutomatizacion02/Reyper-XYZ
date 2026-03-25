@@ -55,6 +55,7 @@ const ROLES = [
     { value: "operador", label: "Operador", color: "bg-black" },
     { value: "calidad", label: "Calidad", color: "bg-teal-500" },
     { value: "almacen", label: "Almacén", color: "bg-amber-500" },
+    { value: "logistica", label: "Logística", color: "bg-sky-500" },
 ] as const;
 
 type UserProfile = {
