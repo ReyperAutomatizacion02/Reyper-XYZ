@@ -1,35 +1,39 @@
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { type Json } from '@/utils/supabase/types';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { type Json } from "@/utils/supabase/types";
 import {
-    Dialog, DialogContent,
+    Dialog,
+    DialogContent,
     DialogHeader,
     DialogTitle,
     DialogDescription,
     DialogFooter,
     DialogClose,
 } from "@/components/ui/dialog";
-// Assuming these exist, if not I'll adjust
 import { Button } from "@/components/ui/button";
-import { X, Trash2, Clock, Wrench, Save, CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, FileText, AlertTriangle, Info } from "lucide-react";
+import {
+    X,
+    Trash2,
+    Clock,
+    Wrench,
+    Save,
+    CheckCircle2,
+    ChevronRight,
+    ChevronLeft,
+    AlertCircle,
+    FileText,
+    AlertTriangle,
+    Info,
+    FlaskConical,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { extractDriveFileId } from "@/lib/drive-utils";
-
-interface EvaluationStep {
-    machine: string;
-    hours: number;
-}
+import { type EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
 
 interface EvaluationModalProps {
     isOpen: boolean;
@@ -43,6 +47,7 @@ interface EvaluationModalProps {
         urgencia?: boolean;
     } | null;
     machines: { name: string }[];
+    treatments: { id: string; name: string; avg_lead_days: number | null }[];
     onSuccess: (steps: EvaluationStep[], urgencia?: boolean) => void;
     onNext?: () => void;
     onPrevious?: () => void;
@@ -51,28 +56,44 @@ interface EvaluationModalProps {
     container?: HTMLElement | null;
 }
 
+/** Returns an empty machine step */
+function emptyMachineStep(): EvaluationStep {
+    return { type: "machine", machine: "", hours: 0 };
+}
+
+/** Returns true if a step is "complete" (enough data to save) */
+function isStepComplete(step: EvaluationStep): boolean {
+    if (isTreatmentStep(step)) return !!step.treatment_id && step.days > 0;
+    return !!step.machine && step.hours > 0;
+}
+
+/** Returns true if a step is "partially filled" (started but invalid) */
+function isStepIncomplete(step: EvaluationStep): boolean {
+    if (isTreatmentStep(step)) return !!step.treatment_id && !(step.days > 0);
+    return !!step.machine && !(step.hours > 0);
+}
+
 export function EvaluationModal({
     isOpen,
     onClose,
     order,
     machines,
+    treatments,
     onSuccess,
     onNext,
     onPrevious,
     hasNext,
     hasPrevious,
-    container
+    container,
 }: EvaluationModalProps) {
-    const [steps, setSteps] = useState<EvaluationStep[]>(
-        order?.evaluation || [{ machine: "", hours: 0 }]
-    );
+    const [steps, setSteps] = useState<EvaluationStep[]>(order?.evaluation || [emptyMachineStep()]);
     const [urgencia, setUrgencia] = useState(order?.urgencia || false);
     const [isSaving, setIsSaving] = useState(false);
     const [previewFileId, setPreviewFileId] = useState<string | null>(null);
     const [confirmModal, setConfirmModal] = useState<{
         title: string;
         message: string;
-        type: 'warning' | 'info';
+        type: "warning" | "info";
         onConfirm: () => void;
     } | null>(null);
     const supabase = createClient();
@@ -81,17 +102,15 @@ export function EvaluationModal({
     // Sync state when order changes
     React.useEffect(() => {
         if (order) {
-            let initialSteps = [...(order.evaluation || [])];
+            const initialSteps: EvaluationStep[] = [...(order.evaluation || [])];
             setUrgencia(order.urgencia || false);
 
-            // Ensure there's always at least one step
             if (initialSteps.length === 0) {
-                initialSteps.push({ machine: "", hours: 0 });
+                initialSteps.push(emptyMachineStep());
             } else {
-                // If the last step is already complete, add an empty one at the end
                 const lastStep = initialSteps[initialSteps.length - 1];
-                if (lastStep && lastStep.machine && lastStep.hours > 0) {
-                    initialSteps.push({ machine: "", hours: 0 });
+                if (lastStep && isStepComplete(lastStep)) {
+                    initialSteps.push(emptyMachineStep());
                 }
             }
             setSteps(initialSteps);
@@ -101,69 +120,110 @@ export function EvaluationModal({
     const removeStep = (index: number) => {
         const newSteps = steps.filter((_, i) => i !== index);
 
-        // Ensure there's always at least one step, and always one empty if the rest are filled
         if (newSteps.length === 0) {
-            newSteps.push({ machine: "", hours: 0 });
+            newSteps.push(emptyMachineStep());
         } else {
-            const lastRemaining = newSteps[newSteps.length - 1];
-            if (lastRemaining.machine && lastRemaining.hours > 0) {
-                newSteps.push({ machine: "", hours: 0 });
+            const last = newSteps[newSteps.length - 1];
+            if (isStepComplete(last)) {
+                newSteps.push(emptyMachineStep());
             }
         }
 
         setSteps(newSteps);
     };
 
-    const updateStep = (index: number, field: keyof EvaluationStep, value: string | number) => {
+    const toggleStepType = (index: number) => {
         const newSteps = [...steps];
-        newSteps[index] = { ...newSteps[index], [field]: value };
-
-        // Automatic step addition: If the current last step is filled, add a new empty one
-        const currentStep = newSteps[index];
-        const isLastStep = index === newSteps.length - 1;
-        if (isLastStep && currentStep.machine && currentStep.hours > 0) {
-            newSteps.push({ machine: "", hours: 0 });
+        const current = newSteps[index];
+        if (isTreatmentStep(current)) {
+            newSteps[index] = emptyMachineStep();
+        } else {
+            newSteps[index] = { type: "treatment", treatment_id: "", treatment: "", days: 0 };
         }
+        setSteps(newSteps);
+    };
 
+    const updateMachineStep = (index: number, field: "machine" | "hours", value: string | number) => {
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        if (isTreatmentStep(step)) return;
+        newSteps[index] = { ...step, [field]: value } as EvaluationStep;
+
+        const isLastStep = index === newSteps.length - 1;
+        if (isLastStep && isStepComplete(newSteps[index])) {
+            newSteps.push(emptyMachineStep());
+        }
+        setSteps(newSteps);
+    };
+
+    const updateTreatmentStep = (index: number, field: "treatment" | "days", value: string | number) => {
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        if (!isTreatmentStep(step)) return;
+        newSteps[index] = { ...step, [field]: value } as EvaluationStep;
+
+        const isLastStep = index === newSteps.length - 1;
+        if (isLastStep && isStepComplete(newSteps[index])) {
+            newSteps.push(emptyMachineStep());
+        }
+        setSteps(newSteps);
+    };
+
+    const handleTreatmentSelect = (index: number, treatmentId: string) => {
+        const catalog = treatments.find((t) => t.id === treatmentId);
+        const defaultDays = catalog?.avg_lead_days ?? 1;
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        if (!isTreatmentStep(step)) return;
+        newSteps[index] = {
+            type: "treatment",
+            treatment_id: treatmentId,
+            treatment: catalog?.name ?? "",
+            days: step.days > 0 ? step.days : defaultDays,
+        };
+
+        const isLastStep = index === newSteps.length - 1;
+        if (isLastStep && isStepComplete(newSteps[index])) {
+            newSteps.push(emptyMachineStep());
+        }
         setSteps(newSteps);
     };
 
     const handleSave = async () => {
         if (!order) return;
 
-        const validSteps = steps.filter(s => s.machine && s.hours > 0);
-        const incompleteSteps = steps.filter(s => s.machine && (!s.hours || s.hours <= 0));
+        const validSteps = steps.filter(isStepComplete);
+        const incompleteSteps = steps.filter(isStepIncomplete);
 
-        // Case 1: No valid steps at all
         if (validSteps.length === 0) {
             if (incompleteSteps.length > 0) {
+                const s = incompleteSteps[0];
+                const label = isTreatmentStep(s) ? `tratamiento "${s.treatment}"` : `máquina "${s.machine}"`;
                 setConfirmModal({
                     title: "Información Incompleta",
-                    message: `Has seleccionado la máquina "${incompleteSteps[0].machine}" pero no has asignado las horas. Por favor ingresa el tiempo estimado para poder guardar.`,
-                    type: 'warning',
-                    onConfirm: () => setConfirmModal(null)
+                    message: `Has seleccionado ${label} pero no has asignado el tiempo. Por favor ingresa el tiempo estimado para poder guardar.`,
+                    type: "warning",
+                    onConfirm: () => setConfirmModal(null),
                 });
             } else {
-                toast.error("Por favor completa al menos un paso con máquina y horas válidas");
+                toast.error("Por favor completa al menos un paso válido");
             }
             return;
         }
 
-        // Case 2: Some valid steps, but also some incomplete ones
         if (incompleteSteps.length > 0) {
             setConfirmModal({
                 title: "¿Continuar con pasos incompletos?",
-                message: `Hay ${incompleteSteps.length} paso(s) con máquina seleccionada pero sin horas. Estos pasos se ignorarán.\n\n¿Deseas continuar y guardar solo los ${validSteps.length} paso(s) válidos?`,
-                type: 'info',
+                message: `Hay ${incompleteSteps.length} paso(s) con selección pero sin tiempo asignado. Estos pasos se ignorarán.\n\n¿Deseas continuar y guardar solo los ${validSteps.length} paso(s) válidos?`,
+                type: "info",
                 onConfirm: () => {
                     setConfirmModal(null);
                     saveToSupabase(validSteps);
-                }
+                },
             });
             return;
         }
 
-        // Case 3: Everything is clean
         saveToSupabase(validSteps);
     };
 
@@ -171,11 +231,15 @@ export function EvaluationModal({
         if (!order) return;
         setIsSaving(true);
         try {
+            // Sync treatment_id / treatment name from first treatment step (if any)
+            const firstTreatment = validSteps.find(isTreatmentStep);
             const { error } = await supabase
                 .from("production_orders")
                 .update({
                     evaluation: validSteps as unknown as Json,
-                    urgencia: urgencia
+                    urgencia: urgencia,
+                    treatment_id: firstTreatment ? (firstTreatment as any).treatment_id || null : null,
+                    treatment: firstTreatment ? (firstTreatment as any).treatment || null : null,
                 })
                 .eq("id", order.id);
 
@@ -185,8 +249,6 @@ export function EvaluationModal({
             onSuccess(validSteps, urgencia);
             router.refresh();
 
-            // If we have a next item, we just update the order in the parent. 
-            // The modal stays open because isOpen is still true.
             if (hasNext && onNext) {
                 onNext();
             } else {
@@ -207,47 +269,47 @@ export function EvaluationModal({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 container={container}
-                className={`${hasDrawing ? 'sm:max-w-[95vw] lg:max-w-7xl' : 'sm:max-w-[600px]'} p-0 overflow-hidden bg-background border-none shadow-2xl rounded-2xl z-[10001] h-[95vh] flex flex-col [&>button]:hidden`}
+                className={`${hasDrawing ? "sm:max-w-[95vw] lg:max-w-7xl" : "sm:max-w-[600px]"} z-[10001] flex h-[95vh] flex-col overflow-hidden rounded-2xl border-none bg-background p-0 shadow-2xl [&>button]:hidden`}
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
-                <div className={`flex flex-1 overflow-hidden ${hasDrawing ? 'flex-row' : 'flex-col'}`}>
-
+                <div className={`flex flex-1 overflow-hidden ${hasDrawing ? "flex-row" : "flex-col"}`}>
                     {/* Left Panel: Blueprint Viewer (Only if exists) */}
                     {hasDrawing && (
-                        <div className="flex-1 bg-muted/5 flex flex-col border-r border-border min-w-0 h-full">
-                            <div className="p-4 bg-muted/30 border-b border-border flex items-center justify-between shrink-0">
-                                <h3 className="text-sm font-bold flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-primary" />
+                        <div className="flex h-full min-w-0 flex-1 flex-col border-r border-border bg-muted/5">
+                            <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/30 p-4">
+                                <h3 className="flex items-center gap-2 text-sm font-bold">
+                                    <FileText className="h-4 w-4 text-primary" />
                                     Plano de Fabricación
                                 </h3>
                                 {order?.drawing_url && !fileId && (
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="text-[10px] h-7"
-                                        onClick={() => window.open(order?.drawing_url, '_blank')}
+                                        className="h-7 text-[10px]"
+                                        onClick={() => window.open(order?.drawing_url, "_blank")}
                                     >
                                         Abrir en pestaña nueva
                                     </Button>
                                 )}
                             </div>
-                            <div className="flex-1 relative bg-[#1a1a1a] flex items-center justify-center overflow-hidden h-full w-full">
+                            <div className="relative flex h-full w-full flex-1 items-center justify-center overflow-hidden bg-[#1a1a1a]">
                                 {fileId ? (
                                     <iframe
                                         src={`https://drive.google.com/file/d/${fileId}/preview`}
-                                        className="w-full h-full border-none block"
+                                        className="block h-full w-full border-none"
                                         allow="autoplay"
                                         title="Blueprint Preview"
                                     ></iframe>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center p-8 text-center gap-4 bg-background/50 m-4 rounded-3xl border border-dashed border-border shadow-inner max-w-sm">
-                                        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-sm">
-                                            <FileText className="w-8 h-8 text-amber-500" />
+                                    <div className="m-4 flex max-w-sm flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-background/50 p-8 text-center shadow-inner">
+                                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 shadow-sm">
+                                            <FileText className="h-8 w-8 text-amber-500" />
                                         </div>
                                         <div className="space-y-1">
-                                            <h4 className="font-bold text-sm">Vista Previa No Disponible</h4>
-                                            <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                                Este archivo no se puede visualizar directamente. Usa el botón de arriba para abrirlo en una pestaña nueva.
+                                            <h4 className="text-sm font-bold">Vista Previa No Disponible</h4>
+                                            <p className="text-[11px] leading-relaxed text-muted-foreground">
+                                                Este archivo no se puede visualizar directamente. Usa el botón de arriba
+                                                para abrirlo en una pestaña nueva.
                                             </p>
                                         </div>
                                     </div>
@@ -256,19 +318,19 @@ export function EvaluationModal({
                         </div>
                     )}
 
-                    <div className={`${hasDrawing ? 'w-[450px]' : 'w-full'} flex flex-col`}>
+                    <div className={`${hasDrawing ? "w-[450px]" : "w-full"} flex flex-col`}>
                         {order && (
-                            <DialogHeader className="p-6 bg-gradient-to-br from-red-600 to-red-700 text-white relative shrink-0">
+                            <DialogHeader className="relative shrink-0 bg-gradient-to-br from-red-600 to-red-700 p-6 text-white">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-inner">
-                                            <Wrench className="w-6 h-6 text-white" />
+                                        <div className="rounded-xl border border-white/30 bg-white/20 p-3 shadow-inner backdrop-blur-sm">
+                                            <Wrench className="h-6 w-6 text-white" />
                                         </div>
                                         <div>
-                                            <DialogTitle className="text-xl font-black tracking-tight leading-none mb-1">
+                                            <DialogTitle className="mb-1 text-xl font-black leading-none tracking-tight">
                                                 {order.part_code}
                                             </DialogTitle>
-                                            <DialogDescription className="text-red-100 font-medium opacity-90 leading-tight text-xs">
+                                            <DialogDescription className="text-xs font-medium leading-tight text-red-100 opacity-90">
                                                 {order.part_name}
                                             </DialogDescription>
                                         </div>
@@ -279,10 +341,10 @@ export function EvaluationModal({
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={onPrevious}
-                                                className="text-white hover:bg-white/20 h-7 w-7"
+                                                className="h-7 w-7 text-white hover:bg-white/20"
                                                 title="Anterior Piece"
                                             >
-                                                <ChevronLeft className="w-4 h-4" />
+                                                <ChevronLeft className="h-4 w-4" />
                                             </Button>
                                         )}
                                         {hasNext && onNext && (
@@ -290,17 +352,19 @@ export function EvaluationModal({
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={onNext}
-                                                className="text-white hover:bg-white/20 h-7 w-7"
+                                                className="h-7 w-7 text-white hover:bg-white/20"
                                                 title="Siguiente Piece"
                                             >
-                                                <ChevronRight className="w-4 h-4" />
+                                                <ChevronRight className="h-4 w-4" />
                                             </Button>
                                         )}
-                                        {/* Removed duplicated X here, relying on Dialog's default Close button or could keep this one if Dialog close is disabled */}
-                                        {/* Note: I'll keep one but ensure it's the "only" one visually if possible, or use Radix close */}
                                         <DialogClose asChild>
-                                            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-7 w-7 ml-2">
-                                                <X className="w-4 h-4" />
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="ml-2 h-7 w-7 text-white hover:bg-white/20"
+                                            >
+                                                <X className="h-4 w-4" />
                                             </Button>
                                         </DialogClose>
                                     </div>
@@ -308,22 +372,26 @@ export function EvaluationModal({
                             </DialogHeader>
                         )}
 
-                        <div className="p-6 space-y-4 flex-1 flex flex-col overflow-hidden">
-                            <div className="space-y-1 shrink-0">
-                                <h2 className="font-bold text-base">Evaluar Pieza</h2>
+                        <div className="flex flex-1 flex-col space-y-4 overflow-hidden p-6">
+                            <div className="shrink-0 space-y-1">
+                                <h2 className="text-base font-bold">Evaluar Pieza</h2>
                                 <p className="text-[11px] text-muted-foreground">
-                                    Asignación de máquinas y tiempos estimada
+                                    Asignación de máquinas, tratamientos y tiempos estimados
                                 </p>
                             </div>
 
-                            <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100 shrink-0">
+                            <div className="flex shrink-0 items-center justify-between rounded-xl border border-red-100 bg-red-50 p-3">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center">
-                                        <AlertTriangle className="w-4 h-4 text-white" />
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500">
+                                        <AlertTriangle className="h-4 w-4 text-white" />
                                     </div>
                                     <div>
-                                        <Label className="text-[11px] font-black uppercase text-red-700 leading-none">Pedido Urgente</Label>
-                                        <p className="text-[10px] text-red-600 font-medium">Priorizar en planeación automática</p>
+                                        <Label className="text-[11px] font-black uppercase leading-none text-red-700">
+                                            Pedido Urgente
+                                        </Label>
+                                        <p className="text-[10px] font-medium text-red-600">
+                                            Priorizar en planeación automática
+                                        </p>
                                     </div>
                                 </div>
                                 <Switch
@@ -333,66 +401,152 @@ export function EvaluationModal({
                                 />
                             </div>
 
-                            <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                {steps.map((step, index) => (
-                                    <div key={index} className="flex gap-3 items-end border-b border-border/50 pb-4 last:border-0 relative group">
-                                        <div className="flex-1 space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Paso {index + 1}: Máquina</Label>
-                                            <Select
-                                                value={step.machine}
-                                                onValueChange={(val) => updateStep(index, "machine", val)}
-                                            >
-                                                <SelectTrigger className="h-9 text-xs focus:ring-0 focus:ring-offset-0 focus:border-red-500 border-border bg-background transition-colors">
-                                                    <SelectValue placeholder="Seleccionar" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {machines.map(m => (
-                                                        <SelectItem key={m.name} value={m.name} className="text-xs">
-                                                            {m.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="w-20 space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Horas</Label>
-                                            <div className="relative">
-                                                <Input
-                                                    type="number"
-                                                    min="0.5"
-                                                    step="0.5"
-                                                    value={step.hours}
-                                                    onChange={(e) => updateStep(index, "hours", parseFloat(e.target.value))}
-                                                    className="pr-6 h-9 text-xs"
-                                                />
-                                                <Clock className="w-3 h-3 absolute right-2 top-3 text-muted-foreground" />
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => removeStep(index)}
-                                            className="h-9 w-9 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto pr-2">
+                                {steps.map((step, index) => {
+                                    const isTreatment = isTreatmentStep(step);
+                                    return (
+                                        <div
+                                            key={index}
+                                            className={`group relative flex items-end gap-3 border-b border-border/50 pb-4 last:border-0`}
                                         >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                ))}
+                                            {/* Type toggle button */}
+                                            <div
+                                                className="flex shrink-0 flex-col gap-1"
+                                                style={{ paddingBottom: "2px" }}
+                                            >
+                                                <Label className="text-[10px] font-black uppercase text-muted-foreground opacity-0">
+                                                    T
+                                                </Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleStepType(index)}
+                                                    title={isTreatment ? "Cambiar a Máquina" : "Cambiar a Tratamiento"}
+                                                    className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                                                        isTreatment
+                                                            ? "border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                                            : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                                                    }`}
+                                                >
+                                                    {isTreatment ? (
+                                                        <FlaskConical className="h-4 w-4" />
+                                                    ) : (
+                                                        <Wrench className="h-4 w-4" />
+                                                    )}
+                                                </button>
+                                            </div>
+
+                                            {isTreatment ? (
+                                                <>
+                                                    <div className="flex-1 space-y-2">
+                                                        <Label className="text-[10px] font-black uppercase text-amber-600">
+                                                            Paso {index + 1}: Tratamiento
+                                                        </Label>
+                                                        <SearchableSelect
+                                                            value={step.treatment_id}
+                                                            onChange={(val) => handleTreatmentSelect(index, val)}
+                                                            placeholder="Seleccionar tratamiento"
+                                                            options={treatments.map((t) => ({
+                                                                value: t.id,
+                                                                label:
+                                                                    t.avg_lead_days != null
+                                                                        ? `${t.name} (${t.avg_lead_days}d)`
+                                                                        : t.name,
+                                                            }))}
+                                                        />
+                                                    </div>
+
+                                                    <div className="w-20 space-y-2">
+                                                        <Label className="text-[10px] font-black uppercase text-amber-600">
+                                                            Días
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type="number"
+                                                                min="0.5"
+                                                                step="0.5"
+                                                                value={step.days || ""}
+                                                                onChange={(e) =>
+                                                                    updateTreatmentStep(
+                                                                        index,
+                                                                        "days",
+                                                                        parseFloat(e.target.value) || 0
+                                                                    )
+                                                                }
+                                                                className="h-9 border-amber-200 pr-6 text-xs focus:border-amber-500"
+                                                            />
+                                                            <FlaskConical className="absolute right-2 top-3 h-3 w-3 text-amber-400" />
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="flex-1 space-y-2">
+                                                        <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                                                            Paso {index + 1}: Máquina
+                                                        </Label>
+                                                        <SearchableSelect
+                                                            value={step.machine}
+                                                            onChange={(val) => updateMachineStep(index, "machine", val)}
+                                                            placeholder="Seleccionar"
+                                                            options={machines.map((m) => ({
+                                                                value: m.name,
+                                                                label: m.name,
+                                                            }))}
+                                                        />
+                                                    </div>
+
+                                                    <div className="w-20 space-y-2">
+                                                        <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                                                            Horas
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type="number"
+                                                                min="0.5"
+                                                                step="0.5"
+                                                                value={step.hours || ""}
+                                                                onChange={(e) =>
+                                                                    updateMachineStep(
+                                                                        index,
+                                                                        "hours",
+                                                                        parseFloat(e.target.value) || 0
+                                                                    )
+                                                                }
+                                                                className="h-9 pr-6 text-xs"
+                                                            />
+                                                            <Clock className="absolute right-2 top-3 h-3 w-3 text-muted-foreground" />
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeStep(index)}
+                                                className="h-9 w-9 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
                             </div>
 
-
-                            <div className="flex flex-col gap-2 pt-4 border-t border-border mt-auto shrink-0">
+                            <div className="mt-auto flex shrink-0 flex-col gap-2 border-t border-border pt-4">
                                 <Button
                                     onClick={handleSave}
                                     disabled={isSaving}
-                                    className="w-full bg-[#EC1C21] hover:bg-[#EC1C21]/90 text-white font-black h-11 shadow-lg shadow-red-500/20"
+                                    className="h-11 w-full bg-[#EC1C21] font-black text-white shadow-lg shadow-red-500/20 hover:bg-[#EC1C21]/90"
                                 >
                                     {isSaving ? "GUARDANDO..." : "GUARDAR EVALUACIÓN"}
                                 </Button>
                                 <DialogClose asChild>
-                                    <Button variant="ghost" disabled={isSaving} className="w-full h-9 text-xs font-bold">
+                                    <Button
+                                        variant="ghost"
+                                        disabled={isSaving}
+                                        className="h-9 w-full text-xs font-bold"
+                                    >
                                         CANCELAR
                                     </Button>
                                 </DialogClose>
@@ -403,33 +557,35 @@ export function EvaluationModal({
 
                 {/* Premium Confirm Modal */}
                 {confirmModal && (
-                    <div className="absolute inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-background border border-border rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col items-center text-center gap-4">
-                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border shadow-sm ${confirmModal.type === 'warning' ? 'bg-red-500/10 border-red-500/20' : 'bg-primary/10 border-primary/20'}`}>
-                                {confirmModal.type === 'warning' ? (
-                                    <AlertTriangle className="w-8 h-8 text-red-500" />
+                    <div className="absolute inset-0 z-[20000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
+                        <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-border bg-background p-6 text-center shadow-2xl duration-200 animate-in zoom-in-95">
+                            <div
+                                className={`flex h-16 w-16 items-center justify-center rounded-2xl border shadow-sm ${confirmModal.type === "warning" ? "border-red-500/20 bg-red-500/10" : "border-primary/20 bg-primary/10"}`}
+                            >
+                                {confirmModal.type === "warning" ? (
+                                    <AlertTriangle className="h-8 w-8 text-red-500" />
                                 ) : (
-                                    <Info className="w-8 h-8 text-primary" />
+                                    <Info className="h-8 w-8 text-primary" />
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <h3 className="font-black text-lg tracking-tight uppercase">{confirmModal.title}</h3>
-                                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                <h3 className="text-lg font-black uppercase tracking-tight">{confirmModal.title}</h3>
+                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                                     {confirmModal.message}
                                 </p>
                             </div>
-                            <div className="flex flex-col w-full gap-2 mt-2">
+                            <div className="mt-2 flex w-full flex-col gap-2">
                                 <Button
                                     onClick={confirmModal.onConfirm}
-                                    className={`w-full font-black text-xs h-10 ${confirmModal.type === 'warning' ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary/90'}`}
+                                    className={`h-10 w-full text-xs font-black ${confirmModal.type === "warning" ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90"}`}
                                 >
-                                    {confirmModal.type === 'warning' ? 'ENTENDIDO' : 'CONTINUAR'}
+                                    {confirmModal.type === "warning" ? "ENTENDIDO" : "CONTINUAR"}
                                 </Button>
-                                {confirmModal.type === 'info' && (
+                                {confirmModal.type === "info" && (
                                     <Button
                                         variant="ghost"
                                         onClick={() => setConfirmModal(null)}
-                                        className="w-full font-bold text-xs h-10"
+                                        className="h-10 w-full text-xs font-bold"
                                     >
                                         CANCELAR
                                     </Button>

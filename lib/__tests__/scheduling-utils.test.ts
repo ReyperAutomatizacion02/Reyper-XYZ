@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-    format, addDays, addHours, subDays, getHours, getDay, differenceInMinutes,
-} from "date-fns";
+import { format, addDays, addHours, subDays, getHours, getDay, differenceInMinutes } from "date-fns";
 import {
     getPriorityLevel,
     getStatusPriority,
@@ -11,6 +9,7 @@ import {
     snapToNext15Minutes,
     generateAutomatedPlanning,
     shiftScenarioTasks,
+    isTreatmentStep,
     type Order,
     type PlanningTask,
     type StrategyConfig,
@@ -281,7 +280,9 @@ describe("prepareOrdersForScheduling", () => {
         const orders = [
             makeOrder({ evaluation: null }),
             makeOrder({ evaluation: [] as unknown as import("@/utils/supabase/types").Json }),
-            makeOrder({ evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json }),
+            makeOrder({
+                evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
+            }),
         ];
         const result = prepareOrdersForScheduling(orders, DEFAULT_CONFIG);
         expect(result).toHaveLength(1);
@@ -326,19 +327,29 @@ describe("prepareOrdersForScheduling", () => {
 
     it("sorts by FAB_TIME strategy (longest first)", () => {
         const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "FAB_TIME" };
-        const short = makeOrder({ evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json });
-        const long = makeOrder({ evaluation: [{ machine: "CNC-1", hours: 10 }] as unknown as import("@/utils/supabase/types").Json });
+        const short = makeOrder({
+            evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const long = makeOrder({
+            evaluation: [{ machine: "CNC-1", hours: 10 }] as unknown as import("@/utils/supabase/types").Json,
+        });
         const result = prepareOrdersForScheduling([short, long], config);
-        const getHours = (o: Order) => ((o.evaluation as EvaluationStep[])?.reduce((s, e) => s + e.hours, 0)) ?? 0;
+        const getHours = (o: Order) =>
+            (o.evaluation as EvaluationStep[])?.reduce((s, e) => s + (isTreatmentStep(e) ? 0 : e.hours), 0) ?? 0;
         expect(getHours(result[0])).toBeGreaterThan(getHours(result[1]));
     });
 
     it("sorts by FAST_TRACK strategy (shortest first)", () => {
         const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "FAST_TRACK" };
-        const short = makeOrder({ evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json });
-        const long = makeOrder({ evaluation: [{ machine: "CNC-1", hours: 10 }] as unknown as import("@/utils/supabase/types").Json });
+        const short = makeOrder({
+            evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const long = makeOrder({
+            evaluation: [{ machine: "CNC-1", hours: 10 }] as unknown as import("@/utils/supabase/types").Json,
+        });
         const result = prepareOrdersForScheduling([short, long], config);
-        const getHours = (o: Order) => ((o.evaluation as EvaluationStep[])?.reduce((s, e) => s + e.hours, 0)) ?? 0;
+        const getHours = (o: Order) =>
+            (o.evaluation as EvaluationStep[])?.reduce((s, e) => s + (isTreatmentStep(e) ? 0 : e.hours), 0) ?? 0;
         expect(getHours(result[0])).toBeLessThan(getHours(result[1]));
     });
 
@@ -374,7 +385,9 @@ describe("generateAutomatedPlanning", () => {
     it("skips orders with unknown machines", () => {
         const orders = [
             makeOrder({
-                evaluation: [{ machine: "UNKNOWN-MACHINE", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
+                evaluation: [
+                    { machine: "UNKNOWN-MACHINE", hours: 2 },
+                ] as unknown as import("@/utils/supabase/types").Json,
             }),
         ];
         const result = generateAutomatedPlanning(orders, [], ["CNC-1"], DEFAULT_CONFIG);
@@ -469,6 +482,145 @@ describe("generateAutomatedPlanning", () => {
         expect(step2Start).toBeGreaterThanOrEqual(step1End);
     });
 
+    it("creates a treatment task for treatment steps (no machine blocked)", () => {
+        const order = makeOrder({
+            evaluation: [
+                { machine: "CNC-1", hours: 2 },
+                { type: "treatment", treatment: "Templado", days: 3 },
+                { machine: "CNC-1", hours: 1 },
+            ] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+
+        // Should have: 1 CNC task + 1 treatment task + 1 CNC task = 3
+        expect(result.tasks.length).toBeGreaterThanOrEqual(3);
+
+        const treatmentTasks = result.tasks.filter((t) => (t as any).is_treatment);
+        const machineTasks = result.tasks.filter((t) => !(t as any).is_treatment);
+        expect(treatmentTasks).toHaveLength(1);
+        expect(machineTasks.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("does not block machines during treatment steps (other orders can schedule during treatment)", () => {
+        const orderA = makeOrder({
+            id: "order-a",
+            evaluation: [
+                { machine: "CNC-1", hours: 2 },
+                { type: "treatment", treatment: "Templado", days: 3 },
+                { machine: "CNC-1", hours: 1 },
+            ] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const orderB = makeOrder({
+            id: "order-b",
+            evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+
+        const result = generateAutomatedPlanning([orderA, orderB], [], ["CNC-1"], DEFAULT_CONFIG);
+
+        const orderATasks = result.tasks.filter((t) => t.order_id === "order-a" && !(t as any).is_treatment);
+        const orderBTasks = result.tasks.filter((t) => t.order_id === "order-b");
+        const orderATreatment = result.tasks.find((t) => t.order_id === "order-a" && (t as any).is_treatment);
+
+        expect(orderATreatment).toBeDefined();
+
+        // Order B should schedule during (or just after) the treatment window of Order A,
+        // meaning it can start before Order A's last CNC task
+        const orderBStart = Math.min(...orderBTasks.map((t) => new Date(t.planned_date!).getTime()));
+        const orderALastCncStart = Math.max(...orderATasks.map((t) => new Date(t.planned_date!).getTime()));
+        // B starts before A's last CNC step (B fills the treatment gap)
+        expect(orderBStart).toBeLessThan(orderALastCncStart);
+    });
+
+    it("treatment step register uses step number with -T suffix", () => {
+        const order = makeOrder({
+            evaluation: [
+                { machine: "CNC-1", hours: 2 },
+                { type: "treatment", treatment: "Anodizado", days: 2 },
+            ] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+        const treatmentTask = result.tasks.find((t) => (t as any).is_treatment);
+        expect(treatmentTask?.register).toBe("2-T");
+    });
+
+    it("totalHours metric excludes treatment duration", () => {
+        const order = makeOrder({
+            evaluation: [
+                { machine: "CNC-1", hours: 2 },
+                { type: "treatment", treatment: "Templado", days: 3 },
+            ] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+        // totalHours should only count the 2h CNC step, not the 3-day treatment
+        expect(result.metrics.totalHours).toBeCloseTo(2, 0);
+    });
+
+    it("generates quantity×steps tasks for multi-piece orders (batch mode)", () => {
+        const order = makeOrder({
+            quantity: 3,
+            evaluation: [
+                { machine: "CNC-1", hours: 2 },
+                { machine: "CNC-2", hours: 1 },
+            ] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1", "CNC-2"], DEFAULT_CONFIG);
+
+        // 3 pieces × 2 steps = 6 tasks minimum (splits may add more)
+        expect(result.tasks.length).toBeGreaterThanOrEqual(6);
+
+        const cnc1Tasks = result.tasks.filter((t) => t.machine === "CNC-1");
+        const cnc2Tasks = result.tasks.filter((t) => t.machine === "CNC-2");
+        // Each machine gets at least 3 tasks (1 per piece); splits across shifts may add more
+        expect(cnc1Tasks.length).toBeGreaterThanOrEqual(3);
+        expect(cnc2Tasks.length).toBeGreaterThanOrEqual(3);
+
+        // All CNC-1 tasks must finish before any CNC-2 task starts (batch ordering)
+        const lastCnc1End = Math.max(...cnc1Tasks.map((t) => new Date(t.planned_end!).getTime()));
+        const firstCnc2Start = Math.min(...cnc2Tasks.map((t) => new Date(t.planned_date!).getTime()));
+        expect(firstCnc2Start).toBeGreaterThanOrEqual(lastCnc1End);
+    });
+
+    it("uses 'step-piece' register format for multi-piece orders", () => {
+        const order = makeOrder({
+            quantity: 2,
+            evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+
+        const registers = result.tasks.map((t) => t.register);
+        expect(registers).toContain("1-1");
+        expect(registers).toContain("1-2");
+    });
+
+    it("uses plain register format for single-piece orders (qty=1, backward compat)", () => {
+        const order = makeOrder({
+            quantity: 1,
+            evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+
+        expect(result.tasks[0].register).toBe("1");
+    });
+
+    it("schedules pieces sequentially on the same machine (no overlaps within a step)", () => {
+        const order = makeOrder({
+            quantity: 3,
+            evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
+        });
+        const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
+
+        const tasks = result.tasks.sort(
+            (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
+        );
+
+        // Each task must start at or after the previous one ends
+        for (let k = 1; k < tasks.length; k++) {
+            const prevEnd = new Date(tasks[k - 1].planned_end!).getTime();
+            const currStart = new Date(tasks[k].planned_date!).getTime();
+            expect(currStart).toBeGreaterThanOrEqual(prevEnd);
+        }
+    });
+
     it("calculates machine utilization metrics", () => {
         const orders = [
             makeOrder({
@@ -487,7 +639,11 @@ describe("generateAutomatedPlanning", () => {
 describe("shiftScenarioTasks", () => {
     it("returns unchanged tasks when offsetDays is 0", () => {
         const tasks = [
-            { planned_date: "2026-03-18T08:00:00", planned_end: "2026-03-18T10:00:00", machine: "CNC-1" } as Partial<PlanningTask>,
+            {
+                planned_date: "2026-03-18T08:00:00",
+                planned_end: "2026-03-18T10:00:00",
+                machine: "CNC-1",
+            } as Partial<PlanningTask>,
         ];
         const result = shiftScenarioTasks(tasks, 0, [], ["CNC-1"]);
         expect(result).toBe(tasks); // Same reference

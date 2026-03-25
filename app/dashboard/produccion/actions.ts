@@ -213,7 +213,8 @@ export async function batchSavePlanning(
     if (parsed.draftTasks.length > 0) {
         const toInsert = parsed.draftTasks.map((t) => ({
             order_id: t.order_id,
-            machine: t.machine,
+            machine: t.machine || null,
+            is_treatment: (t as any).is_treatment ?? false,
             planned_date: t.planned_date,
             planned_end: t.planned_end,
             operator: t.operator || null,
@@ -231,7 +232,8 @@ export async function batchSavePlanning(
         const toUpdate = parsed.changedTasks.map((t) => ({
             id: t.id,
             order_id: t.order_id,
-            machine: t.machine,
+            machine: t.machine || null,
+            is_treatment: (t as any).is_treatment ?? false,
             planned_date: t.planned_date,
             planned_end: t.planned_end,
             operator: t.operator || null,

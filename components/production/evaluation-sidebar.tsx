@@ -11,6 +11,7 @@ import {
     Clock,
     FileText,
     Filter,
+    FlaskConical,
     Info,
     ListFilter,
     Pin,
@@ -31,11 +32,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 import { extractDriveFileId } from "@/lib/drive-utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-import { OrderWithRelations, EvaluationStep } from "@/lib/scheduling-utils";
+import { OrderWithRelations, EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
 import { Database, type Json } from "@/utils/supabase/types";
 import { EvaluationFiltersState } from "./hooks/use-evaluation-filters";
 import { DrawingViewerContent } from "@/components/sales/drawing-viewer";
@@ -61,6 +62,7 @@ interface EvaluationSidebarProps {
     selectedOrder: Order | null;
     onSelectOrder: (order: Order | null) => void;
     machines: { name: string }[];
+    treatments: { id: string; name: string; avg_lead_days: number | null }[];
     onEvalSuccess: (orderId: string, steps: EvaluationStep[]) => void;
 }
 
@@ -73,6 +75,7 @@ export function EvaluationSidebar({
     selectedOrder,
     onSelectOrder,
     machines,
+    treatments,
     onEvalSuccess,
 }: EvaluationSidebarProps) {
     const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -80,7 +83,7 @@ export function EvaluationSidebar({
     const { isCollapsed } = useSidebar();
 
     // Form state
-    const [steps, setSteps] = useState<EvaluationStep[]>([{ machine: "", hours: 0 }]);
+    const [steps, setSteps] = useState<EvaluationStep[]>([{ type: "machine", machine: "", hours: 0 }]);
     const [isSaving, setIsSaving] = useState(false);
     const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
     const [showDrawing, setShowDrawing] = useState(false);
@@ -94,12 +97,15 @@ export function EvaluationSidebar({
         if (selectedOrder) {
             const initialSteps = [...((selectedOrder.evaluation as EvaluationStep[] | null) || [])];
 
+            const isComplete = (s: EvaluationStep) =>
+                isTreatmentStep(s) ? !!s.treatment_id && s.days > 0 : !!s.machine && s.hours > 0;
+
             if (initialSteps.length === 0) {
-                initialSteps.push({ machine: "", hours: 0 });
+                initialSteps.push({ type: "machine", machine: "", hours: 0 });
             } else {
                 const last = initialSteps[initialSteps.length - 1];
-                if (last?.machine && last.hours > 0) {
-                    initialSteps.push({ machine: "", hours: 0 });
+                if (isComplete(last)) {
+                    initialSteps.push({ type: "machine", machine: "", hours: 0 });
                 }
             }
             setSteps(initialSteps);
@@ -134,12 +140,55 @@ export function EvaluationSidebar({
 
     // ---- Form helpers ----
 
-    const updateStep = (index: number, field: keyof EvaluationStep, value: string | number) => {
+    const isStepComplete = (s: EvaluationStep) =>
+        isTreatmentStep(s) ? !!s.treatment_id && s.days > 0 : !!s.machine && s.hours > 0;
+
+    const isStepIncomplete = (s: EvaluationStep) =>
+        isTreatmentStep(s) ? !!s.treatment_id && !(s.days > 0) : !!s.machine && !(s.hours > 0);
+
+    const toggleStepType = (index: number) => {
         const newSteps = [...steps];
-        newSteps[index] = { ...newSteps[index], [field]: value };
-        const current = newSteps[index];
-        if (index === newSteps.length - 1 && current.machine && current.hours > 0) {
-            newSteps.push({ machine: "", hours: 0 });
+        newSteps[index] = isTreatmentStep(newSteps[index])
+            ? { type: "machine", machine: "", hours: 0 }
+            : { type: "treatment", treatment_id: "", treatment: "", days: 0 };
+        setSteps(newSteps);
+    };
+
+    const updateMachineStep = (index: number, field: "machine" | "hours", value: string | number) => {
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        if (isTreatmentStep(step)) return;
+        newSteps[index] = { ...step, [field]: value } as EvaluationStep;
+        if (index === newSteps.length - 1 && isStepComplete(newSteps[index])) {
+            newSteps.push({ type: "machine", machine: "", hours: 0 });
+        }
+        setSteps(newSteps);
+    };
+
+    const handleTreatmentSelect = (index: number, treatmentId: string) => {
+        const catalog = treatments.find((t) => t.id === treatmentId);
+        const newSteps = [...steps];
+        const prevStep = newSteps[index];
+        const prevDays = isTreatmentStep(prevStep) && prevStep.days > 0 ? prevStep.days : (catalog?.avg_lead_days ?? 1);
+        newSteps[index] = {
+            type: "treatment",
+            treatment_id: treatmentId,
+            treatment: catalog?.name ?? "",
+            days: prevDays,
+        };
+        if (index === newSteps.length - 1 && isStepComplete(newSteps[index])) {
+            newSteps.push({ type: "machine", machine: "", hours: 0 });
+        }
+        setSteps(newSteps);
+    };
+
+    const updateTreatmentDays = (index: number, days: number) => {
+        const newSteps = [...steps];
+        const step = newSteps[index];
+        if (!isTreatmentStep(step)) return;
+        newSteps[index] = { ...step, days };
+        if (index === newSteps.length - 1 && isStepComplete(newSteps[index])) {
+            newSteps.push({ type: "machine", machine: "", hours: 0 });
         }
         setSteps(newSteps);
     };
@@ -147,10 +196,10 @@ export function EvaluationSidebar({
     const removeStep = (index: number) => {
         const newSteps = steps.filter((_, i) => i !== index);
         if (newSteps.length === 0) {
-            newSteps.push({ machine: "", hours: 0 });
+            newSteps.push({ type: "machine", machine: "", hours: 0 });
         } else {
             const last = newSteps[newSteps.length - 1];
-            if (last.machine && last.hours > 0) newSteps.push({ machine: "", hours: 0 });
+            if (isStepComplete(last)) newSteps.push({ type: "machine", machine: "", hours: 0 });
         }
         setSteps(newSteps);
     };
@@ -158,19 +207,21 @@ export function EvaluationSidebar({
     const handleSave = async () => {
         if (!selectedOrder) return;
 
-        const validSteps = steps.filter((s) => s.machine && s.hours > 0);
-        const incompleteSteps = steps.filter((s) => s.machine && (!s.hours || s.hours <= 0));
+        const validSteps = steps.filter(isStepComplete);
+        const incompleteSteps = steps.filter(isStepIncomplete);
 
         if (validSteps.length === 0) {
             if (incompleteSteps.length > 0) {
+                const s = incompleteSteps[0];
+                const label = isTreatmentStep(s) ? `tratamiento "${s.treatment}"` : `máquina "${s.machine}"`;
                 setConfirmModal({
                     title: "Información Incompleta",
-                    message: `Has seleccionado la máquina "${incompleteSteps[0].machine}" pero no has asignado las horas.`,
+                    message: `Has seleccionado ${label} pero no has asignado el tiempo.`,
                     type: "warning",
                     onConfirm: () => setConfirmModal(null),
                 });
             } else {
-                toast.error("Por favor completa al menos un paso con máquina y horas válidas");
+                toast.error("Por favor completa al menos un paso válido");
             }
             return;
         }
@@ -178,7 +229,7 @@ export function EvaluationSidebar({
         if (incompleteSteps.length > 0) {
             setConfirmModal({
                 title: "¿Continuar con pasos incompletos?",
-                message: `Hay ${incompleteSteps.length} paso(s) con máquina pero sin horas. Se ignorarán.\n\n¿Continuar con ${validSteps.length} paso(s) válido(s)?`,
+                message: `Hay ${incompleteSteps.length} paso(s) con selección pero sin tiempo. Se ignorarán.\n\n¿Continuar con ${validSteps.length} paso(s) válido(s)?`,
                 type: "info",
                 onConfirm: () => {
                     setConfirmModal(null);
@@ -195,9 +246,15 @@ export function EvaluationSidebar({
         if (!selectedOrder) return;
         setIsSaving(true);
         try {
+            // Sync treatment_id / treatment name from first treatment step (if any)
+            const firstTreatment = validSteps.find(isTreatmentStep);
             const { error } = await supabase
                 .from("production_orders")
-                .update({ evaluation: validSteps as unknown as Json })
+                .update({
+                    evaluation: validSteps as unknown as Json,
+                    treatment_id: firstTreatment ? (firstTreatment as any).treatment_id || null : null,
+                    treatment: firstTreatment ? (firstTreatment as any).treatment || null : null,
+                })
                 .eq("id", selectedOrder.id);
 
             if (error) throw error;
@@ -826,68 +883,138 @@ export function EvaluationSidebar({
                                 {/* Steps */}
                                 <div className="space-y-3">
                                     <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                                        Pasos de Maquinado
+                                        Pasos de Proceso
                                     </Label>
                                     <div className="space-y-3">
-                                        {steps.map((step, index) => (
-                                            <div
-                                                key={index}
-                                                className="flex items-end gap-3 border-b border-border/50 pb-3 last:border-0"
-                                            >
-                                                <div className="flex-1 space-y-1.5">
-                                                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                                                        Paso {index + 1}: Máquina
-                                                    </Label>
-                                                    <Select
-                                                        value={step.machine}
-                                                        onValueChange={(val) => updateStep(index, "machine", val)}
-                                                    >
-                                                        <SelectTrigger className="h-9 border-border bg-background text-xs transition-colors focus:border-red-500 focus:ring-0 focus:ring-offset-0">
-                                                            <SelectValue placeholder="Seleccionar" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {machines.map((m) => (
-                                                                <SelectItem
-                                                                    key={m.name}
-                                                                    value={m.name}
-                                                                    className="text-xs"
-                                                                >
-                                                                    {m.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div className="w-20 space-y-1.5">
-                                                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                                                        Horas
-                                                    </Label>
-                                                    <div className="relative">
-                                                        <Input
-                                                            type="number"
-                                                            min="0.5"
-                                                            step="0.5"
-                                                            value={step.hours}
-                                                            onChange={(e) =>
-                                                                updateStep(index, "hours", parseFloat(e.target.value))
-                                                            }
-                                                            className="h-9 pr-6 text-xs"
-                                                        />
-                                                        <Clock className="absolute right-2 top-3 h-3 w-3 text-muted-foreground" />
-                                                    </div>
-                                                </div>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => removeStep(index)}
-                                                    className="h-9 w-9 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500"
+                                        {steps.map((step, index) => {
+                                            const isTreatment = isTreatmentStep(step);
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-end gap-2 border-b border-border/50 pb-3 last:border-0"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
+                                                    {/* Type toggle */}
+                                                    <div className="flex shrink-0 flex-col gap-1">
+                                                        <Label className="text-[10px] uppercase opacity-0">T</Label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleStepType(index)}
+                                                            title={
+                                                                isTreatment
+                                                                    ? "Cambiar a Máquina"
+                                                                    : "Cambiar a Tratamiento"
+                                                            }
+                                                            className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                                                                isTreatment
+                                                                    ? "border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                                                    : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                                                            }`}
+                                                        >
+                                                            {isTreatment ? (
+                                                                <FlaskConical className="h-4 w-4" />
+                                                            ) : (
+                                                                <Wrench className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+
+                                                    {isTreatment ? (
+                                                        <>
+                                                            <div className="flex-1 space-y-1.5">
+                                                                <Label className="text-[10px] font-black uppercase text-amber-600">
+                                                                    Paso {index + 1}: Tratamiento
+                                                                </Label>
+                                                                <SearchableSelect
+                                                                    value={step.treatment_id}
+                                                                    onChange={(val) =>
+                                                                        handleTreatmentSelect(index, val)
+                                                                    }
+                                                                    placeholder="Seleccionar"
+                                                                    options={treatments.map((t) => ({
+                                                                        value: t.id,
+                                                                        label:
+                                                                            t.avg_lead_days != null
+                                                                                ? `${t.name} (${t.avg_lead_days}d)`
+                                                                                : t.name,
+                                                                    }))}
+                                                                />
+                                                            </div>
+                                                            <div className="w-20 space-y-1.5">
+                                                                <Label className="text-[10px] font-black uppercase text-amber-600">
+                                                                    Días
+                                                                </Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0.5"
+                                                                        step="0.5"
+                                                                        value={step.days || ""}
+                                                                        onChange={(e) =>
+                                                                            updateTreatmentDays(
+                                                                                index,
+                                                                                parseFloat(e.target.value) || 0
+                                                                            )
+                                                                        }
+                                                                        className="h-9 border-amber-200 pr-6 text-xs focus:border-amber-500"
+                                                                    />
+                                                                    <FlaskConical className="absolute right-2 top-3 h-3 w-3 text-amber-400" />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex-1 space-y-1.5">
+                                                                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                                                                    Paso {index + 1}: Máquina
+                                                                </Label>
+                                                                <SearchableSelect
+                                                                    value={step.machine}
+                                                                    onChange={(val) =>
+                                                                        updateMachineStep(index, "machine", val)
+                                                                    }
+                                                                    placeholder="Seleccionar"
+                                                                    options={machines.map((m) => ({
+                                                                        value: m.name,
+                                                                        label: m.name,
+                                                                    }))}
+                                                                />
+                                                            </div>
+                                                            <div className="w-20 space-y-1.5">
+                                                                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                                                                    Horas
+                                                                </Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0.5"
+                                                                        step="0.5"
+                                                                        value={step.hours || ""}
+                                                                        onChange={(e) =>
+                                                                            updateMachineStep(
+                                                                                index,
+                                                                                "hours",
+                                                                                parseFloat(e.target.value) || 0
+                                                                            )
+                                                                        }
+                                                                        className="h-9 pr-6 text-xs"
+                                                                    />
+                                                                    <Clock className="absolute right-2 top-3 h-3 w-3 text-muted-foreground" />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => removeStep(index)}
+                                                        className="h-9 w-9 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>

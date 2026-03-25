@@ -4,7 +4,19 @@ import React, { useMemo, useState, useRef, useEffect } from "react";
 import Image from "next/image";
 // import { useRouter } from "next/navigation"; // Removed
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar, ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, FileText } from "lucide-react";
+import {
+    ChevronLeft,
+    ChevronRight,
+    Calendar,
+    ZoomIn,
+    ZoomOut,
+    Lock,
+    Unlock,
+    Maximize2,
+    Minimize2,
+    FileText,
+    FlaskConical,
+} from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
 import { getProductionTaskColor } from "@/utils/production-colors";
@@ -14,10 +26,29 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { es } from "date-fns/locale";
 import {
-    format, startOfDay, endOfDay, startOfISOWeek, endOfISOWeek, startOfMonth, endOfMonth,
-    addDays, addHours, addMinutes, addWeeks, addMonths, addMilliseconds, subDays,
-    isBefore, isAfter, differenceInMinutes, differenceInMilliseconds,
-    getHours, getDay, getDate, getISOWeek, getMinutes,
+    format,
+    startOfDay,
+    endOfDay,
+    startOfISOWeek,
+    endOfISOWeek,
+    startOfMonth,
+    endOfMonth,
+    addDays,
+    addHours,
+    addMinutes,
+    addWeeks,
+    addMonths,
+    addMilliseconds,
+    subDays,
+    isBefore,
+    isAfter,
+    differenceInMinutes,
+    differenceInMilliseconds,
+    getHours,
+    getDay,
+    getDate,
+    getISOWeek,
+    getMinutes,
     set,
 } from "date-fns";
 
@@ -72,9 +103,9 @@ const SIDEBAR_WIDTH = 200;
 
 // Width per unit based on view mode
 const VIEW_MODE_CONFIG = {
-    hour: { width: 100, unit: 'hour' as const, format: 'HH:mm' },
-    day: { width: 150, unit: 'day' as const, format: 'DD MMM' },
-    week: { width: 200, unit: 'week' as const, format: 'DD MMM' }
+    hour: { width: 100, unit: "hour" as const, format: "HH:mm" },
+    day: { width: 150, unit: "day" as const, format: "DD MMM" },
+    week: { width: 200, unit: "week" as const, format: "DD MMM" },
 };
 
 export function GanttSVG({
@@ -103,7 +134,7 @@ export function GanttSVG({
     startControls,
     endControls,
     onToggleFullscreen,
-    focusTaskId
+    focusTaskId,
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -116,30 +147,30 @@ export function GanttSVG({
 
     // Calculate timeWindow based on viewMode
     const timeWindow = useMemo(() => {
-        if (viewMode === 'hour') {
+        if (viewMode === "hour") {
             return {
                 start: startOfDay(selectedDate),
-                end: addHours(endOfDay(selectedDate), 1)
+                end: addHours(endOfDay(selectedDate), 1),
             };
-        } else if (viewMode === 'day') {
+        } else if (viewMode === "day") {
             return {
                 start: startOfDay(dateRangeStart),
-                end: endOfDay(dateRangeEnd)
+                end: endOfDay(dateRangeEnd),
             };
         } else {
             return {
                 start: startOfISOWeek(dateRangeStart),
-                end: endOfISOWeek(dateRangeEnd)
+                end: endOfISOWeek(dateRangeEnd),
             };
         }
     }, [viewMode, selectedDate, dateRangeStart, dateRangeEnd]);
 
     // Automatically set default ranges when switching views
     useEffect(() => {
-        if (viewMode === 'day') {
+        if (viewMode === "day") {
             setDateRangeStart(startOfISOWeek(new Date()));
             setDateRangeEnd(endOfISOWeek(new Date()));
-        } else if (viewMode === 'week') {
+        } else if (viewMode === "week") {
             setDateRangeStart(startOfMonth(new Date()));
             setDateRangeEnd(endOfMonth(new Date()));
         }
@@ -155,26 +186,30 @@ export function GanttSVG({
     const setModalData = externalSetModalData || setLocalModalData;
 
     const [draggingTask, setDraggingTask] = useState<{
-        id: string,
-        startX: number,
-        initialX: number,
-        initialDuration: number, // Added to fix duration drift
-        cascadeIds?: string[]
+        id: string;
+        startX: number;
+        initialX: number;
+        initialDuration: number; // Added to fix duration drift
+        cascadeIds?: string[];
     } | null>(null);
     const [resizingTask, setResizingTask] = useState<{
-        id: string,
-        startX: number,
-        initialWidth: number,
-        initialStart?: number,
-        direction?: 'left' | 'right',
-        dayStart?: number,
-        dayEnd?: number
+        id: string;
+        startX: number;
+        initialWidth: number;
+        initialStart?: number;
+        direction?: "left" | "right";
+        dayStart?: number;
+        dayEnd?: number;
     } | null>(null);
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, task: PlanningTask } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; task: PlanningTask } | null>(null);
     // Removed local state: savedTasks, optimisticTasks, isSaving
 
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
-    const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number, mode: 'above' | 'below' }>({ x: 0, y: 0, mode: 'below' });
+    const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number; mode: "above" | "below" }>({
+        x: 0,
+        y: 0,
+        mode: "below",
+    });
     const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -206,8 +241,8 @@ export function GanttSVG({
 
     // Global Scroll Listener (in case window scrolls)
     useEffect(() => {
-        window.addEventListener('scroll', handleScrollInteraction, { capture: true });
-        return () => window.removeEventListener('scroll', handleScrollInteraction, { capture: true });
+        window.addEventListener("scroll", handleScrollInteraction, { capture: true });
+        return () => window.removeEventListener("scroll", handleScrollInteraction, { capture: true });
     }, []);
 
     // Auto-scroll to today on mount
@@ -224,31 +259,27 @@ export function GanttSVG({
     // Removed Detect Changes logic (moved to parent)
     // Removed handleSave, handleDiscard logic (moved to parent)
 
-
-
     // 2. Filter machines and tasks
     const filteredMachines = useMemo(() => {
         const uniqueNames = new Set([
-            ...initialMachines.map(m => m.name),
-            ...optimisticTasks.map(t => t.machine).filter((n): n is string => !!n)
+            ...initialMachines.map((m) => m.name),
+            ...optimisticTasks.map((t) => t.machine).filter((n): n is string => !!n),
         ]);
-        if (optimisticTasks.some(t => !t.machine)) uniqueNames.add("Sin Máquina");
+        // "Sin Máquina" only for non-treatment null-machine tasks
+        if (optimisticTasks.some((t) => !t.machine && !(t as any).is_treatment)) uniqueNames.add("Sin Máquina");
 
-        return Array.from(uniqueNames)
-            .filter(name => {
+        const machineMachines = Array.from(uniqueNames)
+            .filter((name) => {
                 const isSelected = selectedMachines.has(name);
                 if (!isSelected) return false;
 
                 if (hideEmptyMachines) {
-                    // Check if machine has tasks in the current visible window
-                    const hasTasksInWindow = optimisticTasks.some(t => {
-                        const isThisMachine = (t.machine === name) || (name === "Sin Máquina" && !t.machine);
+                    const hasTasksInWindow = optimisticTasks.some((t) => {
+                        const isThisMachine =
+                            t.machine === name || (name === "Sin Máquina" && !t.machine && !(t as any).is_treatment);
                         if (!isThisMachine) return false;
-
-                        // Check overlap with visible window
                         const taskStart = new Date(t.planned_date!);
                         const taskEnd = new Date(t.planned_end!);
-
                         return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
                     });
                     return hasTasksInWindow;
@@ -256,16 +287,40 @@ export function GanttSVG({
                 return true;
             })
             .sort();
+
+        // Add "TRATAMIENTO" row at the end when there are treatment tasks visible
+        const hasTreatmentTasksInWindow = optimisticTasks.some((t) => {
+            if (!(t as any).is_treatment) return false;
+            const taskStart = new Date(t.planned_date!);
+            const taskEnd = new Date(t.planned_end!);
+            return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
+        });
+        if (hasTreatmentTasksInWindow) machineMachines.push("TRATAMIENTO");
+
+        return machineMachines;
     }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, timeWindow]);
 
     // Filter tasks by machine, search, AND visible time window
     const filteredTasks = useMemo(() => {
-        return optimisticTasks.filter(task => {
+        return optimisticTasks.filter((task) => {
+            // Treatment tasks are always included when they have dates (rendered in TRATAMIENTO row)
+            if ((task as any).is_treatment) {
+                const taskStart = new Date(task.planned_date!);
+                const taskEnd = new Date(task.planned_end!);
+                const matchesSearch =
+                    !searchQuery ||
+                    task.production_orders?.part_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    task.production_orders?.part_name?.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesSearch && isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
+            }
             // Machine filter
-            const matchesMachine = task.machine ? selectedMachines.has(task.machine) : selectedMachines.has("Sin Máquina");
+            const matchesMachine = task.machine
+                ? selectedMachines.has(task.machine)
+                : selectedMachines.has("Sin Máquina");
 
             // Search filter
-            const matchesSearch = !searchQuery ||
+            const matchesSearch =
+                !searchQuery ||
                 task.production_orders?.part_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 task.production_orders?.part_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -286,10 +341,10 @@ export function GanttSVG({
         const currentMs = mTime.getTime();
 
         // Calculate difference based on view mode
-        if (viewMode === 'hour') {
+        if (viewMode === "hour") {
             const diffHours = (currentMs - startMs) / (1000 * 60 * 60);
             return diffHours * UNIT_WIDTH;
-        } else if (viewMode === 'day') {
+        } else if (viewMode === "day") {
             const diffDays = (currentMs - startMs) / (1000 * 60 * 60 * 24);
             return diffDays * UNIT_WIDTH;
         } else {
@@ -299,9 +354,8 @@ export function GanttSVG({
     };
 
     const xToTime = (x: number): Date => {
-        const msPerUnit = viewMode === 'hour' ? 1000 * 60 * 60
-            : viewMode === 'day' ? 1000 * 60 * 60 * 24
-                : 1000 * 60 * 60 * 24 * 7;
+        const msPerUnit =
+            viewMode === "hour" ? 1000 * 60 * 60 : viewMode === "day" ? 1000 * 60 * 60 * 24 : 1000 * 60 * 60 * 24 * 7;
 
         const diffMs = (x / UNIT_WIDTH) * msPerUnit;
         return addMilliseconds(timeWindow.start, diffMs);
@@ -309,12 +363,12 @@ export function GanttSVG({
 
     const totalWidth = useMemo(() => {
         const diffMs = timeWindow.end.getTime() - timeWindow.start.getTime();
-        if (viewMode === 'hour') {
-            return diffMs / (1000 * 60 * 60) * UNIT_WIDTH;
-        } else if (viewMode === 'day') {
-            return diffMs / (1000 * 60 * 60 * 24) * UNIT_WIDTH;
+        if (viewMode === "hour") {
+            return (diffMs / (1000 * 60 * 60)) * UNIT_WIDTH;
+        } else if (viewMode === "day") {
+            return (diffMs / (1000 * 60 * 60 * 24)) * UNIT_WIDTH;
         } else {
-            return diffMs / (1000 * 60 * 60 * 24 * 7) * UNIT_WIDTH;
+            return (diffMs / (1000 * 60 * 60 * 24 * 7)) * UNIT_WIDTH;
         }
     }, [timeWindow, viewMode, UNIT_WIDTH]);
 
@@ -325,8 +379,8 @@ export function GanttSVG({
         // Group tasks by machine AND day
         const machineDayTaskGroups: Map<string, PlanningTask[]> = new Map();
 
-        filteredTasks.forEach(task => {
-            const machine = task.machine || "Sin Máquina";
+        filteredTasks.forEach((task) => {
+            const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
             const day = format(new Date(task.planned_date!), "yyyy-MM-dd");
             const key = `${machine}|${day}`;
 
@@ -339,13 +393,13 @@ export function GanttSVG({
         // For each machine-day group, allocate lanes
         machineDayTaskGroups.forEach((tasks) => {
             // Sort by start time
-            const sorted = [...tasks].sort((a, b) =>
-                new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
+            const sorted = [...tasks].sort(
+                (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
             );
 
             const laneEnds: number[] = []; // Track when each lane ends
 
-            sorted.forEach(task => {
+            sorted.forEach((task) => {
                 const taskStart = new Date(task.planned_date!).getTime();
                 const taskEnd = new Date(task.planned_end!).getTime();
 
@@ -380,8 +434,14 @@ export function GanttSVG({
         const SHIFT_END = 22;
         const SHIFT_HOURS = SHIFT_END - SHIFT_START; // 16 hours
 
-        filteredMachines.forEach(m => {
-            const machineTasks = optimisticTasks.filter(t => (t.machine === m) || (m === "Sin Máquina" && !t.machine));
+        filteredMachines.forEach((m) => {
+            if (m === "TRATAMIENTO") {
+                stats.set(m, 0);
+                return;
+            } // No utilization for treatment row
+            const machineTasks = optimisticTasks.filter(
+                (t) => !(t as any).is_treatment && (t.machine === m || (m === "Sin Máquina" && !t.machine))
+            );
             if (machineTasks.length === 0) {
                 stats.set(m, 0);
                 return;
@@ -397,21 +457,24 @@ export function GanttSVG({
             while (isBefore(currentDayIter, viewEnd)) {
                 totalShiftHours += SHIFT_HOURS;
 
-                const dayShiftStart = set(currentDayIter, { hours: SHIFT_START, minutes: 0, seconds: 0, milliseconds: 0 });
+                const dayShiftStart = set(currentDayIter, {
+                    hours: SHIFT_START,
+                    minutes: 0,
+                    seconds: 0,
+                    milliseconds: 0,
+                });
                 const dayShiftEnd = set(currentDayIter, { hours: SHIFT_END, minutes: 0, seconds: 0, milliseconds: 0 });
 
                 const dailyTasks = machineTasks
-                    .filter(task => {
+                    .filter((task) => {
                         const taskStart = new Date(task.planned_date!);
                         const taskEnd = new Date(task.planned_end!);
                         return isBefore(taskStart, dayShiftEnd) && isAfter(taskEnd, dayShiftStart);
                     })
-                    .sort((a, b) =>
-                        new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
-                    );
+                    .sort((a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime());
 
                 let currentLaneEnd = 0;
-                dailyTasks.forEach(task => {
+                dailyTasks.forEach((task) => {
                     const taskStart = new Date(task.planned_date!);
                     const taskEnd = new Date(task.planned_end!);
                     if (taskStart.getTime() >= currentLaneEnd) {
@@ -447,8 +510,8 @@ export function GanttSVG({
     const machineLaneCounts = useMemo(() => {
         const counts: Map<string, number> = new Map();
 
-        filteredTasks.forEach(task => {
-            const machine = task.machine || "Sin Máquina";
+        filteredTasks.forEach((task) => {
+            const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
             const lane = taskLanes.get(task.id) || 0;
             const current = counts.get(machine) || 0;
             counts.set(machine, Math.max(current, lane + 1));
@@ -479,13 +542,11 @@ export function GanttSVG({
     // Dynamic total height
     const totalHeight = useMemo(() => {
         let height = 0;
-        filteredMachines.forEach(machine => {
+        filteredMachines.forEach((machine) => {
             height += getMachineHeight(machine);
         });
         return height;
     }, [filteredMachines, machineLaneCounts]);
-
-
 
     // Calculate Dependency Lines
     const dependencyLines = useMemo(() => {
@@ -493,7 +554,7 @@ export function GanttSVG({
         const tasksByOrder = new Map<string, PlanningTask[]>();
 
         // Group by Order
-        filteredTasks.forEach(task => {
+        filteredTasks.forEach((task) => {
             if (task.order_id) {
                 const oid = String(task.order_id);
                 if (!tasksByOrder.has(oid)) {
@@ -518,8 +579,16 @@ export function GanttSVG({
                 const endMachine = endTask.machine || "Sin Máquina";
 
                 // Get Coordinates
-                const startY = (machineYOffsets.get(startMachine) || 0) + ROW_PADDING + ((taskLanes.get(startTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
-                const endY = (machineYOffsets.get(endMachine) || 0) + ROW_PADDING + ((taskLanes.get(endTask.id) || 0) * (BAR_HEIGHT + BAR_GAP)) + (BAR_HEIGHT / 2);
+                const startY =
+                    (machineYOffsets.get(startMachine) || 0) +
+                    ROW_PADDING +
+                    (taskLanes.get(startTask.id) || 0) * (BAR_HEIGHT + BAR_GAP) +
+                    BAR_HEIGHT / 2;
+                const endY =
+                    (machineYOffsets.get(endMachine) || 0) +
+                    ROW_PADDING +
+                    (taskLanes.get(endTask.id) || 0) * (BAR_HEIGHT + BAR_GAP) +
+                    BAR_HEIGHT / 2;
 
                 const startX = timeToX(new Date(startTask.planned_end!));
                 const endX = timeToX(new Date(endTask.planned_date!));
@@ -573,7 +642,7 @@ export function GanttSVG({
         if (foundMachine) {
             setModalData({
                 machine: foundMachine,
-                time: snappedTime.valueOf()
+                time: snappedTime.valueOf(),
             });
         }
     };
@@ -590,13 +659,14 @@ export function GanttSVG({
 
         snapshotRef.current = optimisticTasks;
 
-        let cascadeIds: string[] = [];
+        const cascadeIds: string[] = [];
         if (cascadeMode) {
             const taskEnd = new Date(task.planned_end!);
             const sameMachine = optimisticTasks
-                .filter(t => t.machine === task.machine && t.id !== task.id)
-                .filter(t => {
-                    const isFinishedOrRunning = !!t.check_in || !!t.check_out || isBefore(new Date(t.planned_date!), now);
+                .filter((t) => t.machine === task.machine && t.id !== task.id)
+                .filter((t) => {
+                    const isFinishedOrRunning =
+                        !!t.check_in || !!t.check_out || isBefore(new Date(t.planned_date!), now);
                     const isLocked = !t.isDraft && (t.locked === true || (t.locked !== false && isFinishedOrRunning));
                     return !isLocked;
                 })
@@ -614,11 +684,11 @@ export function GanttSVG({
             startX: e.clientX,
             initialX: timeToX(task.planned_date!),
             initialDuration: new Date(task.planned_end!).getTime() - new Date(task.planned_date!).getTime(),
-            cascadeIds
+            cascadeIds,
         });
     };
 
-    const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: 'left' | 'right') => {
+    const onResizeStart = (e: React.MouseEvent, task: PlanningTask, direction: "left" | "right") => {
         const now = currentTime || new Date();
         const isFinishedOrRunning = !!task.check_in || !!task.check_out || isBefore(new Date(task.planned_date!), now);
         const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
@@ -640,7 +710,7 @@ export function GanttSVG({
             initialStart: timeToX(task.planned_date!),
             direction,
             dayStart: startDay,
-            dayEnd: endDay
+            dayEnd: endDay,
         });
     };
 
@@ -656,67 +726,75 @@ export function GanttSVG({
             const originalStart = xToTime(draggingTask.initialX);
             const deltaMs = newStartTime.getTime() - originalStart.getTime();
 
-            setOptimisticTasks(prev => prev.map(t => {
-                if (t.id === draggingTask.id) {
-                    return {
-                        ...t,
-                        planned_date: format(newStartTime, "yyyy-MM-dd'T'HH:mm:ss"),
-                        planned_end: format(addMilliseconds(newStartTime, draggingTask.initialDuration), "yyyy-MM-dd'T'HH:mm:ss")
-                    };
-                }
-                if (draggingTask.cascadeIds?.includes(t.id)) {
-                    const origStart = new Date(snapshotRef.current.find(s => s.id === t.id)?.planned_date!);
-                    const origEnd = new Date(snapshotRef.current.find(s => s.id === t.id)?.planned_end!);
-                    return {
-                        ...t,
-                        planned_date: format(addMilliseconds(origStart, deltaMs), "yyyy-MM-dd'T'HH:mm:ss"),
-                        planned_end: format(addMilliseconds(origEnd, deltaMs), "yyyy-MM-dd'T'HH:mm:ss")
-                    };
-                }
-                return t;
-            }));
+            setOptimisticTasks((prev) =>
+                prev.map((t) => {
+                    if (t.id === draggingTask.id) {
+                        return {
+                            ...t,
+                            planned_date: format(newStartTime, "yyyy-MM-dd'T'HH:mm:ss"),
+                            planned_end: format(
+                                addMilliseconds(newStartTime, draggingTask.initialDuration),
+                                "yyyy-MM-dd'T'HH:mm:ss"
+                            ),
+                        };
+                    }
+                    if (draggingTask.cascadeIds?.includes(t.id)) {
+                        const origStart = new Date(snapshotRef.current.find((s) => s.id === t.id)?.planned_date!);
+                        const origEnd = new Date(snapshotRef.current.find((s) => s.id === t.id)?.planned_end!);
+                        return {
+                            ...t,
+                            planned_date: format(addMilliseconds(origStart, deltaMs), "yyyy-MM-dd'T'HH:mm:ss"),
+                            planned_end: format(addMilliseconds(origEnd, deltaMs), "yyyy-MM-dd'T'HH:mm:ss"),
+                        };
+                    }
+                    return t;
+                })
+            );
         } else if (resizingTask) {
             const deltaX = e.clientX - resizingTask.startX;
-            const direction = resizingTask.direction || 'right';
+            const direction = resizingTask.direction || "right";
             const limitStart = resizingTask.dayStart ? new Date(resizingTask.dayStart) : null;
             const limitEnd = resizingTask.dayEnd ? new Date(resizingTask.dayEnd) : null;
 
-            setOptimisticTasks(prev => prev.map(t => {
-                if (t.id === resizingTask.id) {
-                    if (direction === 'right') {
-                        const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
-                        let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
-                        newEndTime = roundToNearest15Minutes(newEndTime);
+            setOptimisticTasks((prev) =>
+                prev.map((t) => {
+                    if (t.id === resizingTask.id) {
+                        if (direction === "right") {
+                            const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
+                            let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
+                            newEndTime = roundToNearest15Minutes(newEndTime);
 
-                        if (limitEnd && isAfter(newEndTime, limitEnd)) {
-                            newEndTime = new Date(limitEnd);
+                            if (limitEnd && isAfter(newEndTime, limitEnd)) {
+                                newEndTime = new Date(limitEnd);
+                            }
+
+                            const currentStart = new Date(t.planned_date!);
+                            if (differenceInMinutes(newEndTime, currentStart) < 15) {
+                                newEndTime = addMinutes(currentStart, 15);
+                            }
+
+                            return { ...t, planned_end: format(newEndTime, "yyyy-MM-dd'T'HH:mm:ss") };
+                        } else {
+                            const newX =
+                                (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
+                            let newStartDate = xToTime(newX);
+                            newStartDate = roundToNearest15Minutes(newStartDate);
+
+                            if (limitStart && isBefore(newStartDate, limitStart)) {
+                                newStartDate = new Date(limitStart);
+                            }
+
+                            const currentEnd = new Date(t.planned_end!);
+                            if (differenceInMinutes(currentEnd, newStartDate) < 15) {
+                                newStartDate = addMinutes(currentEnd, -15);
+                            }
+
+                            return { ...t, planned_date: format(newStartDate, "yyyy-MM-dd'T'HH:mm:ss") };
                         }
-
-                        const currentStart = new Date(t.planned_date!);
-                        if (differenceInMinutes(newEndTime, currentStart) < 15) {
-                            newEndTime = addMinutes(currentStart, 15);
-                        }
-
-                        return { ...t, planned_end: format(newEndTime, "yyyy-MM-dd'T'HH:mm:ss") };
-                    } else {
-                        let newX = (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
-                        let newStartDate = xToTime(newX);
-                        newStartDate = roundToNearest15Minutes(newStartDate);
-
-                        if (limitStart && isBefore(newStartDate, limitStart)) {
-                            newStartDate = new Date(limitStart);
-                        }
-
-                        const currentEnd = new Date(t.planned_end!);
-                        if (differenceInMinutes(currentEnd, newStartDate) < 15) {
-                            newStartDate = addMinutes(currentEnd, -15);
-                        }
-
-                        return { ...t, planned_date: format(newStartDate, "yyyy-MM-dd'T'HH:mm:ss") };
                     }
-                }
-                return t;
-            }));
+                    return t;
+                })
+            );
         }
     };
 
@@ -735,32 +813,64 @@ export function GanttSVG({
     };
 
     // 5. Grid Helpers - Generate columns based on view mode
+    /** Off-hours rectangles for hour view: 00:00-06:00 and 22:00-24:00 each day */
+    const offHourRects = useMemo(() => {
+        if (viewMode !== "hour") return [];
+        const rects: { x: number; width: number }[] = [];
+        let day = startOfDay(timeWindow.start);
+        while (isBefore(day, timeWindow.end)) {
+            // Before shift: 00:00 – 06:00
+            const nightStart = day;
+            const nightEnd = set(day, { hours: 6, minutes: 0, seconds: 0, milliseconds: 0 });
+            if (isBefore(nightStart, timeWindow.end) && isAfter(nightEnd, timeWindow.start)) {
+                const x1 = timeToX(nightStart);
+                const x2 = timeToX(nightEnd);
+                if (x2 > x1) rects.push({ x: x1, width: x2 - x1 });
+            }
+            // After shift: 22:00 – 24:00 (next midnight)
+            const eveningStart = set(day, { hours: 22, minutes: 0, seconds: 0, milliseconds: 0 });
+            const eveningEnd = addDays(day, 1);
+            if (isBefore(eveningStart, timeWindow.end) && isAfter(eveningEnd, timeWindow.start)) {
+                const x1 = timeToX(eveningStart);
+                const x2 = timeToX(eveningEnd);
+                if (x2 > x1) rects.push({ x: x1, width: x2 - x1 });
+            }
+            day = addDays(day, 1);
+        }
+        return rects;
+    }, [viewMode, timeWindow, timeToX]);
+
     const timeColumns = useMemo(() => {
         const columns = [];
         let curr = new Date(timeWindow.start);
 
         while (isBefore(curr, timeWindow.end)) {
-            const isSpecial = viewMode === 'hour'
-                ? getHours(curr) === 0
-                : viewMode === 'day'
-                    ? getDay(curr) === 1 // Monday
-                    : getDate(curr) === 1; // First of month
+            const h = getHours(curr);
+            const isOffHour = viewMode === "hour" && (h < 6 || h >= 22);
+            const isSpecial =
+                viewMode === "hour"
+                    ? getHours(curr) === 0
+                    : viewMode === "day"
+                      ? getDay(curr) === 1 // Monday
+                      : getDate(curr) === 1; // First of month
 
             columns.push({
                 time: new Date(curr),
                 x: timeToX(curr),
-                label: viewMode === 'hour'
-                    ? format(curr, 'HH:mm')
-                    : viewMode === 'day'
-                        ? format(curr, 'dd MMM', { locale: es })
-                        : `Sem ${getISOWeek(curr)}`,
-                dateLabel: format(curr, 'dd MMM', { locale: es }),
-                isSpecial
+                label:
+                    viewMode === "hour"
+                        ? format(curr, "HH:mm")
+                        : viewMode === "day"
+                          ? format(curr, "dd MMM", { locale: es })
+                          : `Sem ${getISOWeek(curr)}`,
+                dateLabel: format(curr, "dd MMM", { locale: es }),
+                isSpecial,
+                isOffHour,
             });
 
-            if (viewMode === 'hour') {
+            if (viewMode === "hour") {
                 curr = addHours(curr, 1);
-            } else if (viewMode === 'day') {
+            } else if (viewMode === "day") {
                 curr = addDays(curr, 1);
             } else {
                 curr = addWeeks(curr, 1);
@@ -770,19 +880,19 @@ export function GanttSVG({
     }, [timeWindow.start, timeWindow.end, viewMode, zoomLevel, UNIT_WIDTH]);
 
     // Date navigation functions
-    const navigateDate = (direction: 'prev' | 'next' | 'today') => {
-        if (viewMode === 'hour') {
+    const navigateDate = (direction: "prev" | "next" | "today") => {
+        if (viewMode === "hour") {
             // Hour view: navigate by day
-            if (direction === 'today') {
+            if (direction === "today") {
                 setSelectedDate(startOfDay(new Date()));
                 setTimeout(() => scrollToNow(), 100);
             } else {
-                const shift = direction === 'prev' ? -1 : 1;
-                setSelectedDate(prev => addDays(prev, shift));
+                const shift = direction === "prev" ? -1 : 1;
+                setSelectedDate((prev) => addDays(prev, shift));
             }
         } else {
-            if (direction === 'today') {
-                if (viewMode === 'day') {
+            if (direction === "today") {
+                if (viewMode === "day") {
                     setDateRangeStart(startOfISOWeek(new Date()));
                     setDateRangeEnd(endOfISOWeek(new Date()));
                 } else {
@@ -791,14 +901,14 @@ export function GanttSVG({
                 }
                 setTimeout(() => scrollToNow(), 100);
             } else {
-                const shiftDir = direction === 'prev' ? -1 : 1;
+                const shiftDir = direction === "prev" ? -1 : 1;
 
-                if (viewMode === 'day') {
-                    setDateRangeStart(prev => startOfISOWeek(addWeeks(prev, shiftDir)));
-                    setDateRangeEnd(prev => endOfISOWeek(addWeeks(prev, shiftDir)));
+                if (viewMode === "day") {
+                    setDateRangeStart((prev) => startOfISOWeek(addWeeks(prev, shiftDir)));
+                    setDateRangeEnd((prev) => endOfISOWeek(addWeeks(prev, shiftDir)));
                 } else {
-                    setDateRangeStart(prev => startOfMonth(addMonths(prev, shiftDir)));
-                    setDateRangeEnd(prev => endOfMonth(addMonths(prev, shiftDir)));
+                    setDateRangeStart((prev) => startOfMonth(addMonths(prev, shiftDir)));
+                    setDateRangeEnd((prev) => endOfMonth(addMonths(prev, shiftDir)));
                 }
             }
         }
@@ -807,8 +917,8 @@ export function GanttSVG({
     // Close Context Menu on click outside
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
-        window.addEventListener('click', handleClick);
-        return () => window.removeEventListener('click', handleClick);
+        window.addEventListener("click", handleClick);
+        return () => window.removeEventListener("click", handleClick);
     }, []);
 
     // Scroll to current time position
@@ -824,7 +934,7 @@ export function GanttSVG({
 
         scrollContainerRef.current.scrollTo({
             left: scrollX,
-            behavior: 'smooth'
+            behavior: "smooth",
         });
     };
 
@@ -832,14 +942,14 @@ export function GanttSVG({
     useEffect(() => {
         if (!focusTaskId || !scrollContainerRef.current) return;
 
-        const task = optimisticTasks.find(t => t.id === focusTaskId);
+        const task = optimisticTasks.find((t) => t.id === focusTaskId);
         if (!task || !task.planned_date) return;
 
         const x = timeToX(task.planned_date);
-        const machine = task.machine || "Sin Máquina";
+        const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
         const yOffset = machineYOffsets.get(machine) || 0;
         const lane = taskLanes.get(task.id) || 0;
-        const y = yOffset + (lane * 40) + 10; // 10 is padding in g group
+        const y = yOffset + lane * 40 + 10; // 10 is padding in g group
 
         const container = scrollContainerRef.current;
         const containerWidth = container.clientWidth;
@@ -848,66 +958,72 @@ export function GanttSVG({
         container.scrollTo({
             left: Math.max(0, x - containerWidth / 3),
             top: Math.max(0, y - containerHeight / 2),
-            behavior: 'smooth'
+            behavior: "smooth",
         });
     }, [focusTaskId, optimisticTasks, timeToX, machineYOffsets, taskLanes]);
 
     return (
-        <div className="flex-1 flex flex-col overflow-hidden select-none bg-background relative">
+        <div className="relative flex flex-1 select-none flex-col overflow-hidden bg-background">
             {/* Gantt Header Bar */}
-            <div className="flex-none h-10 border-b border-border bg-muted/30 flex items-center px-4 z-[50] gap-2">
+            <div className="z-[50] flex h-10 flex-none items-center gap-2 border-b border-border bg-muted/30 px-4">
                 {/* Start Controls (View Mode Buttons) */}
                 {startControls}
 
                 {/* Date Navigation - right of view buttons */}
                 {!hideDateNavigation && (
                     <>
-                        <div className="w-px h-6 bg-border" />
+                        <div className="h-6 w-px bg-border" />
                         <div className="flex items-center gap-1">
                             <button
-                                onClick={() => navigateDate('prev')}
-                                className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                onClick={() => navigateDate("prev")}
+                                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                 title="Anterior"
                             >
-                                <ChevronLeft className="w-3.5 h-3.5" />
+                                <ChevronLeft className="h-3.5 w-3.5" />
                             </button>
                             <button
-                                onClick={() => navigateDate('today')}
-                                className="px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center justify-center h-7 gap-1.5"
+                                onClick={() => navigateDate("today")}
+                                className="flex h-7 items-center justify-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-primary transition-colors hover:bg-primary/20"
                                 title="Volver a hoy"
                             >
-                                <Calendar className="w-3.5 h-3.5" />
+                                <Calendar className="h-3.5 w-3.5" />
                                 <span className="text-[10px] font-black uppercase tracking-tight">Hoy</span>
                             </button>
                             <button
-                                onClick={() => navigateDate('next')}
-                                className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                onClick={() => navigateDate("next")}
+                                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                 title="Siguiente"
                             >
-                                <ChevronRight className="w-3.5 h-3.5" />
+                                <ChevronRight className="h-3.5 w-3.5" />
                             </button>
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                            {viewMode === 'hour' ? (
+                            {viewMode === "hour" ? (
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <button
-                                            className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground text-[10px] font-black uppercase tracking-tight flex items-center gap-1.5"
+                                            className="flex items-center gap-1.5 rounded-md p-1 text-[10px] font-black uppercase tracking-tight text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                             title="Seleccionar fecha"
                                         >
-                                            {format(selectedDate, 'EEEE - dd/MMMM/yyyy', { locale: es }).toUpperCase()}
-                                            <ChevronRight className="w-3 h-3 rotate-90 opacity-40" />
+                                            {format(selectedDate, "EEEE - dd/MMMM/yyyy", { locale: es }).toUpperCase()}
+                                            <ChevronRight className="h-3 w-3 rotate-90 opacity-40" />
                                         </button>
                                     </PopoverTrigger>
-                                    <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start" side="bottom" sideOffset={10}>
+                                    <PopoverContent
+                                        container={container}
+                                        className="z-[10001] w-auto p-0"
+                                        align="start"
+                                        side="bottom"
+                                        sideOffset={10}
+                                    >
                                         <CalendarUI
                                             mode="single"
                                             selected={selectedDate}
                                             onSelect={(date) => date && setSelectedDate(date)}
                                             initialFocus
                                             locale={es}
-                                            className="rounded-xl border-border shadow-2xl bg-background/95 backdrop-blur-md"
+                                            className="rounded-xl border-border bg-background/95 shadow-2xl backdrop-blur-md"
                                         />
                                     </PopoverContent>
                                 </Popover>
@@ -917,7 +1033,7 @@ export function GanttSVG({
                                         <PopoverTrigger asChild>
                                             <Button
                                                 variant="outline"
-                                                className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[100px] justify-start shadow-sm"
+                                                className="h-7 min-w-[100px] justify-start rounded-md border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium shadow-sm hover:border-primary/40 focus:border-primary"
                                             >
                                                 <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
                                                 <span className="capitalize">
@@ -925,7 +1041,11 @@ export function GanttSVG({
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="start">
+                                        <PopoverContent
+                                            container={container}
+                                            className="z-[10001] w-auto p-0"
+                                            align="start"
+                                        >
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeStart}
@@ -935,12 +1055,12 @@ export function GanttSVG({
                                             />
                                         </PopoverContent>
                                     </Popover>
-                                    <span className="text-[10px] text-muted-foreground font-bold">→</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground">→</span>
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <Button
                                                 variant="outline"
-                                                className="px-2 py-0.5 h-7 text-[10px] rounded-md border border-border/60 bg-background hover:border-primary/40 focus:border-primary font-medium min-w-[100px] justify-start shadow-sm"
+                                                className="h-7 min-w-[100px] justify-start rounded-md border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium shadow-sm hover:border-primary/40 focus:border-primary"
                                             >
                                                 <Calendar className="mr-1.5 h-3 w-3 text-muted-foreground" />
                                                 <span className="capitalize">
@@ -948,7 +1068,11 @@ export function GanttSVG({
                                                 </span>
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent container={container} className="w-auto p-0 z-[10001]" align="end">
+                                        <PopoverContent
+                                            container={container}
+                                            className="z-[10001] w-auto p-0"
+                                            align="end"
+                                        >
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeEnd}
@@ -964,8 +1088,6 @@ export function GanttSVG({
                     </>
                 )}
 
-
-
                 {/* Spacer to push remaining items right */}
                 <div className="flex-1" />
 
@@ -973,17 +1095,17 @@ export function GanttSVG({
                 {endControls}
 
                 {/* Zoom Controls */}
-                {endControls && <div className="w-px h-6 bg-border" />}
-                <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-lg border border-border/50">
+                {endControls && <div className="h-6 w-px bg-border" />}
+                <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-muted/30 p-0.5">
                     <button
-                        onClick={() => setZoomLevel(prev => Math.max(viewMode === 'week' ? 0.8 : 0.5, prev - 0.25))}
-                        className="p-1 rounded-md hover:bg-white/50 text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => setZoomLevel((prev) => Math.max(viewMode === "week" ? 0.8 : 0.5, prev - 0.25))}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
                         title="Reducir Zoom"
                     >
-                        <ZoomOut className="w-3.5 h-3.5" />
+                        <ZoomOut className="h-3.5 w-3.5" />
                     </button>
                     <div
-                        className="w-14 px-1 flex justify-center cursor-pointer select-none"
+                        className="flex w-14 cursor-pointer select-none justify-center px-1"
                         title="Doble click para restablecer (100%)"
                         onDoubleClick={() => setZoomLevel(1)}
                     >
@@ -992,51 +1114,46 @@ export function GanttSVG({
                         </span>
                     </div>
                     <button
-                        onClick={() => setZoomLevel(prev => Math.min(viewMode === 'week' ? 10 : 3, prev + 0.25))}
-                        className="p-1 rounded-md hover:bg-white/50 text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => setZoomLevel((prev) => Math.min(viewMode === "week" ? 10 : 3, prev + 0.25))}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
                         title="Aumentar Zoom"
                     >
-                        <ZoomIn className="w-3.5 h-3.5" />
+                        <ZoomIn className="h-3.5 w-3.5" />
                     </button>
                 </div>
 
                 {/* Fullscreen Button - far right */}
                 {onToggleFullscreen && (
                     <>
-                        <div className="w-px h-6 bg-border" />
+                        <div className="h-6 w-px bg-border" />
                         <button
                             id="planning-fullscreen"
                             onClick={onToggleFullscreen}
-                            className="p-1.5 rounded-lg border border-border bg-background hover:bg-primary/10 hover:border-primary/30 text-muted-foreground hover:text-primary transition-all"
+                            className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                             title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
                         >
                             {isFullscreen ? (
-                                <Minimize2 className="w-3.5 h-3.5" />
+                                <Minimize2 className="h-3.5 w-3.5" />
                             ) : (
-                                <Maximize2 className="w-3.5 h-3.5" />
+                                <Maximize2 className="h-3.5 w-3.5" />
                             )}
                         </button>
                     </>
                 )}
             </div>
 
-            <div className="flex-1 flex relative overflow-hidden">
+            <div className="relative flex flex-1 overflow-hidden">
                 {/* Fixed Machine Sidebar */}
-                <div className="w-[200px] border-r border-border bg-background dark:bg-[#0a0a0a] flex flex-col z-[40] shadow-2xl transition-colors flex-shrink-0">
+                <div className="z-[40] flex w-[200px] flex-shrink-0 flex-col border-r border-border bg-background shadow-2xl transition-colors dark:bg-[#0a0a0a]">
                     {/* Sidebar Header */}
-                    <div className="h-[50px] border-b border-border bg-muted/30 flex items-center px-4 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/40 flex-shrink-0">
+                    <div className="flex h-[50px] flex-shrink-0 items-center border-b border-border bg-muted/30 px-4 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/40">
                         Máquinas
                     </div>
                     {/* Machine List - scrolls with Y */}
-                    <div
-                        className="flex-1 overflow-hidden"
-                    >
-                        <div
-                            className="flex flex-col"
-                            style={{ transform: `translateY(${-scrollPos.y}px)` }}
-                        >
+                    <div className="flex-1 overflow-hidden">
+                        <div className="flex flex-col" style={{ transform: `translateY(${-scrollPos.y}px)` }}>
                             {filteredMachines.map((m, i) => {
-                                // Get Pre-calculated Utilization
+                                const isTreatmentRow = m === "TRATAMIENTO";
                                 const utilization = machineUtilizations.get(m) || 0;
 
                                 let badgeColor = "bg-muted text-muted-foreground";
@@ -1047,46 +1164,59 @@ export function GanttSVG({
                                 return (
                                     <div
                                         key={i}
-                                        className={`border-b border-border/10 px-4 flex items-center justify-between text-[11px] font-black uppercase tracking-tight text-foreground/70 hover:text-foreground hover:bg-muted/50 transition-colors flex-shrink-0 ${i % 2 === 1 ? "bg-foreground/[0.03]" : ""}`}
+                                        className={`flex flex-shrink-0 items-center justify-between border-b border-border/10 px-4 text-[11px] font-black uppercase tracking-tight transition-colors ${
+                                            isTreatmentRow
+                                                ? "border-t border-amber-500/20 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15"
+                                                : `text-foreground/70 hover:bg-muted/50 hover:text-foreground ${i % 2 === 1 ? "bg-foreground/[0.03]" : ""}`
+                                        }`}
                                         style={{ height: getMachineHeight(m) }}
                                     >
-                                        <span className="truncate mr-2" title={m}>{m}</span>
-                                        {utilization > 0 && (
-                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${badgeColor}`}>
+                                        <span className="mr-2 flex items-center gap-1.5 truncate" title={m}>
+                                            {isTreatmentRow && <FlaskConical className="h-3 w-3 shrink-0" />}
+                                            {m}
+                                        </span>
+                                        {!isTreatmentRow && utilization > 0 && (
+                                            <span
+                                                className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${badgeColor}`}
+                                            >
                                                 {utilization}%
                                             </span>
                                         )}
                                     </div>
-                                )
+                                );
                             })}
                         </div>
                     </div>
                 </div>
 
                 {/* Main Content Area (Header + Grid) */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex flex-1 flex-col overflow-hidden">
                     {/* Time Header - Fixed at top, scrolls with X */}
-                    <div className="h-[50px] border-b border-border bg-background/90 backdrop-blur-md flex-shrink-0 overflow-hidden relative">
+                    <div className="relative h-[50px] flex-shrink-0 overflow-hidden border-b border-border bg-background/90 backdrop-blur-md">
                         <div
-                            className="absolute top-0 left-0 h-full"
+                            className="absolute left-0 top-0 h-full"
                             style={{
                                 width: totalWidth,
-                                transform: `translateX(${-scrollPos.x}px)`
+                                transform: `translateX(${-scrollPos.x}px)`,
                             }}
                         >
                             {timeColumns.map((col, i) => (
                                 <div
                                     key={i}
-                                    className={`flex flex-col justify-center items-center border-r border-border/30 text-[9px] font-black h-full transition-colors ${col.isSpecial ? "bg-primary/10 text-primary border-primary/20" : "text-foreground/40"}`}
+                                    className={`flex h-full flex-col items-center justify-center border-r border-border/30 text-[9px] font-black transition-colors ${col.isSpecial ? "border-primary/20 bg-primary/10 text-primary" : col.isOffHour ? "bg-foreground/[0.04] text-foreground/20" : "text-foreground/40"}`}
                                     style={{
                                         width: UNIT_WIDTH,
-                                        position: 'absolute',
+                                        position: "absolute",
                                         left: col.x,
-                                        top: 0
+                                        top: 0,
                                     }}
                                 >
-                                    {viewMode === 'hour' && <div className="text-[7px] text-foreground/30 uppercase">{col.dateLabel}</div>}
-                                    <div className={`text-[10px] ${col.isSpecial ? "text-primary font-black" : ""}`}>{col.label}</div>
+                                    {viewMode === "hour" && (
+                                        <div className="text-[7px] uppercase text-foreground/30">{col.dateLabel}</div>
+                                    )}
+                                    <div className={`text-[10px] ${col.isSpecial ? "font-black text-primary" : ""}`}>
+                                        {col.label}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1095,7 +1225,7 @@ export function GanttSVG({
                     {/* SVG Content Area - Scrolls both X and Y */}
                     <div
                         ref={scrollContainerRef}
-                        className="flex-1 overflow-auto relative bg-background/5 dark:bg-[#050505]"
+                        className="relative flex-1 overflow-auto bg-background/5 dark:bg-[#050505]"
                         onScroll={(e) => {
                             setScrollPos({ x: e.currentTarget.scrollLeft, y: e.currentTarget.scrollTop });
                             handleScrollInteraction(); // Use reusable handler
@@ -1106,14 +1236,24 @@ export function GanttSVG({
                         onMouseUp={onMouseUp}
                         onMouseLeave={onMouseUp}
                     >
-                        <svg
-                            width={totalWidth}
-                            height={totalHeight}
-                            style={{ display: 'block' }}
-                        >
+                        <svg width={totalWidth} height={totalHeight} style={{ display: "block" }}>
                             <defs>
-                                <pattern id="draftPattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
-                                    <line x1="0" y1="0" x2="0" y2="10" stroke="white" strokeOpacity="0.15" strokeWidth="4" />
+                                <pattern
+                                    id="draftPattern"
+                                    patternUnits="userSpaceOnUse"
+                                    width="10"
+                                    height="10"
+                                    patternTransform="rotate(45)"
+                                >
+                                    <line
+                                        x1="0"
+                                        y1="0"
+                                        x2="0"
+                                        y2="10"
+                                        stroke="white"
+                                        strokeOpacity="0.15"
+                                        strokeWidth="4"
+                                    />
                                 </pattern>
                             </defs>
                             {/* Vertical Grid Lines */}
@@ -1145,6 +1285,18 @@ export function GanttSVG({
                                 ) : null;
                             })}
 
+                            {/* Off-Hours Shading (hour view only: 00-06 and 22-24) */}
+                            {offHourRects.map((r, i) => (
+                                <rect
+                                    key={`offhour-${i}`}
+                                    x={r.x}
+                                    y={0}
+                                    width={r.width}
+                                    height={totalHeight}
+                                    className="pointer-events-none fill-foreground/[0.06]"
+                                />
+                            ))}
+
                             {/* Tasks */}
 
                             {/* Dependency Lines (Behind tasks) */}
@@ -1152,7 +1304,8 @@ export function GanttSVG({
                             {showDependencies && dependencyLines}
 
                             {filteredTasks.map((task) => {
-                                const machine = task.machine || "Sin Máquina";
+                                const isTreatmentTask = !!(task as any).is_treatment;
+                                const machine = isTreatmentTask ? "TRATAMIENTO" : task.machine || "Sin Máquina";
                                 const machineY = machineYOffsets.get(machine) || 0;
                                 const lane = taskLanes.get(task.id) || 0;
 
@@ -1160,19 +1313,26 @@ export function GanttSVG({
                                 const width = Math.max(timeToX(task.planned_end!) - x, 0);
 
                                 // Fixed bar height, positioned by lane within dynamic row
-                                const y = machineY + ROW_PADDING + (lane * (BAR_HEIGHT + BAR_GAP));
+                                const y = machineY + ROW_PADDING + lane * (BAR_HEIGHT + BAR_GAP);
                                 const height = BAR_HEIGHT;
 
                                 const isDragging = draggingTask?.id === task.id;
                                 const isResizing = resizingTask?.id === task.id;
                                 const activeTask = isDragging || isResizing;
-                                const isFinishedOrRunning = !!task.check_in || !!task.check_out || isBefore(new Date(task.planned_date!), currentTime);
-                                const isLocked = !task.isDraft && (task.locked === true || (task.locked !== false && isFinishedOrRunning));
-
+                                const isFinishedOrRunning =
+                                    !!task.check_in ||
+                                    !!task.check_out ||
+                                    isBefore(new Date(task.planned_date!), currentTime);
+                                // Treatment tasks are always non-draggable (informational only)
+                                const isLocked =
+                                    isTreatmentTask ||
+                                    (!task.isDraft &&
+                                        (task.locked === true || (task.locked !== false && isFinishedOrRunning)));
 
                                 const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
 
-                                const color = getProductionTaskColor(task);
+                                // Treatment tasks use a fixed amber color; others use hash-based color
+                                const color = isTreatmentTask ? "#f59e0b" : getProductionTaskColor(task);
                                 const isFocused = focusTaskId === task.id;
 
                                 return (
@@ -1182,7 +1342,7 @@ export function GanttSVG({
                                         initial={{ opacity: 0 }}
                                         animate={{
                                             opacity: isCascadeGhost ? 1.0 : activeTask ? 0.9 : 1,
-                                            cursor: isLocked ? "not-allowed" : isDragging ? "grabbing" : "grab"
+                                            cursor: isLocked ? "not-allowed" : isDragging ? "grabbing" : "grab",
                                         }}
                                         onMouseEnter={(e) => {
                                             if (!draggingTask && !resizingTask && !isScrollingRef.current) {
@@ -1206,7 +1366,7 @@ export function GanttSVG({
                                                 let x = e.clientX + 15;
                                                 // Default to 'below': y is passed to 'top'
                                                 let y = e.clientY + 15;
-                                                let mode: 'above' | 'below' = 'below';
+                                                let mode: "above" | "below" = "below";
 
                                                 const spaceBelow = window.innerHeight - e.clientY;
 
@@ -1217,7 +1377,7 @@ export function GanttSVG({
 
                                                 // Check bottom edge - Switch to ABOVE mode
                                                 if (spaceBelow < TOOLTIP_THRESHOLD) {
-                                                    mode = 'above';
+                                                    mode = "above";
                                                     // For 'above', y is passed to 'bottom'
                                                     y = spaceBelow + 15;
                                                 }
@@ -1251,19 +1411,21 @@ export function GanttSVG({
                                                 animate={{
                                                     scale: [1, 1.25, 1],
                                                     opacity: [0.6, 0, 0.6],
-                                                    strokeWidth: isFocused ? [4, 20, 4] : [2, 12, 2]
+                                                    strokeWidth: isFocused ? [4, 20, 4] : [2, 12, 2],
                                                 }}
                                                 transition={{
                                                     duration: isFocused ? 0.8 : 1.2,
                                                     repeat: Infinity,
-                                                    ease: "easeOut"
+                                                    ease: "easeOut",
                                                 }}
                                                 style={{
                                                     fill: "none",
                                                     stroke: isFocused ? "#EC1C21" : "#fff",
                                                     transformOrigin: "center",
                                                     transformBox: "fill-box",
-                                                    filter: isFocused ? "drop-shadow(0 0 20px #EC1C21)" : "drop-shadow(0 0 15px #fff)"
+                                                    filter: isFocused
+                                                        ? "drop-shadow(0 0 20px #EC1C21)"
+                                                        : "drop-shadow(0 0 15px #fff)",
                                                 }}
                                             />
                                         )}
@@ -1276,28 +1438,54 @@ export function GanttSVG({
                                             rx={8}
                                             stroke={activeTask ? "white" : "none"}
                                             strokeWidth={activeTask ? 3 : 0}
-                                            animate={activeTask ? {
-                                                scale: [1, 1.08, 1],
-                                                filter: [
-                                                    `brightness(1.2) drop-shadow(0 0 15px ${color})`,
-                                                    `brightness(1.5) drop-shadow(0 0 35px ${color})`,
-                                                    `brightness(1.2) drop-shadow(0 0 15px ${color})`
-                                                ]
-                                            } : {}}
-                                            transition={activeTask ? {
-                                                duration: 1.2,
-                                                repeat: Infinity,
-                                                ease: "easeInOut"
-                                            } : {}}
+                                            animate={
+                                                activeTask
+                                                    ? {
+                                                          scale: [1, 1.08, 1],
+                                                          filter: [
+                                                              `brightness(1.2) drop-shadow(0 0 15px ${color})`,
+                                                              `brightness(1.5) drop-shadow(0 0 35px ${color})`,
+                                                              `brightness(1.2) drop-shadow(0 0 15px ${color})`,
+                                                          ],
+                                                      }
+                                                    : {}
+                                            }
+                                            transition={
+                                                activeTask
+                                                    ? {
+                                                          duration: 1.2,
+                                                          repeat: Infinity,
+                                                          ease: "easeInOut",
+                                                      }
+                                                    : {}
+                                            }
                                             style={{
                                                 fill: color,
                                                 fillOpacity: task.isDraft ? 0.85 : 1, // Slight transparency to show pattern but keep it solid
-                                                filter: !activeTask ? "drop-shadow(0 4px 6px rgba(0,0,0,0.15))" : undefined,
-                                                stroke: isLocked ? color : isCascadeGhost ? '#fff' : activeTask ? "white" : (task.isDraft ? "white" : "rgba(255,255,255,0.2)"),
-                                                strokeWidth: isLocked ? 2.5 : isCascadeGhost ? 2 : activeTask ? 2 : (task.isDraft ? 2 : 1),
-                                                strokeDasharray: isCascadeGhost ? '4 2' : task.isDraft ? "4 2" : "none",
+                                                filter: !activeTask
+                                                    ? "drop-shadow(0 4px 6px rgba(0,0,0,0.15))"
+                                                    : undefined,
+                                                stroke: isLocked
+                                                    ? color
+                                                    : isCascadeGhost
+                                                      ? "#fff"
+                                                      : activeTask
+                                                        ? "white"
+                                                        : task.isDraft
+                                                          ? "white"
+                                                          : "rgba(255,255,255,0.2)",
+                                                strokeWidth: isLocked
+                                                    ? 2.5
+                                                    : isCascadeGhost
+                                                      ? 2
+                                                      : activeTask
+                                                        ? 2
+                                                        : task.isDraft
+                                                          ? 2
+                                                          : 1,
+                                                strokeDasharray: isCascadeGhost ? "4 2" : task.isDraft ? "4 2" : "none",
                                                 transformOrigin: "center",
-                                                transformBox: "fill-box"
+                                                transformBox: "fill-box",
                                             }}
                                         />
                                         {/* Draft Pattern Overlay */}
@@ -1314,9 +1502,14 @@ export function GanttSVG({
                                         )}
                                         {/* Interaction Shield (Underneath Resize Handle) */}
                                         <rect
-                                            x={x} y={y} width={width} height={height}
+                                            x={x}
+                                            y={y}
+                                            width={width}
+                                            height={height}
                                             fill="rgba(0,0,0,0)" // Explicit transparent fill to capture events
-                                            className={isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}
+                                            className={
+                                                isLocked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"
+                                            }
                                             onMouseDown={(e) => onMouseDown(e, task)}
                                             onDoubleClick={(e) => {
                                                 e.stopPropagation();
@@ -1327,38 +1520,52 @@ export function GanttSVG({
                                                     setModalData({
                                                         id: task.id,
                                                         machine: task.machine || "Sin Máquina",
-                                                        start: format(new Date(task.planned_date!), "yyyy-MM-dd'T'HH:mm"),
+                                                        start: format(
+                                                            new Date(task.planned_date!),
+                                                            "yyyy-MM-dd'T'HH:mm"
+                                                        ),
                                                         end: format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm"),
                                                         operator: task.operator || "",
                                                         orderId: task.order_id || "",
-                                                        activeOrder: task.production_orders
+                                                        activeOrder: task.production_orders,
                                                     });
                                                 }
                                             }}
                                         />
 
-                                        <foreignObject x={x} y={y} width={width > 12 ? width - 12 : width} height={height} className="pointer-events-none">
-                                            <div
-                                                className="h-full flex flex-col justify-center text-white px-2 overflow-hidden"
-                                            >
+                                        <foreignObject
+                                            x={x}
+                                            y={y}
+                                            width={width > 12 ? width - 12 : width}
+                                            height={height}
+                                            className="pointer-events-none"
+                                        >
+                                            <div className="flex h-full flex-col justify-center overflow-hidden px-2 text-white">
                                                 <div className="flex items-center gap-1.5 overflow-hidden">
-                                                    {isLocked && <Lock className="w-2.5 h-2.5 flex-shrink-0" />}
-                                                    <div className={cn(
-                                                        "text-[10px] font-black truncate uppercase leading-none",
-                                                        task.isDraft ? "text-white" : "text-white"
-                                                    )} style={{ textShadow: task.isDraft ? '0 1px 3px rgba(0,0,0,0.5)' : 'none' }}>
+                                                    {isLocked && <Lock className="h-2.5 w-2.5 flex-shrink-0" />}
+                                                    <div
+                                                        className={cn(
+                                                            "truncate text-[10px] font-black uppercase leading-none",
+                                                            task.isDraft ? "text-white" : "text-white"
+                                                        )}
+                                                        style={{
+                                                            textShadow: task.isDraft
+                                                                ? "0 1px 3px rgba(0,0,0,0.5)"
+                                                                : "none",
+                                                        }}
+                                                    >
                                                         {task.production_orders?.part_code || "S/N"}
                                                     </div>
                                                 </div>
 
                                                 {width > 100 && (
-                                                    <div className="text-[8px] font-bold opacity-90 mt-1 whitespace-nowrap bg-black/10 px-1 py-0.5 rounded-sm self-start">
-                                                        {format(new Date(task.planned_date!), "HH:mm")} - {format(new Date(task.planned_end!), "HH:mm")}
+                                                    <div className="mt-1 self-start whitespace-nowrap rounded-sm bg-black/10 px-1 py-0.5 text-[8px] font-bold opacity-90">
+                                                        {format(new Date(task.planned_date!), "HH:mm")} -{" "}
+                                                        {format(new Date(task.planned_end!), "HH:mm")}
                                                     </div>
                                                 )}
                                             </div>
                                         </foreignObject>
-
 
                                         {/* Resize Handle Left - hidden when locked */}
                                         {!isLocked && (
@@ -1368,8 +1575,8 @@ export function GanttSVG({
                                                 width={12}
                                                 height={height}
                                                 fill="transparent"
-                                                className="cursor-ew-resize hover:fill-white/20 transition-colors"
-                                                onMouseDown={(e) => onResizeStart(e, task, 'left')}
+                                                className="cursor-ew-resize transition-colors hover:fill-white/20"
+                                                onMouseDown={(e) => onResizeStart(e, task, "left")}
                                             />
                                         )}
 
@@ -1381,8 +1588,8 @@ export function GanttSVG({
                                                 width={12}
                                                 height={height}
                                                 fill="transparent"
-                                                className="cursor-ew-resize hover:fill-white/20 transition-colors"
-                                                onMouseDown={(e) => onResizeStart(e, task, 'right')}
+                                                className="cursor-ew-resize transition-colors hover:fill-white/20"
+                                                onMouseDown={(e) => onResizeStart(e, task, "right")}
                                             />
                                         )}
                                     </motion.g>
@@ -1434,17 +1641,17 @@ export function GanttSVG({
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="fixed z-[100] pointer-events-none"
+                        className="pointer-events-none fixed z-[100]"
                         style={{
                             left: tooltipPos.x,
-                            top: tooltipPos.mode === 'below' ? tooltipPos.y : undefined,
-                            bottom: tooltipPos.mode === 'above' ? tooltipPos.y : undefined
+                            top: tooltipPos.mode === "below" ? tooltipPos.y : undefined,
+                            bottom: tooltipPos.mode === "above" ? tooltipPos.y : undefined,
                         }}
                     >
-                        <div className="bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-3 min-w-[240px] max-w-[320px]">
+                        <div className="min-w-[240px] max-w-[320px] rounded-lg border border-border bg-background/95 p-3 shadow-2xl backdrop-blur-md">
                             {/* Image */}
                             {hoveredTask.production_orders?.image && (
-                                <div className="w-full h-40 rounded-md overflow-hidden mb-3 bg-muted relative">
+                                <div className="relative mb-3 h-40 w-full overflow-hidden rounded-md bg-muted">
                                     <Image
                                         src={hoveredTask.production_orders.image}
                                         alt={hoveredTask.production_orders?.part_name || "Pieza"}
@@ -1454,34 +1661,42 @@ export function GanttSVG({
                                     />
                                 </div>
                             )}
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="mb-2 flex items-center gap-2">
                                 <div
-                                    className="w-3 h-3 rounded-full flex-shrink-0"
+                                    className="h-3 w-3 flex-shrink-0 rounded-full"
                                     style={{ backgroundColor: getProductionTaskColor(hoveredTask) }}
                                 />
-                                <div className="text-xs font-black uppercase text-foreground truncate">
+                                <div className="truncate text-xs font-black uppercase text-foreground">
                                     {hoveredTask.production_orders?.part_code || "S/N"}
                                 </div>
                             </div>
-                            <div className="text-[10px] text-foreground/70 mb-3 line-clamp-2">
+                            <div className="mb-3 line-clamp-2 text-[10px] text-foreground/70">
                                 {hoveredTask.production_orders?.part_name || "Sin nombre"}
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-[9px]">
                                 <div>
-                                    <div className="text-foreground/40 uppercase tracking-wider">Máquina</div>
-                                    <div className="text-foreground font-semibold">{hoveredTask.machine || "Sin asignar"}</div>
+                                    <div className="uppercase tracking-wider text-foreground/40">Máquina</div>
+                                    <div className="font-semibold text-foreground">
+                                        {hoveredTask.machine || "Sin asignar"}
+                                    </div>
                                 </div>
                                 <div>
-                                    <div className="text-foreground/40 uppercase tracking-wider">Operador</div>
-                                    <div className="text-foreground font-semibold">{hoveredTask.operator || "Sin asignar"}</div>
+                                    <div className="uppercase tracking-wider text-foreground/40">Operador</div>
+                                    <div className="font-semibold text-foreground">
+                                        {hoveredTask.operator || "Sin asignar"}
+                                    </div>
                                 </div>
                                 <div>
-                                    <div className="text-foreground/40 uppercase tracking-wider">Inicio</div>
-                                    <div className="text-foreground font-semibold">{format(new Date(hoveredTask.planned_date!), "dd/MM HH:mm")}</div>
+                                    <div className="uppercase tracking-wider text-foreground/40">Inicio</div>
+                                    <div className="font-semibold text-foreground">
+                                        {format(new Date(hoveredTask.planned_date!), "dd/MM HH:mm")}
+                                    </div>
                                 </div>
                                 <div>
-                                    <div className="text-foreground/40 uppercase tracking-wider">Fin</div>
-                                    <div className="text-foreground font-semibold">{format(new Date(hoveredTask.planned_end!), "dd/MM HH:mm")}</div>
+                                    <div className="uppercase tracking-wider text-foreground/40">Fin</div>
+                                    <div className="font-semibold text-foreground">
+                                        {format(new Date(hoveredTask.planned_end!), "dd/MM HH:mm")}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1492,11 +1707,11 @@ export function GanttSVG({
             {/* Context Menu Portal */}
             {contextMenu && (
                 <div
-                    className="fixed z-[100] bg-popover border border-border shadow-md rounded-md py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed z-[100] min-w-[160px] rounded-md border border-border bg-popover py-1 shadow-md duration-100 animate-in fade-in zoom-in-95"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="px-2 py-1.5 text-xs font-semibold border-b border-border/50 text-foreground mb-1">
+                    <div className="mb-1 border-b border-border/50 px-2 py-1.5 text-xs font-semibold text-foreground">
                         Acciones
                     </div>
                     <button
@@ -1509,33 +1724,53 @@ export function GanttSVG({
                                 end: format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm"),
                                 operator: task.operator || "",
                                 orderId: task.order_id || "",
-                                activeOrder: task.production_orders
+                                activeOrder: task.production_orders,
                             });
                             setContextMenu(null);
                         }}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
                     >
-                        <FileText className="w-3.5 h-3.5" />
+                        <FileText className="h-3.5 w-3.5" />
                         <span>Ver Detalles</span>
                     </button>
                     {onToggleLock && !contextMenu.task.isDraft && (
                         <button
                             onClick={() => {
                                 const now = currentTime || new Date();
-                                const isFinishedOrRunning = !!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), now);
-                                const currentIsLocked = contextMenu.task.locked === true || (contextMenu.task.locked !== false && isFinishedOrRunning);
+                                const isFinishedOrRunning =
+                                    !!contextMenu.task.check_in ||
+                                    !!contextMenu.task.check_out ||
+                                    isBefore(new Date(contextMenu.task.planned_date!), now);
+                                const currentIsLocked =
+                                    contextMenu.task.locked === true ||
+                                    (contextMenu.task.locked !== false && isFinishedOrRunning);
                                 onToggleLock(contextMenu.task.id, !currentIsLocked);
                                 setContextMenu(null);
                             }}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground transition-colors flex items-center gap-2"
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
                         >
-                            {(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date())))) ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                            <span>{(contextMenu.task.locked === true || (contextMenu.task.locked !== false && (!!contextMenu.task.check_in || !!contextMenu.task.check_out || isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date())))) ? 'Desbloquear' : 'Bloquear'}</span>
+                            {contextMenu.task.locked === true ||
+                            (contextMenu.task.locked !== false &&
+                                (!!contextMenu.task.check_in ||
+                                    !!contextMenu.task.check_out ||
+                                    isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date()))) ? (
+                                <Unlock className="h-3.5 w-3.5" />
+                            ) : (
+                                <Lock className="h-3.5 w-3.5" />
+                            )}
+                            <span>
+                                {contextMenu.task.locked === true ||
+                                (contextMenu.task.locked !== false &&
+                                    (!!contextMenu.task.check_in ||
+                                        !!contextMenu.task.check_out ||
+                                        isBefore(new Date(contextMenu.task.planned_date!), currentTime || new Date())))
+                                    ? "Desbloquear"
+                                    : "Bloquear"}
+                            </span>
                         </button>
                     )}
                 </div>
             )}
-
         </div>
     );
 }

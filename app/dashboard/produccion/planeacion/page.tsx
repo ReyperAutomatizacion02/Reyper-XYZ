@@ -15,7 +15,7 @@ export default async function PlaneacionPage() {
     const rangeEnd = format(addDays(new Date(), 180), "yyyy-MM-dd");
 
     // Fetch all necessary data in parallel
-    const [machinesRes, ordersRes, tasksRes] = await Promise.all([
+    const [machinesRes, ordersRes, tasksRes, treatmentsRes] = await Promise.all([
         supabase.from("machines").select("*").neq("is_active", false).order("name"),
         supabase
             .from("production_orders")
@@ -30,11 +30,13 @@ export default async function PlaneacionPage() {
             .gte("planned_date", rangeStart)
             .lte("planned_date", rangeEnd)
             .order("planned_date", { ascending: false }),
+        supabase.from("production_treatments").select("id, name, avg_lead_days").order("name"),
     ]);
 
     const machines = machinesRes.data || [];
     const rawOrders = ordersRes.data || [];
     const tasks = tasksRes.data || [];
+    const treatments = treatmentsRes.data || [];
     // Derive operators from fetched tasks instead of a separate query
     const operators = Array.from(new Set(tasks.map((t) => t.operator as string).filter(Boolean))).sort();
 
@@ -49,7 +51,13 @@ export default async function PlaneacionPage() {
     return (
         <>
             <RealtimeRefresher tables={["production_orders", "planning"]} />
-            <ProductionView machines={machines} orders={orders} tasks={tasks} operators={operators} />
+            <ProductionView
+                machines={machines}
+                orders={orders}
+                tasks={tasks}
+                operators={operators}
+                treatments={treatments}
+            />
         </>
     );
 }

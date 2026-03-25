@@ -131,6 +131,7 @@ export type Database = {
                     check_out: string | null;
                     created_at: string | null;
                     id: string;
+                    is_treatment: boolean | null;
                     last_edited_at: string | null;
                     locked: boolean | null;
                     machine: string | null;
@@ -146,6 +147,7 @@ export type Database = {
                     check_out?: string | null;
                     created_at?: string | null;
                     id?: string;
+                    is_treatment?: boolean | null;
                     last_edited_at?: string | null;
                     locked?: boolean | null;
                     machine?: string | null;
@@ -161,6 +163,7 @@ export type Database = {
                     check_out?: string | null;
                     created_at?: string | null;
                     id?: string;
+                    is_treatment?: boolean | null;
                     last_edited_at?: string | null;
                     locked?: boolean | null;
                     machine?: string | null;
@@ -353,19 +356,25 @@ export type Database = {
             };
             production_treatments: {
                 Row: {
+                    avg_lead_days: number | null;
                     created_at: string;
                     id: string;
                     name: string;
+                    suppliers: string[] | null;
                 };
                 Insert: {
+                    avg_lead_days?: number | null;
                     created_at?: string;
                     id?: string;
                     name: string;
+                    suppliers?: string[] | null;
                 };
                 Update: {
+                    avg_lead_days?: number | null;
                     created_at?: string;
                     id?: string;
                     name?: string;
+                    suppliers?: string[] | null;
                 };
                 Relationships: [];
             };

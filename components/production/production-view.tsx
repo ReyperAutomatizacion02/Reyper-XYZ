@@ -48,9 +48,10 @@ interface ProductionViewProps {
     orders: OrderWithRelations[];
     tasks: PlanningTask[];
     operators: string[];
+    treatments: { id: string; name: string; avg_lead_days: number | null }[];
 }
 
-export function ProductionView({ machines, orders, tasks, operators }: ProductionViewProps) {
+export function ProductionView({ machines, orders, tasks, operators, treatments }: ProductionViewProps) {
     const router = useRouter();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -769,6 +770,7 @@ export function ProductionView({ machines, orders, tasks, operators }: Productio
                 selectedOrder={selectedOrderForEval}
                 onSelectOrder={setSelectedOrderForEval}
                 machines={machines}
+                treatments={treatments}
                 onEvalSuccess={(orderId, newSteps) => {
                     setLocalOrders((prev) =>
                         prev.map((o) =>
