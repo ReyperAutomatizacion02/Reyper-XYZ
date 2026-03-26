@@ -745,6 +745,14 @@ export function shiftTasksToCurrent(
         const originalStart = new Date(task.planned_date!);
         const originalEnd = new Date(task.planned_end!);
         const durationMinutes = differenceInMinutes(originalEnd, originalStart);
+        // Treatment tasks span calendar time (e.g. 2 days at the supplier), not work-shift time.
+        // Using calculateWorkEnd on them would inflate their duration to ~3 work-days instead of
+        // 2 calendar days, pushing piecePointers too far and causing machine tasks after the
+        // treatment to start late — their segments would then span overnight in the Gantt.
+        const isTreatmentTask = !!(task as any).is_treatment;
+        const calendarDurationMs = differenceInMilliseconds(originalEnd, originalStart);
+        const computeEnd = (start: Date): Date =>
+            isTreatmentTask ? addMilliseconds(start, calendarDurationMs) : calculateWorkEnd(start, durationMinutes);
 
         // Initial proposed start: Apply global offset
         let proposedStart = addMilliseconds(originalStart, globalOffsetMs);
@@ -754,7 +762,7 @@ export function shiftTasksToCurrent(
             proposedStart = new Date(piecePointers[task.order_id]);
         }
 
-        // Snap and Validate Start
+        // Snap and Validate Start (treatment tasks still start at a valid work time)
         proposedStart = getNextValidWorkTime(snapToNext15Minutes(proposedStart));
 
         let finalStart = new Date(proposedStart);
@@ -763,8 +771,8 @@ export function shiftTasksToCurrent(
         // Keep searching for a valid slot if collisions exist
         let foundSlot = false;
         while (!foundSlot) {
-            // Calculate end respecting work hours
-            finalEnd = calculateWorkEnd(finalStart, durationMinutes);
+            // Calculate end: calendar duration for treatments, work-hours for machine tasks
+            finalEnd = computeEnd(finalStart);
 
             // Check Collision with fixed tasks AND already shifted draft tasks
             const collision = obstacles.find(
@@ -782,7 +790,7 @@ export function shiftTasksToCurrent(
             }
         }
 
-        finalEnd = calculateWorkEnd(finalStart, durationMinutes);
+        finalEnd = computeEnd(finalStart);
 
         const updatedTask = {
             ...task,

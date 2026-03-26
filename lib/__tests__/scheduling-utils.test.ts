@@ -9,6 +9,7 @@ import {
     snapToNext15Minutes,
     generateAutomatedPlanning,
     shiftScenarioTasks,
+    shiftTasksToCurrent,
     isTreatmentStep,
     type Order,
     type PlanningTask,
@@ -698,5 +699,90 @@ describe("shiftScenarioTasks", () => {
         const end = new Date(result[0].planned_end!);
         const durationMinutes = differenceInMinutes(end, start);
         expect(durationMinutes).toBe(120); // 2 hours
+    });
+});
+
+// ── shiftTasksToCurrent ──
+
+describe("shiftTasksToCurrent", () => {
+    it("machine tasks after treatment stay within work hours (regression: no overnight bars)", () => {
+        // Scenario that triggered the bug:
+        // Machine step 1 ends at 10am Thu.
+        // Treatment is 1 day (10am Thu → 10am Fri in calendar time).
+        // Machine step 2 has two segments originally at 10am–22:00 Fri and 6am–8am Sat.
+        // shiftTasksToCurrent must NOT merge them into one overnight-spanning task.
+        const orderId = "order-regression";
+        const machineTask1: Partial<PlanningTask> = {
+            id: "t1",
+            order_id: orderId,
+            machine: "CNC-1",
+            planned_date: "2026-03-19T06:00:00", // Thursday 6am
+            planned_end: "2026-03-19T10:00:00", // Thursday 10am
+        };
+        const treatmentTask: any = {
+            id: "t2",
+            order_id: orderId,
+            machine: null,
+            is_treatment: true,
+            planned_date: "2026-03-19T10:00:00", // treatment starts Thu 10am
+            planned_end: "2026-03-20T10:00:00", // treatment ends Fri 10am (1 calendar day)
+        };
+        // Two machine segments after treatment
+        const machineTask2a: Partial<PlanningTask> = {
+            id: "t3",
+            order_id: orderId,
+            machine: "CNC-1",
+            planned_date: "2026-03-20T10:00:00", // Fri 10am
+            planned_end: "2026-03-20T22:00:00", // Fri 10pm (12h segment)
+        };
+        const machineTask2b: Partial<PlanningTask> = {
+            id: "t4",
+            order_id: orderId,
+            machine: "CNC-1",
+            planned_date: "2026-03-21T06:00:00", // Sat 6am
+            planned_end: "2026-03-21T10:00:00", // Sat 10am (4h segment)
+        };
+
+        const targetTime = new Date("2026-03-19T06:00:00"); // Same as earliest task
+        const result = shiftTasksToCurrent(
+            [machineTask1, treatmentTask, machineTask2a, machineTask2b],
+            targetTime,
+            [],
+            ["CNC-1"]
+        );
+
+        // All non-treatment tasks must start and end within work hours (6:00–22:00)
+        const machineTasks = result.filter((t) => !(t as any).is_treatment);
+        for (const task of machineTasks) {
+            const start = new Date(task.planned_date!);
+            const end = new Date(task.planned_end!);
+            expect(getHours(start)).toBeGreaterThanOrEqual(6);
+            expect(getHours(start)).toBeLessThan(22);
+            // End can be exactly 22:00 but never past midnight
+            expect(getHours(end)).toBeLessThanOrEqual(22);
+            expect(getDay(start)).not.toBe(0); // Not Sunday
+        }
+    });
+
+    it("treatment task preserves calendar duration (not work-hours duration)", () => {
+        const orderId = "order-treatment-duration";
+        const treatmentTask: any = {
+            id: "treat1",
+            order_id: orderId,
+            machine: null,
+            is_treatment: true,
+            planned_date: "2026-03-19T10:00:00", // Thu 10am
+            planned_end: "2026-03-21T10:00:00", // Sat 10am = exactly 2 calendar days
+        };
+
+        const targetTime = new Date("2026-03-19T10:00:00");
+        const result = shiftTasksToCurrent([treatmentTask], targetTime, [], []);
+
+        const shifted = result[0];
+        const start = new Date(shifted.planned_date!);
+        const end = new Date(shifted.planned_end!);
+        const calendarDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        // Must be 2 calendar days, NOT inflated to ~3 work-days
+        expect(calendarDays).toBeCloseTo(2, 1);
     });
 });
