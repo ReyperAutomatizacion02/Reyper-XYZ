@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
-import { getProductionTaskColor } from "@/utils/production-colors";
+import { getProductionTaskColor, buildColorMap } from "@/utils/production-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -255,7 +255,10 @@ export function GanttSVG({
     // Removed Detect Changes logic (moved to parent)
     // Removed handleSave, handleDiscard logic (moved to parent)
 
-    // 2. Filter machines and tasks
+    // 2. Project-aware color map — built once from all tasks to avoid same-project collisions
+    const taskColorMap = useMemo(() => buildColorMap(optimisticTasks), [optimisticTasks]);
+
+    // 3. Filter machines and tasks
     const filteredMachines = useMemo(() => {
         const uniqueNames = new Set([
             ...initialMachines.map((m) => m.name),
@@ -662,7 +665,7 @@ export function GanttSVG({
                 const involvesTreatment = !!(startTask as any).is_treatment || !!(endTask as any).is_treatment;
 
                 // All dependency lines use the order's color (consistent with task bars)
-                const lineColor = getProductionTaskColor(startTask);
+                const lineColor = getProductionTaskColor(startTask, taskColorMap);
 
                 // Bezier Curve
                 const controlOffset = Math.min(Math.abs(endX - startX) / 2, 50);
@@ -1486,7 +1489,7 @@ export function GanttSVG({
                                 const isConflicting = conflictingTaskIds.has(task.id);
 
                                 // All tasks (including treatments) use the order's hash color for consistency
-                                const color = isConflicting ? "#ef4444" : getProductionTaskColor(task);
+                                const color = isConflicting ? "#ef4444" : getProductionTaskColor(task, taskColorMap);
                                 const isFocused = focusTaskId === task.id;
 
                                 return (
@@ -1839,7 +1842,7 @@ export function GanttSVG({
                             <div className="mb-2 flex items-center gap-2">
                                 <div
                                     className="h-3 w-3 flex-shrink-0 rounded-full"
-                                    style={{ backgroundColor: getProductionTaskColor(hoveredTask) }}
+                                    style={{ backgroundColor: getProductionTaskColor(hoveredTask, taskColorMap) }}
                                 />
                                 <div className="truncate text-xs font-black uppercase text-foreground">
                                     {hoveredTask.production_orders?.part_code || "S/N"}
