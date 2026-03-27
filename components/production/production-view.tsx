@@ -31,7 +31,7 @@ import {
     DEFAULT_SHIFTS,
 } from "@/lib/scheduling-utils";
 import { StrategyToolbar } from "./strategy-toolbar";
-import { GanttControls } from "./gantt-controls";
+import { GanttControls, ProjectOption } from "./gantt-controls";
 import { EvaluationSidebar } from "./evaluation-sidebar";
 import { ConfirmationDialogs } from "./confirmation-dialogs";
 import { useEvaluationFilters } from "./hooks/use-evaluation-filters";
@@ -65,6 +65,7 @@ export function ProductionView({
     const router = useRouter();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [projectFilter, setProjectFilter] = useState<string[]>([]);
     const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
 
     // User preferences
@@ -458,6 +459,22 @@ export function ProductionView({
         return Array.from(names).sort();
     }, [machines, tasks]);
 
+    // Build unique project list from orders for the project filter dropdown
+    const availableProjects = useMemo<ProjectOption[]>(() => {
+        const seen = new Map<string, ProjectOption>();
+        for (const order of orders) {
+            if (!order.project_id) continue;
+            if (!seen.has(order.project_id)) {
+                seen.set(order.project_id, {
+                    id: order.project_id,
+                    code: order.projects?.code ?? order.project_id,
+                    company: order.projects?.company ?? null,
+                });
+            }
+        }
+        return Array.from(seen.values()).sort((a, b) => a.code.localeCompare(b.code));
+    }, [orders]);
+
     const [selectedMachines, setSelectedMachines] = useState<Set<string>>(new Set(allMachineNames));
 
     // Initialize selectedMachines from preferences
@@ -704,6 +721,13 @@ export function ProductionView({
         onHideEmptyMachinesChange: handleHideEmptyMachinesChange,
         cascadeMode,
         onCascadeModeChange: setCascadeMode,
+        availableProjects,
+        projectFilter,
+        onProjectFilterChange: setProjectFilter,
+        zoomLevel,
+        onZoomChange: handleZoomChange,
+        isFullscreen,
+        onToggleFullscreen: toggleFullscreen,
     });
 
     // Show skeleton while preferences are loading
@@ -771,8 +795,8 @@ export function ProductionView({
                             setSelectedOrderForEval(task.production_orders);
                             setIsEvalListOpen(true);
                         }}
-                        onToggleFullscreen={toggleFullscreen}
                         focusTaskId={focusTaskId}
+                        projectFilter={projectFilter}
                         startControls={startControls}
                         endControls={endControls}
                         onToggleLock={handleToggleLock}

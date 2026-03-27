@@ -19,7 +19,7 @@ export default async function PlaneacionPage() {
         supabase.from("machines").select("*").neq("is_active", false).order("name"),
         supabase
             .from("production_orders")
-            .select("*, projects(company, delivery_date)")
+            .select("*, projects(code, company, delivery_date)")
             .neq("general_status", "D7-ENTREGADA")
             .neq("general_status", "D8-CANCELADA")
             .neq("material", "ENSAMBLE")

@@ -1,15 +1,27 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     CheckCircle2,
+    ChevronDown,
     Filter,
+    FolderOpen,
+    Maximize2,
+    Minimize2,
     Search,
-    Settings2,
+    X,
+    ZoomIn,
+    ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+export interface ProjectOption {
+    id: string;
+    code: string;
+    company: string | null;
+}
 
 interface GanttControlsProps {
     viewMode: "hour" | "day" | "week";
@@ -27,6 +39,13 @@ interface GanttControlsProps {
     onHideEmptyMachinesChange: (value: boolean) => void;
     cascadeMode: boolean;
     onCascadeModeChange: (value: boolean) => void;
+    availableProjects: ProjectOption[];
+    projectFilter: string[];
+    onProjectFilterChange: (ids: string[]) => void;
+    zoomLevel: number;
+    onZoomChange: (level: number | ((prev: number) => number)) => void;
+    isFullscreen: boolean;
+    onToggleFullscreen?: () => void;
 }
 
 export function GanttControls({
@@ -45,50 +64,65 @@ export function GanttControls({
     onHideEmptyMachinesChange,
     cascadeMode,
     onCascadeModeChange,
+    availableProjects,
+    projectFilter,
+    onProjectFilterChange,
+    zoomLevel,
+    onZoomChange,
+    isFullscreen,
+    onToggleFullscreen,
 }: GanttControlsProps) {
-    const [isMachineFilterOpen, setIsMachineFilterOpen] = React.useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-    const settingsRef = useRef<HTMLDivElement>(null);
+    const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+    const [isMachinesExpanded, setIsMachinesExpanded] = useState(false);
+    const [isProjectsExpanded, setIsProjectsExpanded] = useState(false);
+    const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+    const [projectSearch, setProjectSearch] = useState("");
 
-    // Close settings on click outside
-    React.useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
-                setIsSettingsOpen(false);
-            }
-        };
-        if (isSettingsOpen) {
-            document.addEventListener("mousedown", handleClickOutside);
-        }
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [isSettingsOpen]);
+    const filtersRef = useRef<HTMLDivElement>(null);
 
-    // Close machine filter on click outside
-    React.useEffect(() => {
+    const activeFilterCount =
+        (searchQuery ? 1 : 0) +
+        (projectFilter.length > 0 ? 1 : 0) +
+        (selectedMachines.size < allMachineNames.length ? 1 : 0);
+
+    const filteredProjects = availableProjects.filter((p) => {
+        const q = projectSearch.toLowerCase();
+        return !q || p.code.toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
+    });
+
+    useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            const target = e.target as Element;
-            if (isMachineFilterOpen && !target.closest('.machine-filter-dropdown')) {
-                setIsMachineFilterOpen(false);
+            if (isFiltersOpen && filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+                setIsFiltersOpen(false);
             }
         };
-        document.addEventListener("mousedown", handleClickOutside);
+        if (isFiltersOpen) document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [isMachineFilterOpen]);
+    }, [isFiltersOpen]);
+
+    function toggleProject(id: string) {
+        onProjectFilterChange(
+            projectFilter.includes(id) ? projectFilter.filter((x) => x !== id) : [...projectFilter, id]
+        );
+    }
 
     return { startControls: renderStartControls(), endControls: renderEndControls() };
 
     function renderStartControls() {
         return (
-            <div id="planning-view-modes" className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-lg border border-border/50">
+            <div
+                id="planning-view-modes"
+                className="flex items-center gap-1 rounded-lg border border-border/50 bg-muted/50 p-0.5"
+            >
                 {(["hour", "day", "week"] as const).map((mode) => (
                     <button
                         key={mode}
                         onClick={() => onViewModeChange(mode)}
                         className={cn(
-                            "px-3 py-1 text-[10px] font-bold rounded-md transition-all uppercase tracking-wider",
+                            "rounded-md px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-all",
                             viewMode === mode
                                 ? "bg-background text-primary shadow-sm"
-                                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
                         )}
                     >
                         {mode === "hour" ? "Hora" : mode === "day" ? "Día" : "Semana"}
@@ -100,163 +134,371 @@ export function GanttControls({
 
     function renderEndControls() {
         return (
-            <div className="flex items-center gap-2">
-                {/* Search */}
-                <div id="planning-search" className="relative group">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange(e.target.value)}
-                        placeholder="Buscar pieza..."
-                        className="h-8 w-32 md:w-48 pl-8 pr-3 text-[10px] bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    />
-                </div>
-
-                <div className="w-px h-6 bg-border mx-1" />
-
-                {/* Machine Filter */}
-                <div id="planning-machine-filter" className="relative machine-filter-dropdown">
+            <div className="flex items-center gap-1.5">
+                {/* Unified Filters + Settings Panel */}
+                <div className="relative" ref={filtersRef}>
                     <Button
+                        id="planning-machine-filter"
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsMachineFilterOpen(!isMachineFilterOpen)}
+                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
                         className={cn(
-                            "h-8 text-[10px] font-bold uppercase gap-2 px-3 rounded-xl border-border/60",
-                            selectedMachines.size < allMachineNames.length && "border-primary/50 bg-primary/5 text-primary"
+                            "h-8 gap-2 rounded-xl border-border/60 px-3 text-[10px] font-bold uppercase",
+                            activeFilterCount > 0 && "border-primary/50 bg-primary/5 text-primary"
                         )}
                     >
-                        <Filter className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Máquinas</span>
-                        {selectedMachines.size < allMachineNames.length && (
-                            <span className="bg-primary text-white text-[9px] px-1 rounded-full min-w-[14px]">
-                                {selectedMachines.size}
+                        <Filter className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Filtros</span>
+                        {activeFilterCount > 0 && (
+                            <span className="min-w-[18px] rounded-full bg-primary px-1.5 py-0.5 text-center text-[9px] leading-none text-white">
+                                {activeFilterCount}
                             </span>
                         )}
                     </Button>
 
                     <AnimatePresence>
-                        {isMachineFilterOpen && (
+                        {isFiltersOpen && (
                             <motion.div
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                initial={{ opacity: 0, y: 8, scale: 0.96 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-2xl shadow-2xl z-[100] p-3 backdrop-blur-md"
+                                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                                transition={{ duration: 0.13 }}
+                                className="absolute right-0 z-[100] mt-2 flex w-72 flex-col rounded-2xl border border-border bg-card shadow-2xl backdrop-blur-md"
+                                style={{ maxHeight: "calc(100vh - 120px)" }}
                             >
-                                <div className="flex items-center justify-between mb-3 px-1">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filtrar Máquinas</span>
-                                    <div className="flex gap-2">
-                                        <button onClick={onSelectAllMachines} className="text-[9px] font-bold text-primary hover:underline">Todas</button>
-                                        <button onClick={onClearAllMachines} className="text-[9px] font-bold text-muted-foreground hover:underline">Ninguna</button>
+                                {/* Panel header — sticky */}
+                                <div className="flex shrink-0 items-center justify-between px-4 pb-2 pt-4">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        Filtros y Configuración
+                                    </span>
+                                    {activeFilterCount > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                onSearchChange("");
+                                                onProjectFilterChange(null);
+                                                onSelectAllMachines();
+                                            }}
+                                            className="text-[9px] font-bold text-muted-foreground transition-colors hover:text-destructive"
+                                        >
+                                            Limpiar filtros
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Scrollable body */}
+                                <div className="custom-scrollbar space-y-4 overflow-y-auto px-4 pb-4">
+                                    {/* Piece search */}
+                                    <div className="space-y-1.5">
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Pieza
+                                        </span>
+                                        <div className="relative">
+                                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                value={searchQuery}
+                                                onChange={(e) => onSearchChange(e.target.value)}
+                                                placeholder="Buscar por código o nombre..."
+                                                className="h-8 w-full rounded-xl border border-border/60 bg-background pl-8 pr-8 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            />
+                                            {searchQuery && (
+                                                <button
+                                                    onClick={() => onSearchChange("")}
+                                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Project combobox */}
+                                    {availableProjects.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Proyecto
+                                            </span>
+                                            <div className="relative">
+                                                <FolderOpen
+                                                    className={cn(
+                                                        "pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 transition-colors",
+                                                        activeProject ? "text-primary" : "text-muted-foreground"
+                                                    )}
+                                                />
+                                                <input
+                                                    ref={projectInputRef}
+                                                    type="text"
+                                                    value={projectInputValue}
+                                                    onChange={(e) => handleProjectInputChange(e.target.value)}
+                                                    onFocus={() => setIsProjectDropdownOpen(true)}
+                                                    placeholder="Buscar proyecto..."
+                                                    className={cn(
+                                                        "h-8 w-full rounded-xl border bg-background pl-8 pr-8 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
+                                                        activeProject
+                                                            ? "border-primary/50 bg-primary/5 font-bold text-primary"
+                                                            : "border-border/60"
+                                                    )}
+                                                />
+                                                {(projectInputValue || projectFilter) && (
+                                                    <button
+                                                        onClick={handleProjectClear}
+                                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                )}
+                                                <AnimatePresence>
+                                                    {isProjectDropdownOpen && filteredProjects.length > 0 && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 4 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: 4 }}
+                                                            transition={{ duration: 0.1 }}
+                                                            className="custom-scrollbar absolute left-0 top-full z-[110] mt-1 max-h-[180px] w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl"
+                                                        >
+                                                            {filteredProjects.map((project) => (
+                                                                <button
+                                                                    key={project.id}
+                                                                    onMouseDown={(e) => e.preventDefault()}
+                                                                    onClick={() => handleProjectSelect(project)}
+                                                                    className={cn(
+                                                                        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
+                                                                        project.id === projectFilter
+                                                                            ? "bg-primary/10 text-primary"
+                                                                            : "text-foreground hover:bg-muted/60"
+                                                                    )}
+                                                                >
+                                                                    <FolderOpen
+                                                                        className={cn(
+                                                                            "h-3 w-3 shrink-0",
+                                                                            project.id === projectFilter
+                                                                                ? "text-primary"
+                                                                                : "text-muted-foreground"
+                                                                        )}
+                                                                    />
+                                                                    <div className="min-w-0">
+                                                                        <div className="text-[11px] font-bold leading-none">
+                                                                            {project.code}
+                                                                        </div>
+                                                                        {project.company && (
+                                                                            <div className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                                                                                {project.company}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </button>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Machines — collapsible */}
+                                    <div className="space-y-1.5">
+                                        <button
+                                            onClick={() => setIsMachinesExpanded(!isMachinesExpanded)}
+                                            className="group flex w-full items-center justify-between"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                                                    Máquinas
+                                                </span>
+                                                {selectedMachines.size < allMachineNames.length && (
+                                                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[8px] leading-none text-white">
+                                                        {selectedMachines.size}/{allMachineNames.length}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <ChevronDown
+                                                className={cn(
+                                                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                                                    isMachinesExpanded && "rotate-180"
+                                                )}
+                                            />
+                                        </button>
+
+                                        <AnimatePresence initial={false}>
+                                            {isMachinesExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.18 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="mb-1 flex justify-end gap-2">
+                                                        <button
+                                                            onClick={onSelectAllMachines}
+                                                            className="text-[9px] font-bold text-primary hover:underline"
+                                                        >
+                                                            Todas
+                                                        </button>
+                                                        <button
+                                                            onClick={onClearAllMachines}
+                                                            className="text-[9px] font-bold text-muted-foreground hover:underline"
+                                                        >
+                                                            Ninguna
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        {allMachineNames.map((name) => (
+                                                            <label
+                                                                key={name}
+                                                                className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50"
+                                                            >
+                                                                <div className="relative flex shrink-0 items-center justify-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedMachines.has(name)}
+                                                                        onChange={() => onToggleMachine(name)}
+                                                                        className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-border transition-all checked:border-primary checked:bg-primary"
+                                                                    />
+                                                                    <CheckCircle2 className="pointer-events-none absolute h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
+                                                                </div>
+                                                                <span className="truncate text-[11px] font-medium transition-colors group-hover:text-foreground">
+                                                                    {name}
+                                                                </span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+                                    {/* Divider */}
+                                    <div className="border-t border-border/50" />
+
+                                    {/* Settings — collapsible */}
+                                    <div className="space-y-1.5">
+                                        <button
+                                            onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                                            className="group flex w-full items-center justify-between"
+                                        >
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                                                Configuración de Vista
+                                            </span>
+                                            <ChevronDown
+                                                className={cn(
+                                                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                                                    isSettingsExpanded && "rotate-180"
+                                                )}
+                                            />
+                                        </button>
+
+                                        <AnimatePresence initial={false}>
+                                            {isSettingsExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.18 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="space-y-3 pt-1">
+                                                        {[
+                                                            {
+                                                                label: "Dependencias",
+                                                                desc: "Mostrar líneas de conexión",
+                                                                value: showDependencies,
+                                                                toggle: () =>
+                                                                    onShowDependenciesChange(!showDependencies),
+                                                            },
+                                                            {
+                                                                label: "Máquinas Vacías",
+                                                                desc: "Ocultar si no tienen tareas",
+                                                                value: hideEmptyMachines,
+                                                                toggle: () =>
+                                                                    onHideEmptyMachinesChange(!hideEmptyMachines),
+                                                            },
+                                                            {
+                                                                label: "Modo Cascada",
+                                                                desc: "Mover tareas consecutivas",
+                                                                value: cascadeMode,
+                                                                toggle: () => onCascadeModeChange(!cascadeMode),
+                                                            },
+                                                        ].map(({ label, desc, value, toggle }) => (
+                                                            <div
+                                                                key={label}
+                                                                className="flex items-center justify-between"
+                                                            >
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <span className="text-[11px] font-bold">
+                                                                        {label}
+                                                                    </span>
+                                                                    <span className="text-[9px] leading-none text-muted-foreground">
+                                                                        {desc}
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    onClick={toggle}
+                                                                    className={cn(
+                                                                        "relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-all duration-300",
+                                                                        value ? "bg-primary" : "bg-muted"
+                                                                    )}
+                                                                >
+                                                                    <div
+                                                                        className={cn(
+                                                                            "absolute top-1 h-3 w-3 rounded-full bg-white shadow-sm transition-all duration-300",
+                                                                            value ? "left-5" : "left-1"
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 </div>
-                                <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                                    {allMachineNames.map(name => (
-                                        <label
-                                            key={name}
-                                            className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
-                                        >
-                                            <div className="relative flex items-center justify-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedMachines.has(name)}
-                                                    onChange={() => onToggleMachine(name)}
-                                                    className="peer h-4 w-4 appearance-none rounded border border-border checked:bg-primary checked:border-primary transition-all cursor-pointer"
-                                                />
-                                                <CheckCircle2 className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-                                            </div>
-                                            <span className="text-[11px] font-medium group-hover:text-foreground transition-colors">{name}</span>
-                                        </label>
-                                    ))}
-                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
 
-                {/* Settings Dropdown */}
-                <div id="planning-settings" className="relative" ref={settingsRef}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                        className="h-8 w-8 p-0 rounded-xl border-border/60 shadow-sm"
+                <div className="h-6 w-px bg-border" />
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-muted/30 p-0.5">
+                    <button
+                        onClick={() => onZoomChange((prev) => Math.max(viewMode === "week" ? 0.8 : 0.5, prev - 0.25))}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
+                        title="Reducir Zoom"
                     >
-                        <Settings2 className="w-3.5 h-3.5" />
-                    </Button>
-
-                    <AnimatePresence>
-                        {isSettingsOpen && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-64 bg-card border border-border rounded-2xl shadow-2xl z-[100] p-4 backdrop-blur-md"
-                            >
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4 block px-1">Configuración de Vista</span>
-
-                                <div className="space-y-4">
-                                    <label className="flex items-center justify-between cursor-pointer group">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Dependencias</span>
-                                            <span className="text-[9px] text-muted-foreground leading-none">Mostrar líneas de conexión</span>
-                                        </div>
-                                        <div
-                                            onClick={() => onShowDependenciesChange(!showDependencies)}
-                                            className={cn(
-                                                "w-9 h-5 rounded-full relative transition-all duration-300",
-                                                showDependencies ? "bg-primary" : "bg-muted"
-                                            )}
-                                        >
-                                            <div className={cn(
-                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
-                                                showDependencies ? "left-5" : "left-1"
-                                            )} />
-                                        </div>
-                                    </label>
-
-                                    <label className="flex items-center justify-between cursor-pointer group">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Máquinas Vacías</span>
-                                            <span className="text-[9px] text-muted-foreground leading-none">Ocultar si no tienen tareas</span>
-                                        </div>
-                                        <div
-                                            onClick={() => onHideEmptyMachinesChange(!hideEmptyMachines)}
-                                            className={cn(
-                                                "w-9 h-5 rounded-full relative transition-all duration-300",
-                                                hideEmptyMachines ? "bg-primary" : "bg-muted"
-                                            )}
-                                        >
-                                            <div className={cn(
-                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
-                                                hideEmptyMachines ? "left-5" : "left-1"
-                                            )} />
-                                        </div>
-                                    </label>
-
-                                    <label className="flex items-center justify-between cursor-pointer group border-t border-border/50 pt-4">
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-[11px] font-bold group-hover:text-primary transition-colors">Modo Cascada</span>
-                                            <span className="text-[9px] text-muted-foreground leading-none">Mover tareas consecutivas</span>
-                                        </div>
-                                        <div
-                                            onClick={() => onCascadeModeChange(!cascadeMode)}
-                                            className={cn(
-                                                "w-9 h-5 rounded-full relative transition-all duration-300",
-                                                cascadeMode ? "bg-primary" : "bg-muted"
-                                            )}
-                                        >
-                                            <div className={cn(
-                                                "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300 shadow-sm",
-                                                cascadeMode ? "left-5" : "left-1"
-                                            )} />
-                                        </div>
-                                    </label>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                        <ZoomOut className="h-3.5 w-3.5" />
+                    </button>
+                    <div
+                        className="flex w-12 cursor-pointer select-none justify-center px-1"
+                        title="Doble click para restablecer (100%)"
+                        onDoubleClick={() => onZoomChange(1)}
+                    >
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                            {Math.round(zoomLevel * 100)}%
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => onZoomChange((prev) => Math.min(viewMode === "week" ? 10 : 3, prev + 0.25))}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
+                        title="Aumentar Zoom"
+                    >
+                        <ZoomIn className="h-3.5 w-3.5" />
+                    </button>
                 </div>
+
+                {/* Fullscreen Button */}
+                {onToggleFullscreen && (
+                    <button
+                        id="planning-fullscreen"
+                        onClick={onToggleFullscreen}
+                        className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                        title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
+                    >
+                        {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                    </button>
+                )}
             </div>
         );
     }

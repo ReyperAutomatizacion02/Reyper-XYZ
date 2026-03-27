@@ -27,6 +27,7 @@ export type PlanningTask = Database["public"]["Tables"]["planning"]["Row"];
 /** Order with optional joined relations used in scheduling views */
 export type OrderWithRelations = Order & {
     projects?: {
+        code?: string | null;
         delivery_date?: string | null;
         start_date?: string | null;
         drive_folder_id?: string | null;

@@ -4,19 +4,7 @@ import React, { useMemo, useState, useRef, useEffect } from "react";
 import Image from "next/image";
 // import { useRouter } from "next/navigation"; // Removed
 import { motion, AnimatePresence } from "framer-motion";
-import {
-    ChevronLeft,
-    ChevronRight,
-    Calendar,
-    ZoomIn,
-    ZoomOut,
-    Lock,
-    Unlock,
-    Maximize2,
-    Minimize2,
-    FileText,
-    FlaskConical,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Lock, Unlock, FileText, FlaskConical } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
 import { TaskModal } from "./task-modal";
 import { getProductionTaskColor, buildColorMap } from "@/utils/production-colors";
@@ -85,8 +73,8 @@ export interface GanttSVGProps {
     container?: HTMLElement | null;
     startControls?: React.ReactNode;
     endControls?: React.ReactNode;
-    onToggleFullscreen?: () => void;
     focusTaskId?: string | null;
+    projectFilter?: string[];
 }
 
 // Constants for the SVG Engine
@@ -126,8 +114,8 @@ export function GanttSVG({
     container,
     startControls,
     endControls,
-    onToggleFullscreen,
     focusTaskId,
+    projectFilter,
 }: GanttSVGProps) {
     // View mode configuration
     const config = VIEW_MODE_CONFIG[viewMode];
@@ -272,11 +260,14 @@ export function GanttSVG({
                 const isSelected = selectedMachines.has(name);
                 if (!isSelected) return false;
 
-                if (hideEmptyMachines) {
+                // When a project filter is active, always hide machines with no project tasks
+                if (hideEmptyMachines || projectFilter?.length) {
                     const hasTasksInWindow = optimisticTasks.some((t) => {
+                        if (t.check_in && t.check_out) return false; // exclude completed tasks
                         const isThisMachine =
                             t.machine === name || (name === "Sin Máquina" && !t.machine && !(t as any).is_treatment);
                         if (!isThisMachine) return false;
+                        if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? "")) return false;
                         const taskStart = new Date(t.planned_date!);
                         const taskEnd = new Date(t.planned_end!);
                         return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
@@ -290,6 +281,8 @@ export function GanttSVG({
         // Add "TRATAMIENTO" row at the end when there are treatment tasks visible
         const hasTreatmentTasksInWindow = optimisticTasks.some((t) => {
             if (!(t as any).is_treatment) return false;
+            if (t.check_in && t.check_out) return false; // exclude completed tasks
+            if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? "")) return false;
             const taskStart = new Date(t.planned_date!);
             const taskEnd = new Date(t.planned_end!);
             return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
@@ -297,13 +290,16 @@ export function GanttSVG({
         if (hasTreatmentTasksInWindow) machineMachines.push("TRATAMIENTO");
 
         return machineMachines;
-    }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, timeWindow]);
+    }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, projectFilter, timeWindow]);
 
-    // Filter tasks by machine, search, AND visible time window
+    // Filter tasks by machine, search, project, AND visible time window
     const filteredTasks = useMemo(() => {
         return optimisticTasks.filter((task) => {
             // Hide completed tasks (both check_in and check_out captured) — they clutter the Gantt
             if (task.check_in && task.check_out) return false;
+
+            // Project filter (applied to all task types)
+            if (projectFilter?.length && !projectFilter.includes(task.production_orders?.project_id ?? "")) return false;
 
             // Treatment tasks are always included when they have dates (rendered in TRATAMIENTO row)
             if ((task as any).is_treatment) {
@@ -333,7 +329,7 @@ export function GanttSVG({
 
             return matchesMachine && matchesSearch && matchesTime;
         });
-    }, [optimisticTasks, selectedMachines, searchQuery, timeWindow]);
+    }, [optimisticTasks, selectedMachines, searchQuery, projectFilter, timeWindow]);
 
     // 3. Absolute Coordinate Math (Critical for Alignment)
     const timeToX = (time: string | number | Date) => {
@@ -1194,55 +1190,8 @@ export function GanttSVG({
                 {/* Spacer to push remaining items right */}
                 <div className="flex-1" />
 
-                {/* End Controls (Search, Filters, Settings) */}
+                {/* End Controls (Search, Filters, Zoom, Fullscreen, Settings) */}
                 {endControls}
-
-                {/* Zoom Controls */}
-                {endControls && <div className="h-6 w-px bg-border" />}
-                <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-muted/30 p-0.5">
-                    <button
-                        onClick={() => setZoomLevel((prev) => Math.max(viewMode === "week" ? 0.8 : 0.5, prev - 0.25))}
-                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
-                        title="Reducir Zoom"
-                    >
-                        <ZoomOut className="h-3.5 w-3.5" />
-                    </button>
-                    <div
-                        className="flex w-14 cursor-pointer select-none justify-center px-1"
-                        title="Doble click para restablecer (100%)"
-                        onDoubleClick={() => setZoomLevel(1)}
-                    >
-                        <span className="text-[10px] font-bold text-muted-foreground">
-                            {Math.round(zoomLevel * 100)}%
-                        </span>
-                    </div>
-                    <button
-                        onClick={() => setZoomLevel((prev) => Math.min(viewMode === "week" ? 10 : 3, prev + 0.25))}
-                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/50 hover:text-foreground"
-                        title="Aumentar Zoom"
-                    >
-                        <ZoomIn className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-
-                {/* Fullscreen Button - far right */}
-                {onToggleFullscreen && (
-                    <>
-                        <div className="h-6 w-px bg-border" />
-                        <button
-                            id="planning-fullscreen"
-                            onClick={onToggleFullscreen}
-                            className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
-                            title={isFullscreen ? "Salir de Pantalla Completa" : "Pantalla Completa"}
-                        >
-                            {isFullscreen ? (
-                                <Minimize2 className="h-3.5 w-3.5" />
-                            ) : (
-                                <Maximize2 className="h-3.5 w-3.5" />
-                            )}
-                        </button>
-                    </>
-                )}
             </div>
 
             <div className="relative flex flex-1 overflow-hidden">
