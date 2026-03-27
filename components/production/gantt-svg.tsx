@@ -299,6 +299,9 @@ export function GanttSVG({
     // Filter tasks by machine, search, AND visible time window
     const filteredTasks = useMemo(() => {
         return optimisticTasks.filter((task) => {
+            // Hide completed tasks (both check_in and check_out captured) — they clutter the Gantt
+            if (task.check_in && task.check_out) return false;
+
             // Treatment tasks are always included when they have dates (rendered in TRATAMIENTO row)
             if ((task as any).is_treatment) {
                 const taskStart = new Date(task.planned_date!);
@@ -501,6 +504,7 @@ export function GanttSVG({
     const BAR_HEIGHT = 36;
     const BAR_GAP = 4;
     const ROW_PADDING = 8;
+    const BATCH_INDICATOR_HEIGHT = 20; // extra px at the bottom of TRATAMIENTO for batch labels
 
     // Calculate max lanes per machine (global across all days)
     const machineLaneCounts = useMemo(() => {
@@ -516,10 +520,62 @@ export function GanttSVG({
         return counts;
     }, [filteredTasks, taskLanes]);
 
+    // Resolve treatment type name from a task (works for both draft and saved tasks)
+    const getTreatmentTypeName = (task: PlanningTask): string | null => {
+        if ((task as any).treatment_type) return (task as any).treatment_type as string;
+        const reg = task.register;
+        if (!reg) return null;
+        const m = reg.match(/^(\d+)-T$/);
+        if (!m) return null;
+        const stepIdx = parseInt(m[1]) - 1;
+        const evaluation = (task.production_orders as any)?.evaluation as any[] | null;
+        if (!evaluation || stepIdx < 0 || stepIdx >= evaluation.length) return null;
+        return (evaluation[stepIdx]?.treatment as string) || null;
+    };
+
+    // Group treatment tasks by type → used for batch indicator visual and extra row height
+    const treatmentBatchGroups = useMemo(() => {
+        const groups = new Map<string, PlanningTask[]>();
+        filteredTasks.forEach((task) => {
+            if (!(task as any).is_treatment || !task.planned_date || !task.planned_end) return;
+            const name = getTreatmentTypeName(task);
+            if (!name) return;
+            const key = name.toLowerCase().trim();
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(task);
+        });
+        // Only keep groups where ≥2 different orders overlap in time
+        for (const [key, tasks] of groups) {
+            const uniqueOrders = new Set(tasks.map((t) => t.order_id));
+            if (uniqueOrders.size < 2) {
+                groups.delete(key);
+                continue;
+            }
+            // At least two tasks must overlap or share the same window
+            let hasOverlap = false;
+            for (let i = 0; i < tasks.length && !hasOverlap; i++) {
+                const s1 = new Date(tasks[i].planned_date!).getTime();
+                const e1 = new Date(tasks[i].planned_end!).getTime();
+                for (let j = i + 1; j < tasks.length; j++) {
+                    const s2 = new Date(tasks[j].planned_date!).getTime();
+                    const e2 = new Date(tasks[j].planned_end!).getTime();
+                    if (s1 < e2 && e1 > s2) {
+                        hasOverlap = true;
+                        break;
+                    }
+                }
+            }
+            if (!hasOverlap) groups.delete(key);
+        }
+        return groups;
+    }, [filteredTasks]);
+
     // Calculate machine height based on its max lanes
     const getMachineHeight = (machine: string) => {
         const lanes = machineLaneCounts.get(machine) || 1;
-        return ROW_PADDING * 2 + lanes * BAR_HEIGHT + (lanes - 1) * BAR_GAP;
+        const base = ROW_PADDING * 2 + lanes * BAR_HEIGHT + (lanes - 1) * BAR_GAP;
+        // Reserve extra space at the bottom of the TRATAMIENTO row for batch indicators
+        return machine === "TRATAMIENTO" && treatmentBatchGroups.size > 0 ? base + BATCH_INDICATOR_HEIGHT : base;
     };
 
     // Dynamic Y offsets - each machine height based on its max lanes
@@ -533,7 +589,7 @@ export function GanttSVG({
         });
 
         return offsets;
-    }, [filteredMachines, machineLaneCounts]);
+    }, [filteredMachines, machineLaneCounts, treatmentBatchGroups]);
 
     // Dynamic total height
     const totalHeight = useMemo(() => {
@@ -542,7 +598,7 @@ export function GanttSVG({
             height += getMachineHeight(machine);
         });
         return height;
-    }, [filteredMachines, machineLaneCounts]);
+    }, [filteredMachines, machineLaneCounts, treatmentBatchGroups]);
 
     // Calculate Dependency Lines
     const dependencyLines = useMemo(() => {
@@ -571,8 +627,14 @@ export function GanttSVG({
                 const startTask = groupTasks[i];
                 const endTask = groupTasks[i + 1];
 
-                const startMachine = startTask.machine || "Sin Máquina";
-                const endMachine = endTask.machine || "Sin Máquina";
+                // Treatment tasks live in the "TRATAMIENTO" row, not "Sin Máquina"
+                const startMachine = (startTask as any).is_treatment
+                    ? "TRATAMIENTO"
+                    : startTask.machine || "Sin Máquina";
+                const endMachine = (endTask as any).is_treatment ? "TRATAMIENTO" : endTask.machine || "Sin Máquina";
+
+                // Skip lines whose machine rows aren't in the current view
+                if (!machineYOffsets.has(startMachine) || !machineYOffsets.has(endMachine)) continue;
 
                 // Get Coordinates
                 const startY =
@@ -589,6 +651,19 @@ export function GanttSVG({
                 const startX = timeToX(new Date(startTask.planned_end!));
                 const endX = timeToX(new Date(endTask.planned_date!));
 
+                // Determine line type:
+                // - "continuation": two segments of the same step (same register, same machine)
+                // - "treatment": one of the tasks is a treatment step
+                // - "step": normal dependency between different production steps
+                const isContinuation =
+                    !!(startTask as any).register &&
+                    startTask.register === endTask.register &&
+                    startMachine === endMachine;
+                const involvesTreatment = !!(startTask as any).is_treatment || !!(endTask as any).is_treatment;
+
+                // All dependency lines use the order's color (consistent with task bars)
+                const lineColor = getProductionTaskColor(startTask);
+
                 // Bezier Curve
                 const controlOffset = Math.min(Math.abs(endX - startX) / 2, 50);
                 const path = `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
@@ -597,9 +672,10 @@ export function GanttSVG({
                     <path
                         key={`dep-${startTask.id}-${endTask.id}`}
                         d={path}
-                        stroke={getProductionTaskColor(startTask)}
-                        strokeWidth="1.5"
-                        strokeOpacity="0.4"
+                        stroke={lineColor}
+                        strokeWidth={isContinuation ? 1 : 1.5}
+                        strokeOpacity={isContinuation ? 0.25 : involvesTreatment ? 0.6 : 0.4}
+                        strokeDasharray={isContinuation ? "4 3" : "none"}
                         fill="none"
                         className="pointer-events-none"
                     />
@@ -1323,7 +1399,60 @@ export function GanttSVG({
 
                             {/* Tasks */}
 
-                            {/* Dependency Lines (Behind tasks) */}
+                            {/* Treatment batch indicators – rendered behind everything else */}
+                            {machineYOffsets.has("TRATAMIENTO") &&
+                                Array.from(treatmentBatchGroups.entries()).map(([typeKey, batchTasks]) => {
+                                    const minStartMs = Math.min(
+                                        ...batchTasks.map((t) => new Date(t.planned_date!).getTime())
+                                    );
+                                    const maxEndMs = Math.max(
+                                        ...batchTasks.map((t) => new Date(t.planned_end!).getTime())
+                                    );
+                                    const bx = timeToX(new Date(minStartMs));
+                                    const bw = Math.max(timeToX(new Date(maxEndMs)) - bx, 0);
+                                    const treatY = machineYOffsets.get("TRATAMIENTO")!;
+                                    const rowH = getMachineHeight("TRATAMIENTO");
+                                    const stripY = treatY + rowH - BATCH_INDICATOR_HEIGHT + 2;
+                                    const displayName = getTreatmentTypeName(batchTasks[0]) || typeKey;
+                                    const orderCount = new Set(batchTasks.map((t) => t.order_id)).size;
+                                    return (
+                                        <g key={`batch-${typeKey}`} className="pointer-events-none">
+                                            {/* Faint window behind all bars for this batch */}
+                                            <rect
+                                                x={bx}
+                                                y={treatY}
+                                                width={bw}
+                                                height={rowH - BATCH_INDICATOR_HEIGHT}
+                                                fill="#6366f1"
+                                                fillOpacity={0.05}
+                                            />
+                                            {/* Indicator strip at the bottom */}
+                                            <rect
+                                                x={bx}
+                                                y={stripY}
+                                                width={bw}
+                                                height={15}
+                                                rx={3}
+                                                fill="#6366f1"
+                                                fillOpacity={0.18}
+                                                stroke="#6366f1"
+                                                strokeOpacity={0.45}
+                                                strokeWidth={1}
+                                            />
+                                            <text
+                                                x={bx + 6}
+                                                y={stripY + 11}
+                                                fontSize={9}
+                                                fontWeight={700}
+                                                fill="#6366f1"
+                                                fillOpacity={0.9}
+                                            >
+                                                {`🧪 Lote: ${displayName} · ${orderCount} órdenes`}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+
                             {/* Dependency Lines (Behind tasks) */}
                             {showDependencies && dependencyLines}
 
@@ -1356,12 +1485,8 @@ export function GanttSVG({
                                 const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
                                 const isConflicting = conflictingTaskIds.has(task.id);
 
-                                // Treatment tasks use a fixed amber color; others use hash-based color
-                                const color = isConflicting
-                                    ? "#ef4444"
-                                    : isTreatmentTask
-                                      ? "#f59e0b"
-                                      : getProductionTaskColor(task);
+                                // All tasks (including treatments) use the order's hash color for consistency
+                                const color = isConflicting ? "#ef4444" : getProductionTaskColor(task);
                                 const isFocused = focusTaskId === task.id;
 
                                 return (

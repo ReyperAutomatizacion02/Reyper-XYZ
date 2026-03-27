@@ -407,6 +407,8 @@ export function generateAutomatedPlanning(
                     machine: null,
                     is_treatment: true,
                     register: register,
+                    // treatment_type is used post-loop to consolidate same-type treatments
+                    treatment_type: step.treatment,
                     planned_date: format(treatmentStart, "yyyy-MM-dd'T'HH:mm:ss"),
                     planned_end: format(treatmentEnd, "yyyy-MM-dd'T'HH:mm:ss"),
                     status: "pending",
@@ -423,88 +425,90 @@ export function generateAutomatedPlanning(
                 continue;
             }
 
-            // ── Machine step ──
+            // ── Machine step (consolidated batch) ──
+            // Instead of one task per piece, we schedule the full batch as one continuous
+            // block (hours × quantity) and split only at shift boundaries (6am–10pm).
+            // e.g. CNC 2hr × 20pzs = 40hr → 2–3 shift-split segments, not 20 tasks.
             if (!machines.includes(step.machine)) {
                 skipped.push({ order, reason: `Máquina desconocida: ${step.machine}` });
                 pieceSkipped = true;
                 break;
             }
 
-            // Match up to `quantity` existing fixed tasks for this step's machine
+            const totalStepHours = step.hours * quantity;
+            const register = `${stepNumber}`;
+
+            // Consume all existing fixed tasks for this step's machine (split segments
+            // from a previous save count as partial coverage of the batch).
             const fixedTasksForStep = pieceFixedTasks.filter(
                 (t) => t.machine === step.machine && !usedFixedTaskIds.has(t.id as string)
             );
-            const matchedFixedTasks = fixedTasksForStep.slice(0, quantity);
-            matchedFixedTasks.forEach((t) => usedFixedTaskIds.add(t.id as string));
+            fixedTasksForStep.forEach((t) => usedFixedTaskIds.add(t.id as string));
 
-            // stepEndTime tracks the maximum end across all pieces in this step
             let stepEndTime = new Date(batchEndTime);
-
-            for (const matched of matchedFixedTasks) {
-                const taskEnd = new Date(matched.endMs);
-                if (isAfter(taskEnd, stepEndTime)) {
-                    stepEndTime = taskEnd;
+            let coveredHours = 0;
+            for (const ft of fixedTasksForStep) {
+                coveredHours += (ft.endMs - ft.startMs) / (1000 * 60 * 60);
+                if (isAfter(new Date(ft.endMs), stepEndTime)) {
+                    stepEndTime = new Date(ft.endMs);
                 }
             }
 
-            // Schedule only the pieces without a matching fixed task
-            for (let j = matchedFixedTasks.length + 1; j <= quantity; j++) {
-                const register = quantity > 1 ? `${stepNumber}-${j}` : `${stepNumber}`;
+            // Schedule remaining hours as shift-split segments
+            let remainingHours = Math.max(0, totalStepHours - coveredHours);
+            let currentSearchStart = getNextValidWorkTime(new Date(stepEndTime));
 
-                let remainingHours = step.hours;
-                // Each piece starts searching from batchEndTime (end of previous step's batch).
-                // Collision detection naturally sequences pieces on the same machine.
-                let currentSearchStart = getNextValidWorkTime(new Date(batchEndTime));
+            while (remainingHours > 0) {
+                currentSearchStart = getNextValidWorkTime(currentSearchStart);
+                const shiftEnd = setTime(currentSearchStart, 22, 0, 0);
+                const hoursInShift = differenceInMilliseconds(shiftEnd, currentSearchStart) / (1000 * 60 * 60);
 
-                while (remainingHours > 0) {
-                    currentSearchStart = getNextValidWorkTime(currentSearchStart);
-                    const shiftEnd = setTime(currentSearchStart, 22, 0, 0);
-                    const hoursInShift = differenceInMilliseconds(shiftEnd, currentSearchStart) / (1000 * 60 * 60);
-
-                    if (hoursInShift < 0.25) {
-                        currentSearchStart = getNextValidWorkTime(addMinutes(shiftEnd, 1));
-                        continue;
-                    }
-
-                    const segmentDuration = Math.min(remainingHours, hoursInShift);
-                    const proposedEnd = addHours(currentSearchStart, segmentDuration);
-
-                    const collision = allKnownTasks.find(
-                        (t) =>
-                            (t.machine === step.machine || t.order_id === order.id) &&
-                            t.startMs < proposedEnd.getTime() &&
-                            t.endMs > currentSearchStart.getTime()
-                    );
-
-                    if (collision) {
-                        currentSearchStart = new Date(collision.endMs);
-                        continue;
-                    }
-
-                    const newTask: any = {
-                        id: `draft-${order.id}-${step.machine}-${register}-${Math.random().toString(36).substr(2, 5)}`,
-                        order_id: order.id,
-                        machine: step.machine,
-                        register: register,
-                        planned_date: format(currentSearchStart, "yyyy-MM-dd'T'HH:mm:ss"),
-                        planned_end: format(proposedEnd, "yyyy-MM-dd'T'HH:mm:ss"),
-                        status: "pending",
-                        production_orders: order,
-                        isDraft: true,
-                        startMs: currentSearchStart.getTime(),
-                        endMs: proposedEnd.getTime(),
-                    };
-
-                    pieceTasks.push(newTask);
-                    allKnownTasks.push(newTask);
-
-                    remainingHours -= segmentDuration;
-                    currentSearchStart = new Date(proposedEnd);
+                if (hoursInShift < 0.25) {
+                    currentSearchStart = getNextValidWorkTime(addMinutes(shiftEnd, 1));
+                    continue;
                 }
 
-                if (isAfter(currentSearchStart, stepEndTime)) {
-                    stepEndTime = new Date(currentSearchStart);
+                const segmentDuration = Math.min(remainingHours, hoursInShift);
+                const proposedEnd = addHours(currentSearchStart, segmentDuration);
+
+                // Only avoid collisions from OTHER orders on the same machine.
+                // Same-order sequencing is handled by batchEndTime / stepEndTime.
+                const collision = allKnownTasks.find(
+                    (t) =>
+                        t.machine === step.machine &&
+                        t.order_id !== order.id &&
+                        t.startMs < proposedEnd.getTime() &&
+                        t.endMs > currentSearchStart.getTime()
+                );
+
+                if (collision) {
+                    currentSearchStart = new Date(collision.endMs);
+                    continue;
                 }
+
+                const newTask: any = {
+                    id: `draft-${order.id}-${step.machine}-${register}-${Math.random().toString(36).substr(2, 5)}`,
+                    order_id: order.id,
+                    machine: step.machine,
+                    register: register,
+                    planned_date: format(currentSearchStart, "yyyy-MM-dd'T'HH:mm:ss"),
+                    planned_end: format(proposedEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+                    status: "pending",
+                    production_orders: order,
+                    isDraft: true,
+                    startMs: currentSearchStart.getTime(),
+                    endMs: proposedEnd.getTime(),
+                };
+
+                pieceTasks.push(newTask);
+                allKnownTasks.push(newTask);
+
+                remainingHours -= segmentDuration;
+                currentSearchStart = new Date(proposedEnd);
+            }
+
+            if (isAfter(currentSearchStart, stepEndTime)) {
+                stepEndTime = new Date(currentSearchStart);
             }
 
             batchEndTime = new Date(stepEndTime);
@@ -512,6 +516,157 @@ export function generateAutomatedPlanning(
 
         if (!pieceSkipped) {
             draftTasks.push(...pieceTasks);
+        }
+    }
+
+    // ── Post-process: consolidate same-type treatment tasks ──
+    // Phase 1 – Align: all orders with the same treatment are sent to the supplier
+    //   together, so every treatment task of the same type is moved to start when
+    //   the LAST order in the group finishes its pre-treatment machining.
+    // Phase 2 – Re-sequence: post-treatment machine steps are removed and
+    //   re-scheduled from scratch, one full order at a time (the order that was
+    //   ready for treatment first gets the machine first after the batch returns).
+    //   This guarantees sequential machining with no interleaving between orders.
+    {
+        const treatmentTasksByType = new Map<string, any[]>();
+        for (const task of draftTasks) {
+            if (!task.is_treatment || !task.treatment_type) continue;
+            const key = (task.treatment_type as string).toLowerCase().trim();
+            if (!treatmentTasksByType.has(key)) treatmentTasksByType.set(key, []);
+            treatmentTasksByType.get(key)!.push(task);
+        }
+
+        for (const [, treatmentGroup] of treatmentTasksByType) {
+            const uniqueOrders = new Set<string>(treatmentGroup.map((t: any) => t.order_id as string));
+            if (uniqueOrders.size < 2) continue;
+
+            // ── Phase 1: Align all treatment tasks to the latest "machine-ready" time ──
+            const maxStartMs = Math.max(...treatmentGroup.map((t: any) => t.startMs as number));
+
+            // Capture original start BEFORE modifying (used to establish priority order)
+            const originalStartByOrder = new Map<string, number>(
+                treatmentGroup.map((t: any) => [t.order_id as string, t.startMs as number])
+            );
+
+            for (const t of treatmentGroup) {
+                const calMs = (t.endMs as number) - (t.startMs as number);
+                t.planned_date = format(new Date(maxStartMs), "yyyy-MM-dd'T'HH:mm:ss");
+                t.planned_end = format(new Date(maxStartMs + calMs), "yyyy-MM-dd'T'HH:mm:ss");
+                t.startMs = maxStartMs;
+                t.endMs = maxStartMs + calMs;
+            }
+
+            // Common treatment end (take max in case different orders have different days)
+            const treatmentEndMs = Math.max(...treatmentGroup.map((t: any) => t.endMs as number));
+
+            // ── Phase 2: Re-schedule post-treatment machine steps ──
+            // Priority: the order that finished pre-treatment machining first goes first.
+            const sortedOrders = [...uniqueOrders].sort(
+                (a, b) => (originalStartByOrder.get(a) || 0) - (originalStartByOrder.get(b) || 0)
+            );
+
+            // Collect IDs of post-treatment tasks to remove and replace
+            const toRemoveIds = new Set<string>();
+            for (const orderId of sortedOrders) {
+                const treatTask = treatmentGroup.find((t: any) => t.order_id === orderId)!;
+                const treatStepNum = parseInt((treatTask.register as string).replace("-T", ""));
+                for (const t of draftTasks) {
+                    if ((t as any).order_id !== orderId) continue;
+                    if ((t as any).is_treatment || !(t as any).machine) continue;
+                    if (parseInt((t as any).register || "0") > treatStepNum) toRemoveIds.add((t as any).id);
+                }
+            }
+
+            // Remove from draftTasks and allKnownTasks
+            for (let i = draftTasks.length - 1; i >= 0; i--)
+                if (toRemoveIds.has(draftTasks[i].id)) draftTasks.splice(i, 1);
+            for (let i = allKnownTasks.length - 1; i >= 0; i--)
+                if (toRemoveIds.has((allKnownTasks[i] as any).id)) allKnownTasks.splice(i, 1);
+
+            // Per-machine availability tracker for this batch
+            const machineEndTimes = new Map<string, number>();
+
+            for (const orderId of sortedOrders) {
+                const treatTask = treatmentGroup.find((t: any) => t.order_id === orderId)!;
+                const treatStepNum = parseInt((treatTask.register as string).replace("-T", ""));
+                const evaluation = (treatTask.production_orders as any)?.evaluation as any[] | null;
+                const quantity = Math.max(1, (treatTask.production_orders as any)?.quantity ?? 1);
+                if (!evaluation) continue;
+
+                // Cursor: this order cannot start post-treatment before treatmentEnd
+                let orderCursor = treatmentEndMs;
+
+                // Iterate evaluation steps that come after the treatment, stopping at next treatment
+                for (let si = treatStepNum; si < evaluation.length; si++) {
+                    const step = evaluation[si];
+                    if (isTreatmentStep(step)) break; // stop at next treatment step
+
+                    const machine = (step as any).machine as string | undefined;
+                    const totalHours = ((step as any).hours || 0) * quantity;
+                    if (!machine || totalHours <= 0) continue;
+
+                    const register = `${si + 1}`; // 1-indexed step number
+                    let remainingHours = totalHours;
+                    let cursor = getNextValidWorkTime(
+                        new Date(Math.max(orderCursor, machineEndTimes.get(machine) || 0))
+                    );
+
+                    while (remainingHours > 0) {
+                        cursor = getNextValidWorkTime(cursor);
+                        const shiftEnd = setTime(cursor, 22, 0, 0);
+                        const hoursInShift = differenceInMilliseconds(shiftEnd, cursor) / (1000 * 60 * 60);
+
+                        if (hoursInShift < 0.25) {
+                            cursor = getNextValidWorkTime(addMinutes(shiftEnd, 1));
+                            continue;
+                        }
+
+                        const segDuration = Math.min(remainingHours, hoursInShift);
+                        const proposedEnd = addHours(cursor, segDuration);
+
+                        // Avoid collisions with other orders on this machine
+                        const collision = allKnownTasks.find(
+                            (t: any) =>
+                                t.machine === machine &&
+                                t.order_id !== orderId &&
+                                t.startMs < proposedEnd.getTime() &&
+                                t.endMs > cursor.getTime()
+                        );
+                        if (collision) {
+                            cursor = new Date(collision.endMs);
+                            continue;
+                        }
+
+                        const newSeg: any = {
+                            id: `draft-${orderId}-${machine}-${register}-bat-${Math.random()
+                                .toString(36)
+                                .substr(2, 5)}`,
+                            order_id: orderId,
+                            machine,
+                            register,
+                            planned_date: format(cursor, "yyyy-MM-dd'T'HH:mm:ss"),
+                            planned_end: format(proposedEnd, "yyyy-MM-dd'T'HH:mm:ss"),
+                            status: "pending",
+                            production_orders: treatTask.production_orders,
+                            isDraft: true,
+                            startMs: cursor.getTime(),
+                            endMs: proposedEnd.getTime(),
+                        };
+
+                        draftTasks.push(newSeg);
+                        allKnownTasks.push(newSeg);
+                        remainingHours -= segDuration;
+                        cursor = new Date(proposedEnd);
+                    }
+
+                    // Advance cursors past this step's last segment
+                    const stepEnd = draftTasks
+                        .filter((t: any) => t.order_id === orderId && t.register === register)
+                        .reduce((max: number, t: any) => Math.max(max, t.endMs as number), orderCursor);
+                    machineEndTimes.set(machine, Math.max(machineEndTimes.get(machine) || 0, stepEnd));
+                    orderCursor = Math.max(orderCursor, stepEnd);
+                }
+            }
         }
     }
 
@@ -784,13 +939,20 @@ export function shiftTasksToCurrent(
             // Calculate end: calendar duration for treatments, work-hours for machine tasks
             finalEnd = computeEnd(finalStart);
 
-            // Check Collision with fixed tasks AND already shifted draft tasks
-            const collision = obstacles.find(
-                (f) =>
-                    (f.machine === task.machine || (task.order_id && f.order_id === task.order_id)) &&
-                    f.startMs < finalEnd!.getTime() &&
-                    f.endMs > finalStart.getTime()
-            );
+            // Check Collision with fixed tasks AND already shifted draft tasks.
+            // Treatment tasks (machine === null) must NOT block each other across orders —
+            // multiple orders sharing the same treatment batch occupy the same time window
+            // intentionally. Only block by same-order constraint for treatments.
+            const collision = obstacles.find((f) => {
+                const timeOverlap = f.startMs < finalEnd!.getTime() && f.endMs > finalStart.getTime();
+                if (!timeOverlap) return false;
+                if (isTreatmentTask) {
+                    // Treatments only collide with tasks of the SAME order
+                    return task.order_id ? f.order_id === task.order_id : false;
+                }
+                // Machine tasks collide with same machine OR same order
+                return f.machine === task.machine || (task.order_id ? f.order_id === task.order_id : false);
+            });
 
             if (collision) {
                 // Jump past collision and snap again

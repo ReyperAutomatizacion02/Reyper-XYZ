@@ -556,7 +556,7 @@ describe("generateAutomatedPlanning", () => {
         expect(result.metrics.totalHours).toBeCloseTo(2, 0);
     });
 
-    it("generates quantity×steps tasks for multi-piece orders (batch mode)", () => {
+    it("consolida piezas en un lote: 3pzs×2steps → 1 batch por máquina (no 6 tasks)", () => {
         const order = makeOrder({
             quantity: 3,
             evaluation: [
@@ -566,34 +566,46 @@ describe("generateAutomatedPlanning", () => {
         });
         const result = generateAutomatedPlanning([order], [], ["CNC-1", "CNC-2"], DEFAULT_CONFIG);
 
-        // 3 pieces × 2 steps = 6 tasks minimum (splits may add more)
-        expect(result.tasks.length).toBeGreaterThanOrEqual(6);
-
+        // Consolidated: 3×2h=6h on CNC-1, 3×1h=3h on CNC-2 → 1 segment each (fits in shift)
+        // May split into 2 segments if crosses shift boundary, but never 3+ for <16h batches
         const cnc1Tasks = result.tasks.filter((t) => t.machine === "CNC-1");
         const cnc2Tasks = result.tasks.filter((t) => t.machine === "CNC-2");
-        // Each machine gets at least 3 tasks (1 per piece); splits across shifts may add more
-        expect(cnc1Tasks.length).toBeGreaterThanOrEqual(3);
-        expect(cnc2Tasks.length).toBeGreaterThanOrEqual(3);
+        expect(cnc1Tasks.length).toBeGreaterThanOrEqual(1);
+        expect(cnc2Tasks.length).toBeGreaterThanOrEqual(1);
 
-        // All CNC-1 tasks must finish before any CNC-2 task starts (batch ordering)
+        // Total machine hours must match quantity × step hours
+        const cnc1Hours = cnc1Tasks.reduce(
+            (sum, t) => sum + (new Date(t.planned_end!).getTime() - new Date(t.planned_date!).getTime()) / 3600000,
+            0
+        );
+        const cnc2Hours = cnc2Tasks.reduce(
+            (sum, t) => sum + (new Date(t.planned_end!).getTime() - new Date(t.planned_date!).getTime()) / 3600000,
+            0
+        );
+        expect(cnc1Hours).toBeCloseTo(6, 1); // 3 pzs × 2h
+        expect(cnc2Hours).toBeCloseTo(3, 1); // 3 pzs × 1h
+
+        // All CNC-1 segments must finish before any CNC-2 segment starts (batch ordering)
         const lastCnc1End = Math.max(...cnc1Tasks.map((t) => new Date(t.planned_end!).getTime()));
         const firstCnc2Start = Math.min(...cnc2Tasks.map((t) => new Date(t.planned_date!).getTime()));
         expect(firstCnc2Start).toBeGreaterThanOrEqual(lastCnc1End);
     });
 
-    it("uses 'step-piece' register format for multi-piece orders", () => {
+    it("usa el número de paso como register para lotes (sin sufijo de pieza)", () => {
         const order = makeOrder({
             quantity: 2,
             evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
         });
         const result = generateAutomatedPlanning([order], [], ["CNC-1"], DEFAULT_CONFIG);
 
+        // All segments of the consolidated batch share the same step register "1"
         const registers = result.tasks.map((t) => t.register);
-        expect(registers).toContain("1-1");
-        expect(registers).toContain("1-2");
+        registers.forEach((r) => expect(r).toBe("1"));
+        expect(registers).not.toContain("1-1");
+        expect(registers).not.toContain("1-2");
     });
 
-    it("uses plain register format for single-piece orders (qty=1, backward compat)", () => {
+    it("usa register '1' también para órdenes de 1 pieza", () => {
         const order = makeOrder({
             quantity: 1,
             evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
@@ -603,7 +615,7 @@ describe("generateAutomatedPlanning", () => {
         expect(result.tasks[0].register).toBe("1");
     });
 
-    it("schedules pieces sequentially on the same machine (no overlaps within a step)", () => {
+    it("los segmentos del lote no se solapan entre sí (splits de turno son secuenciales)", () => {
         const order = makeOrder({
             quantity: 3,
             evaluation: [{ machine: "CNC-1", hours: 2 }] as unknown as import("@/utils/supabase/types").Json,
@@ -614,7 +626,7 @@ describe("generateAutomatedPlanning", () => {
             (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
         );
 
-        // Each task must start at or after the previous one ends
+        // Each segment must start at or after the previous one ends
         for (let k = 1; k < tasks.length; k++) {
             const prevEnd = new Date(tasks[k - 1].planned_end!).getTime();
             const currStart = new Date(tasks[k].planned_date!).getTime();
