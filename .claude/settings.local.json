@@ -18,7 +18,8 @@
             "Bash(grep -oP '\\\\s+\\\\S+$')",
             "Bash(grep -oE '[a-z@/\\\\-]+$')",
             "Bash(find 'c:/Users/User2/Documents/Reyper XYZ' -type f \\\\\\(-name *collaborator* -o -name *colaborador* \\\\\\))",
-            "Bash(node_modules/.bin/vitest run:*)"
+            "Bash(node_modules/.bin/vitest run:*)",
+            "Bash(./node_modules/.bin/vitest run:*)"
         ]
     }
 }

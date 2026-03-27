@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { snapToNearest15Minutes } from "@/lib/scheduling-utils";
 import { es } from "date-fns/locale";
 import {
     format,
@@ -48,7 +49,6 @@ import {
     getDay,
     getDate,
     getISOWeek,
-    getMinutes,
     set,
 } from "date-fns";
 
@@ -88,13 +88,6 @@ export interface GanttSVGProps {
     onToggleFullscreen?: () => void;
     focusTaskId?: string | null;
 }
-
-// Helper for 15-minute snapping
-const roundToNearest15Minutes = (date: Date): Date => {
-    const minutes = getMinutes(date);
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-    return set(new Date(date), { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
-};
 
 // Constants for the SVG Engine
 const ROW_HEIGHT = 60;
@@ -203,6 +196,9 @@ export function GanttSVG({
     } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; task: PlanningTask } | null>(null);
     // Removed local state: savedTasks, optimisticTasks, isSaving
+
+    // IDs of tasks that are currently overlapping with the dragged/resized task
+    const [conflictingTaskIds, setConflictingTaskIds] = useState<Set<string>>(new Set());
 
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
     const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number; mode: "above" | "below" }>({
@@ -637,7 +633,7 @@ export function GanttSVG({
 
         // Convert X to time and snap to nearest 15 minutes
         const rawTime = xToTime(x);
-        const snappedTime = roundToNearest15Minutes(rawTime);
+        const snappedTime = snapToNearest15Minutes(rawTime);
 
         if (foundMachine) {
             setModalData({
@@ -714,6 +710,29 @@ export function GanttSVG({
         });
     };
 
+    /** Compute which tasks overlap with the active task and update conflictingTaskIds. */
+    const updateConflicts = (activeId: string, tasks: PlanningTask[]) => {
+        const active = tasks.find((t) => t.id === activeId);
+        if (!active?.planned_date || !active?.planned_end || !active.machine) {
+            setConflictingTaskIds(new Set());
+            return;
+        }
+        const s1 = new Date(active.planned_date).getTime();
+        const e1 = new Date(active.planned_end).getTime();
+        const conflicts = new Set<string>();
+        tasks.forEach((other) => {
+            if (other.id === activeId || other.machine !== active.machine) return;
+            if (!other.planned_date || !other.planned_end) return;
+            const s2 = new Date(other.planned_date).getTime();
+            const e2 = new Date(other.planned_end).getTime();
+            if (s1 < e2 && e1 > s2) {
+                conflicts.add(other.id);
+                conflicts.add(activeId);
+            }
+        });
+        setConflictingTaskIds(conflicts);
+    };
+
     const onMouseMove = (e: React.MouseEvent) => {
         if (draggingTask) {
             const deltaX = e.clientX - draggingTask.startX;
@@ -721,13 +740,13 @@ export function GanttSVG({
             let newStartTime = xToTime(newX);
 
             // Snap to 15 mins
-            newStartTime = roundToNearest15Minutes(newStartTime);
+            newStartTime = snapToNearest15Minutes(newStartTime);
 
             const originalStart = xToTime(draggingTask.initialX);
             const deltaMs = newStartTime.getTime() - originalStart.getTime();
 
-            setOptimisticTasks((prev) =>
-                prev.map((t) => {
+            setOptimisticTasks((prev) => {
+                const updated = prev.map((t) => {
                     if (t.id === draggingTask.id) {
                         return {
                             ...t,
@@ -748,21 +767,23 @@ export function GanttSVG({
                         };
                     }
                     return t;
-                })
-            );
+                });
+                updateConflicts(draggingTask.id, updated);
+                return updated;
+            });
         } else if (resizingTask) {
             const deltaX = e.clientX - resizingTask.startX;
             const direction = resizingTask.direction || "right";
             const limitStart = resizingTask.dayStart ? new Date(resizingTask.dayStart) : null;
             const limitEnd = resizingTask.dayEnd ? new Date(resizingTask.dayEnd) : null;
 
-            setOptimisticTasks((prev) =>
-                prev.map((t) => {
+            setOptimisticTasks((prev) => {
+                const updated = prev.map((t) => {
                     if (t.id === resizingTask.id) {
                         if (direction === "right") {
                             const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
                             let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
-                            newEndTime = roundToNearest15Minutes(newEndTime);
+                            newEndTime = snapToNearest15Minutes(newEndTime);
 
                             if (limitEnd && isAfter(newEndTime, limitEnd)) {
                                 newEndTime = new Date(limitEnd);
@@ -778,7 +799,7 @@ export function GanttSVG({
                             const newX =
                                 (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
                             let newStartDate = xToTime(newX);
-                            newStartDate = roundToNearest15Minutes(newStartDate);
+                            newStartDate = snapToNearest15Minutes(newStartDate);
 
                             if (limitStart && isBefore(newStartDate, limitStart)) {
                                 newStartDate = new Date(limitStart);
@@ -793,8 +814,10 @@ export function GanttSVG({
                         }
                     }
                     return t;
-                })
-            );
+                });
+                updateConflicts(resizingTask.id, updated);
+                return updated;
+            });
         }
     };
 
@@ -807,9 +830,10 @@ export function GanttSVG({
             }
         }
 
-        // Just clear interaction state. Changes remain in optimisticTasks until Save.
+        // Clear interaction state and conflict highlights
         setDraggingTask(null);
         setResizingTask(null);
+        setConflictingTaskIds(new Set());
     };
 
     // 5. Grid Helpers - Generate columns based on view mode
@@ -1330,9 +1354,14 @@ export function GanttSVG({
                                         (task.locked === true || (task.locked !== false && isFinishedOrRunning)));
 
                                 const isCascadeGhost = draggingTask?.cascadeIds?.includes(task.id);
+                                const isConflicting = conflictingTaskIds.has(task.id);
 
                                 // Treatment tasks use a fixed amber color; others use hash-based color
-                                const color = isTreatmentTask ? "#f59e0b" : getProductionTaskColor(task);
+                                const color = isConflicting
+                                    ? "#ef4444"
+                                    : isTreatmentTask
+                                      ? "#f59e0b"
+                                      : getProductionTaskColor(task);
                                 const isFocused = focusTaskId === task.id;
 
                                 return (
@@ -1399,6 +1428,27 @@ export function GanttSVG({
                                             }
                                         }}
                                     >
+                                        {/* Conflict flash indicator */}
+                                        {isConflicting && !activeTask && (
+                                            <motion.rect
+                                                x={x}
+                                                y={y}
+                                                width={width}
+                                                height={height}
+                                                rx={8}
+                                                animate={{
+                                                    opacity: [0.4, 0.8, 0.4],
+                                                }}
+                                                transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
+                                                style={{
+                                                    fill: "#ef4444",
+                                                    transformOrigin: "center",
+                                                    transformBox: "fill-box",
+                                                    filter: "drop-shadow(0 0 8px #ef4444)",
+                                                }}
+                                            />
+                                        )}
+
                                         {/* Task Pulse Animation Layer (Focus or Active) */}
                                         {(activeTask || isFocused) && (
                                             <motion.rect

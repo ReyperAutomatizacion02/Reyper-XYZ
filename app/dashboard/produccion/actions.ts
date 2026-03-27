@@ -28,7 +28,14 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
     const parsed = UpdateTaskScheduleSchema.parse({ taskId, start, end });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, PRODUCCION_ROLES);
+    const { user } = await requireRole(supabase, PRODUCCION_ROLES);
+
+    // Fetch current values for audit log before overwriting
+    const { data: existing } = await supabase
+        .from("planning")
+        .select("order_id, machine, planned_date, planned_end")
+        .eq("id", parsed.taskId)
+        .single();
 
     const { error } = await supabase
         .from("planning")
@@ -42,6 +49,19 @@ export async function updateTaskSchedule(taskId: string, start: string, end: str
         logger.error("Error updating task", error);
         throw new Error("Failed to update task");
     }
+
+    // Write audit record (best-effort — don't block the save if this fails)
+    await supabase.from("planning_audit").insert({
+        task_id: parsed.taskId,
+        order_id: existing?.order_id ?? null,
+        machine: existing?.machine ?? null,
+        action: "UPDATE",
+        old_planned_date: existing?.planned_date ?? null,
+        old_planned_end: existing?.planned_end ?? null,
+        new_planned_date: parsed.start,
+        new_planned_end: parsed.end,
+        changed_by: user?.id ?? null,
+    });
 
     revalidatePath("/dashboard/produccion");
 }
@@ -207,7 +227,7 @@ export async function batchSavePlanning(
     const parsed = BatchSavePlanningSchema.parse({ draftTasks, changedTasks });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, PRODUCCION_ROLES);
+    const { user } = await requireRole(supabase, PRODUCCION_ROLES);
 
     // 1. Insert Draft Tasks
     if (parsed.draftTasks.length > 0) {
@@ -220,15 +240,42 @@ export async function batchSavePlanning(
             operator: t.operator || null,
         }));
 
-        const { error: insError } = await supabase.from("planning").insert(toInsert);
+        const { data: inserted, error: insError } = await supabase
+            .from("planning")
+            .insert(toInsert)
+            .select("id, order_id, machine, planned_date, planned_end");
         if (insError) {
             logger.error("Error batch inserting tasks", insError);
             throw new Error("Failed to insert draft tasks");
+        }
+
+        // Audit: log each inserted task
+        if (inserted && inserted.length > 0) {
+            await supabase.from("planning_audit").insert(
+                inserted.map((t) => ({
+                    task_id: t.id,
+                    order_id: t.order_id ?? null,
+                    machine: t.machine ?? null,
+                    action: "INSERT",
+                    old_planned_date: null,
+                    old_planned_end: null,
+                    new_planned_date: t.planned_date,
+                    new_planned_end: t.planned_end,
+                    changed_by: user?.id ?? null,
+                }))
+            );
         }
     }
 
     // 2. Update Changed Tasks
     if (parsed.changedTasks.length > 0) {
+        // Fetch existing values for audit before overwriting
+        const ids = parsed.changedTasks.map((t) => t.id as string).filter(Boolean);
+        const { data: existingTasks } = await supabase
+            .from("planning")
+            .select("id, order_id, machine, planned_date, planned_end")
+            .in("id", ids);
+
         const toUpdate = parsed.changedTasks.map((t) => ({
             id: t.id,
             order_id: t.order_id,
@@ -243,6 +290,29 @@ export async function batchSavePlanning(
         if (updError) {
             logger.error("Error batch updating tasks", updError);
             throw new Error("Failed to update changed tasks");
+        }
+
+        // Audit: log each updated task
+        if (existingTasks && existingTasks.length > 0) {
+            const existingMap = new Map(existingTasks.map((e) => [e.id, e]));
+            await supabase.from("planning_audit").insert(
+                parsed.changedTasks
+                    .filter((t) => t.id && existingMap.has(t.id as string))
+                    .map((t) => {
+                        const old = existingMap.get(t.id as string)!;
+                        return {
+                            task_id: t.id as string,
+                            order_id: old.order_id ?? null,
+                            machine: old.machine ?? null,
+                            action: "UPDATE",
+                            old_planned_date: old.planned_date ?? null,
+                            old_planned_end: old.planned_end ?? null,
+                            new_planned_date: t.planned_date as string,
+                            new_planned_end: t.planned_end as string,
+                            changed_by: user?.id ?? null,
+                        };
+                    })
+            );
         }
     }
 

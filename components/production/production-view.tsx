@@ -93,6 +93,7 @@ export function ProductionView({ machines, orders, tasks, operators, treatments 
     const evalFilters = useEvaluationFilters(orders as OrderWithRelations[]);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Initialize from preferences once loaded
     useEffect(() => {
@@ -181,31 +182,42 @@ export function ProductionView({ machines, orders, tasks, operators, treatments 
         }
     };
 
-    // Live Strategy Draft Computation
-    const liveDraftResult = useMemo(() => {
-        if (activeStrategy === "NONE") return null;
+    // Live Strategy Draft Computation — debounced to avoid recalculating on every keystroke
+    const [liveDraftResult, setLiveDraftResult] = useState<SchedulingResult | null>(null);
+    const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-        const result = generateAutomatedPlanning(
-            localOrders,
-            optimisticTasks,
-            machines.map((m) => m.name),
-            {
-                mainStrategy: activeStrategy,
-                ...strategyFilters,
-            }
-        );
+    useEffect(() => {
+        if (activeStrategy === "NONE") {
+            setLiveDraftResult(null);
+            return;
+        }
 
-        const nowSnapped = snapToNext15Minutes(new Date());
-        const globalStart = getNextValidWorkTime(nowSnapped);
+        if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
 
-        const shifted = shiftTasksToCurrent(
-            result.tasks,
-            globalStart,
-            optimisticTasks as SchedulingPlanningTask[],
-            machines.map((m) => m.name)
-        );
-        return { ...result, tasks: shifted };
-    }, [activeStrategy, strategyFilters, orders, optimisticTasks, machines]);
+        draftDebounceRef.current = setTimeout(() => {
+            const result = generateAutomatedPlanning(
+                localOrders,
+                optimisticTasks,
+                machines.map((m) => m.name),
+                { mainStrategy: activeStrategy, ...strategyFilters }
+            );
+
+            const nowSnapped = snapToNext15Minutes(new Date());
+            const globalStart = getNextValidWorkTime(nowSnapped);
+
+            const shifted = shiftTasksToCurrent(
+                result.tasks,
+                globalStart,
+                optimisticTasks as SchedulingPlanningTask[],
+                machines.map((m) => m.name)
+            );
+            setLiveDraftResult({ ...result, tasks: shifted });
+        }, 400);
+
+        return () => {
+            if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
+        };
+    }, [activeStrategy, strategyFilters, localOrders, optimisticTasks, machines]);
 
     // List of all tasks (real + draft) for the Gantt chart
     const allTasks = useMemo(() => {
@@ -383,7 +395,8 @@ export function ProductionView({ machines, orders, tasks, operators, treatments 
                 } else if (e.key === "s") {
                     e.preventDefault();
                     if (changedTasks.length > 0) {
-                        handleSave();
+                        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+                        saveDebounceRef.current = setTimeout(() => handleSave(), 400);
                     }
                 }
             }

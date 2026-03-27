@@ -301,7 +301,7 @@ export function getNextValidWorkTime(date: Date): Date {
 
 /**
  * Snaps a date to the next 15-minute interval (ceiling).
- * If already at a 15-minute mark (and 0 seconds), stays there.
+ * Used by the scheduling engine so tasks never start in the past.
  * e.g. 14:04 -> 14:15. 14:15:00 -> 14:15.
  */
 export function snapToNext15Minutes(date: Date): Date {
@@ -317,6 +317,16 @@ export function snapToNext15Minutes(date: Date): Date {
 
     const remainder = 15 - (minutes % 15);
     return set(addMinutes(current, remainder), { seconds: 0, milliseconds: 0 });
+}
+
+/**
+ * Snaps a date to the nearest 15-minute interval (round).
+ * Used for drag-and-drop UX so movements feel natural.
+ * e.g. 14:04 -> 14:00. 14:08 -> 14:15. 14:52 -> 15:00.
+ */
+export function snapToNearest15Minutes(date: Date): Date {
+    const roundedMinutes = Math.round(getMinutes(date) / 15) * 15;
+    return set(new Date(date), { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
 }
 
 /**

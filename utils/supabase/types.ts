@@ -184,6 +184,48 @@ export type Database = {
                     },
                 ];
             };
+            planning_audit: {
+                Row: {
+                    id: string;
+                    task_id: string;
+                    order_id: string | null;
+                    machine: string | null;
+                    action: string;
+                    old_planned_date: string | null;
+                    old_planned_end: string | null;
+                    new_planned_date: string | null;
+                    new_planned_end: string | null;
+                    changed_by: string | null;
+                    changed_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    task_id: string;
+                    order_id?: string | null;
+                    machine?: string | null;
+                    action: string;
+                    old_planned_date?: string | null;
+                    old_planned_end?: string | null;
+                    new_planned_date?: string | null;
+                    new_planned_end?: string | null;
+                    changed_by?: string | null;
+                    changed_at?: string;
+                };
+                Update: {
+                    id?: string;
+                    task_id?: string;
+                    order_id?: string | null;
+                    machine?: string | null;
+                    action?: string;
+                    old_planned_date?: string | null;
+                    old_planned_end?: string | null;
+                    new_planned_date?: string | null;
+                    new_planned_end?: string | null;
+                    changed_by?: string | null;
+                    changed_at?: string;
+                };
+                Relationships: [];
+            };
             planning_scenarios: {
                 Row: {
                     applied_at: string | null;
