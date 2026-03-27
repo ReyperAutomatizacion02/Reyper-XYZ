@@ -52,6 +52,85 @@ export function isTreatmentStep(
     return (s as any).type === "treatment" || !!(s as any).treatment_id || ("treatment" in s && !("machine" in s));
 }
 
+// ── Work Shifts ───────────────────────────────────────────────────────────────
+
+export interface WorkShift {
+    id: string;
+    name: string;
+    /** "HH:MM:SS" or "HH:MM" – Postgres TIME column */
+    start_time: string;
+    end_time: string;
+    /** Day-of-week numbers: 0=Sun, 1=Mon … 6=Sat */
+    days_of_week: number[];
+    active: boolean;
+    sort_order: number;
+}
+
+/** Default schedule matches the legacy hardcoded window: Mon-Sat 06:00-22:00 */
+export const DEFAULT_SHIFTS: WorkShift[] = [
+    {
+        id: "default-1",
+        name: "Turno 1",
+        start_time: "06:00:00",
+        end_time: "14:00:00",
+        days_of_week: [1, 2, 3, 4, 5, 6],
+        active: true,
+        sort_order: 1,
+    },
+    {
+        id: "default-2",
+        name: "Turno 2",
+        start_time: "14:00:00",
+        end_time: "22:00:00",
+        days_of_week: [1, 2, 3, 4, 5, 6],
+        active: true,
+        sort_order: 2,
+    },
+];
+
+/** Parse "HH:MM:SS" or "HH:MM" to minutes from midnight */
+function parseTimeToMinutes(timeStr: string): number {
+    const parts = timeStr.split(":");
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+/**
+ * Returns merged [startMin, endMin] work windows for a given day-of-week.
+ * Adjacent/overlapping shifts are merged into continuous blocks.
+ */
+function getMergedWindowsForDay(dayOfWeek: number, shifts: WorkShift[]): [number, number][] {
+    const active = shifts.filter((s) => s.active && s.days_of_week.includes(dayOfWeek));
+    if (active.length === 0) return [];
+
+    const windows = active
+        .map((s) => [parseTimeToMinutes(s.start_time), parseTimeToMinutes(s.end_time)] as [number, number])
+        .sort((a, b) => a[0] - b[0]);
+
+    const merged: [number, number][] = [windows[0]];
+    for (let i = 1; i < windows.length; i++) {
+        const last = merged[merged.length - 1];
+        if (windows[i][0] <= last[1]) {
+            last[1] = Math.max(last[1], windows[i][1]);
+        } else {
+            merged.push(windows[i]);
+        }
+    }
+    return merged;
+}
+
+/**
+ * Returns the end of the work window that `cursor` falls within.
+ * Call getNextValidWorkTime(cursor) first to guarantee cursor is in a valid window.
+ */
+export function getShiftEnd(cursor: Date, shifts: WorkShift[] = DEFAULT_SHIFTS): Date {
+    const dayOfWeek = getDay(cursor);
+    const currentMinutes = getHours(cursor) * 60 + getMinutes(cursor);
+    const windows = getMergedWindowsForDay(dayOfWeek, shifts);
+    const win = windows.find(([s, e]) => currentMinutes >= s && currentMinutes < e);
+    if (!win) return cursor;
+    return setTime(cursor, Math.floor(win[1] / 60), win[1] % 60, 0);
+}
+
 export interface SchedulingResult {
     tasks: Partial<PlanningTask>[];
     skipped: {
@@ -264,37 +343,32 @@ function setTime(date: Date, hours: number, minutes: number, seconds: number, ms
 }
 
 /**
- * Moves a date to the next valid working minute.
- * Work Hours: Mon-Sat, 06:00 - 22:00.
+ * Moves a date to the next valid working minute according to active shifts.
+ * Defaults to Mon-Sat 06:00-22:00 (two merged default shifts).
  */
-export function getNextValidWorkTime(date: Date): Date {
+export function getNextValidWorkTime(date: Date, shifts: WorkShift[] = DEFAULT_SHIFTS): Date {
     let current = new Date(date);
 
-    // Loop until valid
-    while (true) {
-        const hour = getHours(current);
-        const day = getDay(current); // 0 = Sunday, 1 = Monday...
+    // Safety: max 2 weeks of iterations to avoid infinite loops with invalid configs
+    for (let attempt = 0; attempt < 14 * 96; attempt++) {
+        const dayOfWeek = getDay(current);
+        const currentMinutes = getHours(current) * 60 + getMinutes(current);
+        const windows = getMergedWindowsForDay(dayOfWeek, shifts);
 
-        // Rule 1: No Sundays
-        if (day === 0) {
-            current = setTime(startOfDay(addDays(current, 1)), 6, 0, 0);
-            continue;
+        if (windows.length > 0) {
+            // Already inside a valid window?
+            const inWindow = windows.find(([s, e]) => currentMinutes >= s && currentMinutes < e);
+            if (inWindow) return current;
+
+            // Next window later today?
+            const nextWindow = windows.find(([s]) => s > currentMinutes);
+            if (nextWindow) {
+                return setTime(current, Math.floor(nextWindow[0] / 60), nextWindow[0] % 60, 0);
+            }
         }
 
-        // Rule 2: Before 6 AM -> Move to 6 AM same day
-        if (hour < 6) {
-            current = setTime(current, 6, 0, 0);
-            continue;
-        }
-
-        // Rule 3: After 10 PM (22:00) -> Move to 6 AM next day
-        if (hour >= 22) {
-            current = setTime(startOfDay(addDays(current, 1)), 6, 0, 0);
-            continue;
-        }
-
-        // If we are here, it's a valid time
-        break;
+        // No work today (or past all windows) → advance to midnight of next day
+        current = startOfDay(addDays(current, 1));
     }
     return current;
 }
@@ -342,7 +416,8 @@ export function generateAutomatedPlanning(
         onlyWithBlueprint: false,
         onlyWithMaterial: false,
         requireTreatment: false,
-    }
+    },
+    shifts: WorkShift[] = DEFAULT_SHIFTS
 ): SchedulingResult {
     logger.info(`[AutoPlan] Starting with ${orders.length} orders, strategy: ${config.mainStrategy}`);
     const preparedOrders = prepareOrdersForScheduling(orders, config);
@@ -353,7 +428,7 @@ export function generateAutomatedPlanning(
 
     // Start scheduling from "Next valid slot" relative to Now
     const nowSnapped = snapToNext15Minutes(new Date());
-    const globalStart = getNextValidWorkTime(nowSnapped);
+    const globalStart = getNextValidWorkTime(nowSnapped, shifts);
 
     // Initial tasks to consider for collisions and current state
     // We filter out "flexible" tasks: future, not locked, and not started.
@@ -456,15 +531,15 @@ export function generateAutomatedPlanning(
 
             // Schedule remaining hours as shift-split segments
             let remainingHours = Math.max(0, totalStepHours - coveredHours);
-            let currentSearchStart = getNextValidWorkTime(new Date(stepEndTime));
+            let currentSearchStart = getNextValidWorkTime(new Date(stepEndTime), shifts);
 
             while (remainingHours > 0) {
-                currentSearchStart = getNextValidWorkTime(currentSearchStart);
-                const shiftEnd = setTime(currentSearchStart, 22, 0, 0);
+                currentSearchStart = getNextValidWorkTime(currentSearchStart, shifts);
+                const shiftEnd = getShiftEnd(currentSearchStart, shifts);
                 const hoursInShift = differenceInMilliseconds(shiftEnd, currentSearchStart) / (1000 * 60 * 60);
 
                 if (hoursInShift < 0.25) {
-                    currentSearchStart = getNextValidWorkTime(addMinutes(shiftEnd, 1));
+                    currentSearchStart = getNextValidWorkTime(addMinutes(shiftEnd, 1), shifts);
                     continue;
                 }
 
@@ -608,16 +683,17 @@ export function generateAutomatedPlanning(
                     const register = `${si + 1}`; // 1-indexed step number
                     let remainingHours = totalHours;
                     let cursor = getNextValidWorkTime(
-                        new Date(Math.max(orderCursor, machineEndTimes.get(machine) || 0))
+                        new Date(Math.max(orderCursor, machineEndTimes.get(machine) || 0)),
+                        shifts
                     );
 
                     while (remainingHours > 0) {
-                        cursor = getNextValidWorkTime(cursor);
-                        const shiftEnd = setTime(cursor, 22, 0, 0);
+                        cursor = getNextValidWorkTime(cursor, shifts);
+                        const shiftEnd = getShiftEnd(cursor, shifts);
                         const hoursInShift = differenceInMilliseconds(shiftEnd, cursor) / (1000 * 60 * 60);
 
                         if (hoursInShift < 0.25) {
-                            cursor = getNextValidWorkTime(addMinutes(shiftEnd, 1));
+                            cursor = getNextValidWorkTime(addMinutes(shiftEnd, 1), shifts);
                             continue;
                         }
 
@@ -727,18 +803,18 @@ export function generateAutomatedPlanning(
     };
 }
 
-/** Helper to calculate end date respecting work hours (06:00-22:00, Mon-Sat) */
-function calculateWorkEnd(start: Date, durationMinutes: number): Date {
+/** Helper to calculate end date respecting active work shifts */
+function calculateWorkEnd(start: Date, durationMinutes: number, shifts: WorkShift[] = DEFAULT_SHIFTS): Date {
     let remaining = durationMinutes;
     let cursor = new Date(start);
 
     while (remaining > 0) {
-        cursor = getNextValidWorkTime(cursor);
-        const shiftEnd = setTime(cursor, 22, 0, 0);
+        cursor = getNextValidWorkTime(cursor, shifts);
+        const shiftEnd = getShiftEnd(cursor, shifts);
         const availableMinutes = differenceInMinutes(shiftEnd, cursor);
 
         if (availableMinutes <= 0) {
-            cursor = setTime(startOfDay(addDays(cursor, 1)), 6, 0, 0);
+            cursor = addMinutes(shiftEnd, 1);
             continue;
         }
 
@@ -763,7 +839,8 @@ export function shiftScenarioTasks(
     scenarioTasks: Partial<PlanningTask>[],
     offsetDays: number,
     existingTasks: PlanningTask[],
-    machines: string[]
+    machines: string[],
+    shifts: WorkShift[] = DEFAULT_SHIFTS
 ): Partial<PlanningTask>[] {
     if (offsetDays === 0 || scenarioTasks.length === 0) return scenarioTasks;
 
@@ -786,8 +863,8 @@ export function shiftScenarioTasks(
         }
     }
 
-    // Ensure target is within work hours
-    targetStart = getNextValidWorkTime(setTime(targetStart, 6, 0, 0));
+    // Ensure target is within work hours (start of first window on that day)
+    targetStart = getNextValidWorkTime(startOfDay(targetStart), shifts);
 
     // Calculate the offset in milliseconds
     const offsetMs = targetStart.getTime() - earliestStart.getTime();
@@ -806,11 +883,11 @@ export function shiftScenarioTasks(
     return scenarioTasks.map((task) => {
         if (!task.planned_date || !task.planned_end) return task;
 
-        let newStart = getNextValidWorkTime(addMilliseconds(new Date(task.planned_date!), offsetMs));
+        let newStart = getNextValidWorkTime(addMilliseconds(new Date(task.planned_date!), offsetMs), shifts);
         const duration = differenceInMinutes(new Date(task.planned_end!), new Date(task.planned_date!));
 
         // Calculate new end respecting work hours
-        let newEnd = calculateWorkEnd(newStart, duration);
+        let newEnd = calculateWorkEnd(newStart, duration, shifts);
 
         // Check for collisions and nudge forward if needed
         const collision = existingTasksMap.find(
@@ -822,9 +899,9 @@ export function shiftScenarioTasks(
 
         if (collision) {
             // Nudge start past the collision
-            newStart = getNextValidWorkTime(new Date(collision.endMs));
+            newStart = getNextValidWorkTime(new Date(collision.endMs), shifts);
             // Recalculate end from new start
-            newEnd = calculateWorkEnd(newStart, duration);
+            newEnd = calculateWorkEnd(newStart, duration, shifts);
             return {
                 ...task,
                 planned_date: format(newStart, "yyyy-MM-dd'T'HH:mm:ss"),
@@ -848,13 +925,14 @@ export function shiftTasksToCurrent(
     tasks: Partial<PlanningTask>[],
     targetTime: Date,
     existingTasks: PlanningTask[],
-    _machines: string[] // legacy
+    _machines: string[], // legacy
+    shifts: WorkShift[] = DEFAULT_SHIFTS
 ): Partial<PlanningTask>[] {
     if (tasks.length === 0) return tasks;
 
     // 1. Determine "Fixed" tasks for collision detection (locked or in progress or past)
     const nowSnapped = snapToNext15Minutes(new Date());
-    const globalStart = getNextValidWorkTime(nowSnapped);
+    const globalStart = getNextValidWorkTime(nowSnapped, shifts);
 
     const obstacles = existingTasks
         .filter((t) => {
@@ -890,7 +968,7 @@ export function shiftTasksToCurrent(
     const earliestOriginalMs = Math.min(...allStarts);
 
     // Target start for the very first task
-    const shiftTargetStart = getNextValidWorkTime(snapToNext15Minutes(targetTime));
+    const shiftTargetStart = getNextValidWorkTime(snapToNext15Minutes(targetTime), shifts);
     const globalOffsetMs = shiftTargetStart.getTime() - earliestOriginalMs;
 
     const resultTasks: Partial<PlanningTask>[] = [];
@@ -917,7 +995,9 @@ export function shiftTasksToCurrent(
         const isTreatmentTask = !!(task as any).is_treatment;
         const calendarDurationMs = differenceInMilliseconds(originalEnd, originalStart);
         const computeEnd = (start: Date): Date =>
-            isTreatmentTask ? addMilliseconds(start, calendarDurationMs) : calculateWorkEnd(start, durationMinutes);
+            isTreatmentTask
+                ? addMilliseconds(start, calendarDurationMs)
+                : calculateWorkEnd(start, durationMinutes, shifts);
 
         // Initial proposed start: Apply global offset
         let proposedStart = addMilliseconds(originalStart, globalOffsetMs);
@@ -928,7 +1008,7 @@ export function shiftTasksToCurrent(
         }
 
         // Snap and Validate Start (treatment tasks still start at a valid work time)
-        proposedStart = getNextValidWorkTime(snapToNext15Minutes(proposedStart));
+        proposedStart = getNextValidWorkTime(snapToNext15Minutes(proposedStart), shifts);
 
         let finalStart = new Date(proposedStart);
         let finalEnd: Date;
@@ -956,7 +1036,7 @@ export function shiftTasksToCurrent(
 
             if (collision) {
                 // Jump past collision and snap again
-                finalStart = getNextValidWorkTime(snapToNext15Minutes(new Date(collision.endMs)));
+                finalStart = getNextValidWorkTime(snapToNext15Minutes(new Date(collision.endMs)), shifts);
             } else {
                 foundSlot = true;
             }

@@ -27,7 +27,9 @@ import {
     PlanningTask,
     SchedulingResult,
     SchedulingStrategy,
-    generateAutomatedPlanning
+    generateAutomatedPlanning,
+    WorkShift,
+    DEFAULT_SHIFTS,
 } from "@/lib/scheduling-utils";
 
 interface AutoPlanDialogProps {
@@ -36,6 +38,7 @@ interface AutoPlanDialogProps {
     orders: Order[];
     tasks: PlanningTask[];
     machines: string[];
+    shifts?: WorkShift[];
     onSaveScenario: (data: { name: string; strategy: string; config: any; result: SchedulingResult }) => Promise<void>;
     scenarioCount: number;
     container?: HTMLElement | null;
@@ -46,43 +49,43 @@ const STRATEGIES: { id: SchedulingStrategy; label: string; icon: any; descriptio
         id: "URGENCY",
         label: "Urgencia (Manual)",
         icon: AlertTriangle,
-        description: "Prioriza piezas marcadas manualmente como 'Urgente' en su evaluación."
+        description: "Prioriza piezas marcadas manualmente como 'Urgente' en su evaluación.",
     },
     {
         id: "DELIVERY_DATE",
         label: "Prioridad x Entrega",
         icon: Calendar,
-        description: "Prioriza piezas cuya fecha de entrega está más cerca o vencida."
+        description: "Prioriza piezas cuya fecha de entrega está más cerca o vencida.",
     },
     {
         id: "CRITICAL_PATH",
         label: "Ruta Crítica",
         icon: Wand2,
-        description: "Prioriza piezas con tratamiento externo para que salgan rápido de planta."
+        description: "Prioriza piezas con tratamiento externo para que salgan rápido de planta.",
     },
     {
         id: "PROJECT_GROUP",
         label: "Por Proyecto",
         icon: Layers,
-        description: "Agrupa todas las piezas de un mismo proyecto para entregarlos completos."
+        description: "Agrupa todas las piezas de un mismo proyecto para entregarlos completos.",
     },
     {
         id: "MATERIAL_OPTIMIZATION",
         label: "Optimización Material",
         icon: Package,
-        description: "Agrupa por tipo de material para reducir cambios de herramienta y limpieza."
+        description: "Agrupa por tipo de material para reducir cambios de herramienta y limpieza.",
     },
     {
         id: "FAB_TIME",
         label: "Carga de Trabajo",
         icon: Clock,
-        description: "Prioriza piezas con procesos más largos (Evitar cuellos de botella)."
+        description: "Prioriza piezas con procesos más largos (Evitar cuellos de botella).",
     },
     {
         id: "FAST_TRACK",
         label: "Fast Track (Express)",
         icon: Zap,
-        description: "Prioriza piezas cortas y rápidas para sacarlas rápido de planta."
+        description: "Prioriza piezas cortas y rápidas para sacarlas rápido de planta.",
     },
 ];
 
@@ -102,33 +105,41 @@ function FilterToggle({
 }) {
     return (
         <label
-            className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${checked
-                ? "bg-primary/5 border-primary/20 shadow-sm"
-                : "bg-background/50 border-border"
-                }`}
+            className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition-all ${
+                checked ? "border-primary/20 bg-primary/5 shadow-sm" : "border-border bg-background/50"
+            }`}
         >
             <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
+                <Icon className={`h-4 w-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
                 <div>
                     <div className="text-xs font-black uppercase tracking-tight">{label}</div>
                     <div className="text-[10px] text-muted-foreground">{description}</div>
                 </div>
             </div>
-            <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => onChange(e.target.checked)}
-                className="sr-only"
-            />
-            <div className={`w-8 h-5 rounded-full relative transition-colors shrink-0 ${checked ? "bg-primary" : "bg-muted"}`}>
-                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${checked ? "translate-x-3" : ""}`} />
+            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only" />
+            <div
+                className={`relative h-5 w-8 shrink-0 rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}
+            >
+                <div
+                    className={`absolute left-1 top-1 h-3 w-3 rounded-full bg-white transition-transform ${checked ? "translate-x-3" : ""}`}
+                />
             </div>
         </label>
     );
 }
 
 /* ── Main Component ───────────────────────────────────────────── */
-export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSaveScenario, scenarioCount, container }: AutoPlanDialogProps) {
+export function AutoPlanDialog({
+    isOpen,
+    onClose,
+    orders,
+    tasks,
+    machines,
+    shifts = DEFAULT_SHIFTS,
+    onSaveScenario,
+    scenarioCount,
+    container,
+}: AutoPlanDialogProps) {
     const [mainStrategy, setMainStrategy] = useState<SchedulingStrategy>("DELIVERY_DATE");
     const [onlyWithCAD, setOnlyWithCAD] = useState(false);
     const [onlyWithBlueprint, setOnlyWithBlueprint] = useState(false);
@@ -136,7 +147,7 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
     const [requireTreatment, setRequireTreatment] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const strategyLabel = STRATEGIES.find(s => s.id === mainStrategy)?.label || mainStrategy;
+    const strategyLabel = STRATEGIES.find((s) => s.id === mainStrategy)?.label || mainStrategy;
     const [scenarioName, setScenarioName] = useState("");
 
     // Auto-suggest name when strategy changes
@@ -144,14 +155,31 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
 
     const result = useMemo(() => {
         if (!isOpen) return null;
-        return generateAutomatedPlanning(orders, tasks, machines, {
-            mainStrategy,
-            onlyWithCAD,
-            onlyWithBlueprint,
-            onlyWithMaterial,
-            requireTreatment
-        });
-    }, [isOpen, mainStrategy, onlyWithCAD, onlyWithBlueprint, onlyWithMaterial, requireTreatment, orders, tasks, machines]);
+        return generateAutomatedPlanning(
+            orders,
+            tasks,
+            machines,
+            {
+                mainStrategy,
+                onlyWithCAD,
+                onlyWithBlueprint,
+                onlyWithMaterial,
+                requireTreatment,
+            },
+            shifts
+        );
+    }, [
+        isOpen,
+        mainStrategy,
+        onlyWithCAD,
+        onlyWithBlueprint,
+        onlyWithMaterial,
+        requireTreatment,
+        orders,
+        tasks,
+        machines,
+        shifts,
+    ]);
 
     const handleSave = async () => {
         if (!result) return;
@@ -184,21 +212,19 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
 
                 {/* Content – using FIXED dimensions so nothing shifts */}
                 <DialogPrimitive.Content
-                    className="fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 outline-none p-4"
+                    className="fixed left-1/2 top-1/2 z-[10001] -translate-x-1/2 -translate-y-1/2 p-4 outline-none"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     {/* The actual dialog box */}
                     <div
-                        className="bg-background rounded-3xl shadow-2xl overflow-hidden border-none data-[state=open]:animate-in data-[state=closed]:animate-out flex flex-col relative"
+                        className="relative flex flex-col overflow-hidden rounded-3xl border-none bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out"
                         style={{
                             width: "min(90vw, 1100px)",
                             height: "min(85vh, 850px)",
                         }}
                     >
                         {/* sr-only titles for accessibility */}
-                        <DialogPrimitive.Title className="sr-only">
-                            Configuración de Auto-Plan
-                        </DialogPrimitive.Title>
+                        <DialogPrimitive.Title className="sr-only">Configuración de Auto-Plan</DialogPrimitive.Title>
                         <DialogPrimitive.Description className="sr-only">
                             Ajusta los parámetros para generar un escenario de producción.
                         </DialogPrimitive.Description>
@@ -206,30 +232,31 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                         {/* Close button */}
 
                         {/* Two-panel layout with CSS Grid – height is fixed by parent */}
-                        <div className="h-full grid grid-cols-1 md:grid-cols-[2fr_3fr]">
-
+                        <div className="grid h-full grid-cols-1 md:grid-cols-[2fr_3fr]">
                             {/* ─── LEFT PANEL: Configuration ─── */}
-                            <div className="bg-muted/30 border-r border-border flex flex-col h-full overflow-hidden">
-                                <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-                                    <div className="flex items-center justify-between mb-4">
+                            <div className="flex h-full flex-col overflow-hidden border-r border-border bg-muted/30">
+                                <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto p-6">
+                                    <div className="mb-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-primary/10 rounded-xl">
-                                                <Wand2 className="w-5 h-5 text-primary" />
+                                            <div className="rounded-xl bg-primary/10 p-2">
+                                                <Wand2 className="h-5 w-5 text-primary" />
                                             </div>
-                                            <h2 className="text-lg font-black tracking-tight uppercase">Configuración</h2>
+                                            <h2 className="text-lg font-black uppercase tracking-tight">
+                                                Configuración
+                                            </h2>
                                         </div>
-                                        <DialogPrimitive.Close className="rounded-full p-1.5 opacity-70 hover:opacity-100 transition-opacity hover:bg-muted">
+                                        <DialogPrimitive.Close className="rounded-full p-1.5 opacity-70 transition-opacity hover:bg-muted hover:opacity-100">
                                             <X className="h-4 w-4" />
                                             <span className="sr-only">Close</span>
                                         </DialogPrimitive.Close>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground font-medium mb-5">
+                                    <p className="mb-5 text-[10px] font-medium text-muted-foreground">
                                         Define las reglas de oro para este escenario de planeación.
                                     </p>
 
                                     {/* Strategies */}
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">
+                                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                             Estrategia de Ordenamiento
                                         </label>
                                         <div className="grid gap-2">
@@ -237,22 +264,28 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                                                 <button
                                                     key={s.id}
                                                     onClick={() => setMainStrategy(s.id)}
-                                                    className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all duration-200 group ${mainStrategy === s.id
-                                                        ? "bg-background border-primary shadow-md ring-2 ring-primary/5"
-                                                        : "bg-background/50 border-border hover:border-muted-foreground/30 hover:bg-background"
-                                                        }`}
+                                                    className={`group flex items-start gap-3 rounded-2xl border p-3 text-left transition-all duration-200 ${
+                                                        mainStrategy === s.id
+                                                            ? "border-primary bg-background shadow-md ring-2 ring-primary/5"
+                                                            : "border-border bg-background/50 hover:border-muted-foreground/30 hover:bg-background"
+                                                    }`}
                                                 >
                                                     <div
-                                                        className={`p-2 rounded-xl shrink-0 transition-colors ${mainStrategy === s.id
-                                                            ? "bg-primary text-white"
-                                                            : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/10"
-                                                            }`}
+                                                        className={`shrink-0 rounded-xl p-2 transition-colors ${
+                                                            mainStrategy === s.id
+                                                                ? "bg-primary text-white"
+                                                                : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/10"
+                                                        }`}
                                                     >
-                                                        <s.icon className="w-4 h-4" />
+                                                        <s.icon className="h-4 w-4" />
                                                     </div>
                                                     <div className="space-y-0.5">
-                                                        <div className="text-xs font-black uppercase tracking-tight">{s.label}</div>
-                                                        <div className="text-[10px] text-muted-foreground leading-tight">{s.description}</div>
+                                                        <div className="text-xs font-black uppercase tracking-tight">
+                                                            {s.label}
+                                                        </div>
+                                                        <div className="text-[10px] leading-tight text-muted-foreground">
+                                                            {s.description}
+                                                        </div>
                                                     </div>
                                                 </button>
                                             ))}
@@ -260,63 +293,99 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                                     </div>
 
                                     {/* Filters */}
-                                    <div className="space-y-3 pt-4 border-t border-border">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">
+                                    <div className="space-y-3 border-t border-border pt-4">
+                                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                             Filtros de Exclusión
                                         </label>
-                                        <FilterToggle checked={onlyWithCAD} onChange={setOnlyWithCAD} icon={Layers} label="Modelo 3D Listo" description="Solo piezas con archivo 3D." />
-                                        <FilterToggle checked={onlyWithBlueprint} onChange={setOnlyWithBlueprint} icon={FileCheck} label="Tiene Plano (PDF)" description="Solo piezas con hoja de plano." />
-                                        <FilterToggle checked={onlyWithMaterial} onChange={setOnlyWithMaterial} icon={Package} label="Material Disponible" description="Solo con material liberado." />
-                                        <FilterToggle checked={requireTreatment} onChange={setRequireTreatment} icon={Layers} label="Requiere Tratamiento" description="Filtrar solo piezas con proceso." />
+                                        <FilterToggle
+                                            checked={onlyWithCAD}
+                                            onChange={setOnlyWithCAD}
+                                            icon={Layers}
+                                            label="Modelo 3D Listo"
+                                            description="Solo piezas con archivo 3D."
+                                        />
+                                        <FilterToggle
+                                            checked={onlyWithBlueprint}
+                                            onChange={setOnlyWithBlueprint}
+                                            icon={FileCheck}
+                                            label="Tiene Plano (PDF)"
+                                            description="Solo piezas con hoja de plano."
+                                        />
+                                        <FilterToggle
+                                            checked={onlyWithMaterial}
+                                            onChange={setOnlyWithMaterial}
+                                            icon={Package}
+                                            label="Material Disponible"
+                                            description="Solo con material liberado."
+                                        />
+                                        <FilterToggle
+                                            checked={requireTreatment}
+                                            onChange={setRequireTreatment}
+                                            icon={Layers}
+                                            label="Requiere Tratamiento"
+                                            description="Filtrar solo piezas con proceso."
+                                        />
                                     </div>
                                 </div>
                             </div>
 
                             {/* ─── RIGHT PANEL: Results & Metrics ─── */}
-                            <div className="flex flex-col h-full overflow-hidden bg-background relative">
+                            <div className="relative flex h-full flex-col overflow-hidden bg-background">
                                 {/* Decorative watermark */}
-                                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                                    <PieChart className="w-48 h-48" />
+                                <div className="pointer-events-none absolute right-0 top-0 p-8 opacity-5">
+                                    <PieChart className="h-48 w-48" />
                                 </div>
 
                                 {/* Scrollable metrics area */}
-                                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative z-10">
-                                    <h3 className="text-lg font-black tracking-tight uppercase mb-5">Métricas del Escenario</h3>
+                                <div className="custom-scrollbar relative z-10 flex-1 overflow-y-auto p-6">
+                                    <h3 className="mb-5 text-lg font-black uppercase tracking-tight">
+                                        Métricas del Escenario
+                                    </h3>
 
                                     {result ? (
                                         <div className="grid grid-cols-2 gap-4">
                                             {/* Capacity */}
-                                            <div className="bg-muted/30 p-5 rounded-3xl border border-border/50">
-                                                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-2">
-                                                    <LayoutDashboard className="w-3 h-3" /> Capacidad Ocupada
+                                            <div className="rounded-3xl border border-border/50 bg-muted/30 p-5">
+                                                <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                                    <LayoutDashboard className="h-3 w-3" /> Capacidad Ocupada
                                                 </div>
                                                 <div className="text-2xl font-black text-primary">
                                                     {result.metrics.totalTasks}{" "}
-                                                    <span className="text-xs font-bold text-muted-foreground uppercase">Pasos</span>
+                                                    <span className="text-xs font-bold uppercase text-muted-foreground">
+                                                        Pasos
+                                                    </span>
                                                 </div>
-                                                <div className="text-[10px] text-muted-foreground mt-1">
+                                                <div className="mt-1 text-[10px] text-muted-foreground">
                                                     {result.metrics.totalHours.toFixed(1)} horas de maquinado.
                                                 </div>
                                             </div>
 
                                             {/* Late orders */}
                                             <div
-                                                className={`p-5 rounded-3xl border transition-all ${result.metrics.lateOrders > 0
-                                                    ? "bg-red-500/5 border-red-500/20"
-                                                    : "bg-green-500/5 border-green-500/20"
-                                                    }`}
+                                                className={`rounded-3xl border p-5 transition-all ${
+                                                    result.metrics.lateOrders > 0
+                                                        ? "border-red-500/20 bg-red-500/5"
+                                                        : "border-green-500/20 bg-green-500/5"
+                                                }`}
                                             >
                                                 <div
-                                                    className={`text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-2 ${result.metrics.lateOrders > 0 ? "text-red-600" : "text-green-600"
-                                                        }`}
+                                                    className={`mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${
+                                                        result.metrics.lateOrders > 0
+                                                            ? "text-red-600"
+                                                            : "text-green-600"
+                                                    }`}
                                                 >
-                                                    <AlertTriangle className="w-3 h-3" /> Entregas Tardías
+                                                    <AlertTriangle className="h-3 w-3" /> Entregas Tardías
                                                 </div>
-                                                <div className={`text-2xl font-black ${result.metrics.lateOrders > 0 ? "text-red-600" : "text-green-600"}`}>
+                                                <div
+                                                    className={`text-2xl font-black ${result.metrics.lateOrders > 0 ? "text-red-600" : "text-green-600"}`}
+                                                >
                                                     {result.metrics.lateOrders}{" "}
-                                                    <span className="text-xs font-bold uppercase opacity-60">Piezas</span>
+                                                    <span className="text-xs font-bold uppercase opacity-60">
+                                                        Piezas
+                                                    </span>
                                                 </div>
-                                                <div className="text-[10px] text-muted-foreground mt-1 line-clamp-1">
+                                                <div className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
                                                     {result.metrics.lateOrders > 0
                                                         ? "Hay piezas que no llegarán a tiempo."
                                                         : "Todas las piezas cumplen su fecha."}
@@ -324,37 +393,50 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                                             </div>
 
                                             {/* Impact summary */}
-                                            <div className="bg-muted/30 p-5 rounded-3xl border border-border/50 col-span-2">
-                                                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3">
+                                            <div className="col-span-2 rounded-3xl border border-border/50 bg-muted/30 p-5">
+                                                <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                                     Impacto del Escenario
                                                 </div>
                                                 <div className="space-y-4">
-                                                    <div className="flex items-center justify-between group">
+                                                    <div className="group flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-bold text-muted-foreground">Piezas en el Plan</span>
-                                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <Info className="w-3 h-3 text-muted-foreground" />
+                                                            <span className="text-xs font-bold text-muted-foreground">
+                                                                Piezas en el Plan
+                                                            </span>
+                                                            <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                                                                <Info className="h-3 w-3 text-muted-foreground" />
                                                             </div>
                                                         </div>
                                                         <span className="text-xs font-black">
                                                             {result.metrics.totalOrders}{" "}
-                                                            <span className="text-[10px] text-muted-foreground font-normal">de {orders.length}</span>
+                                                            <span className="text-[10px] font-normal text-muted-foreground">
+                                                                de {orders.length}
+                                                            </span>
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-bold text-muted-foreground">Lead Time (Tránsito)</span>
-                                                        <span className="text-xs font-black">{result.metrics.avgLeadTimeDays.toFixed(1)} días</span>
+                                                        <span className="text-xs font-bold text-muted-foreground">
+                                                            Lead Time (Tránsito)
+                                                        </span>
+                                                        <span className="text-xs font-black">
+                                                            {result.metrics.avgLeadTimeDays.toFixed(1)} días
+                                                        </span>
                                                     </div>
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-bold text-muted-foreground">Horas Totales Estimadas</span>
-                                                        <span className="text-xs font-black">{result.metrics.totalHours.toFixed(1)} hrs</span>
+                                                        <span className="text-xs font-bold text-muted-foreground">
+                                                            Horas Totales Estimadas
+                                                        </span>
+                                                        <span className="text-xs font-black">
+                                                            {result.metrics.totalHours.toFixed(1)} hrs
+                                                        </span>
                                                     </div>
 
                                                     {result.skipped.length > 0 && (
-                                                        <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 border-dashed mt-2">
-                                                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                                                            <span className="text-[10px] text-amber-700 font-bold leading-tight uppercase tracking-tight">
-                                                                {result.skipped.length} piezas excluidas por los filtros aplicados. Revisar métricas.
+                                                        <div className="mt-2 flex items-center gap-2 rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/10 p-3">
+                                                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                                                            <span className="text-[10px] font-bold uppercase leading-tight tracking-tight text-amber-700">
+                                                                {result.skipped.length} piezas excluidas por los filtros
+                                                                aplicados. Revisar métricas.
                                                             </span>
                                                         </div>
                                                     )}
@@ -363,19 +445,21 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-12 text-center">
-                                            <div className="p-4 bg-muted rounded-full mb-4">
-                                                <LayoutDashboard className="w-8 h-8 text-muted-foreground/40" />
+                                            <div className="mb-4 rounded-full bg-muted p-4">
+                                                <LayoutDashboard className="h-8 w-8 text-muted-foreground/40" />
                                             </div>
-                                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-tight">Cargando métricas...</p>
+                                            <p className="text-sm font-bold uppercase tracking-tight text-muted-foreground">
+                                                Cargando métricas...
+                                            </p>
                                         </div>
                                     )}
                                 </div>
 
                                 {/* Fixed action area pinned to bottom */}
-                                <div className="shrink-0 p-6 pt-4 space-y-4 border-t border-border/10 bg-background/80 backdrop-blur-sm relative z-20">
+                                <div className="relative z-20 shrink-0 space-y-4 border-t border-border/10 bg-background/80 p-6 pt-4 backdrop-blur-sm">
                                     {/* Scenario name input */}
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">
+                                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                             Nombre del Escenario
                                         </label>
                                         <input
@@ -383,32 +467,35 @@ export function AutoPlanDialog({ isOpen, onClose, orders, tasks, machines, onSav
                                             value={scenarioName}
                                             onChange={(e) => setScenarioName(e.target.value)}
                                             placeholder={suggestedName}
-                                            className="w-full px-4 py-2.5 text-xs font-medium border border-border rounded-2xl bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all placeholder:text-muted-foreground/50"
+                                            className="w-full rounded-2xl border border-border bg-muted/30 px-4 py-2.5 text-xs font-medium transition-all placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
                                         />
                                     </div>
-                                    <div className="p-3 bg-primary/5 rounded-2xl border border-primary/10 border-dashed">
-                                        <p className="text-[10px] text-primary/80 leading-relaxed font-medium">
-                                            <span className="font-black uppercase mr-1 inline-block border-b border-primary/30">Guardar:</span>
-                                            El escenario se guardará en Supabase para que puedas compararlo con otros. Los escenarios se eliminan automáticamente después de 7 días.
+                                    <div className="rounded-2xl border border-dashed border-primary/10 bg-primary/5 p-3">
+                                        <p className="text-[10px] font-medium leading-relaxed text-primary/80">
+                                            <span className="mr-1 inline-block border-b border-primary/30 font-black uppercase">
+                                                Guardar:
+                                            </span>
+                                            El escenario se guardará en Supabase para que puedas compararlo con otros.
+                                            Los escenarios se eliminan automáticamente después de 7 días.
                                         </p>
                                     </div>
                                     <div className="flex gap-3">
                                         <Button
                                             onClick={handleSave}
                                             disabled={isSaving || !result || result.tasks.length === 0}
-                                            className="flex-1 bg-primary hover:bg-primary/90 text-white font-black h-12 rounded-2xl shadow-lg shadow-primary/20 gap-2 uppercase tracking-tight disabled:opacity-50"
+                                            className="h-12 flex-1 gap-2 rounded-2xl bg-primary font-black uppercase tracking-tight text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50"
                                         >
                                             {isSaving ? (
-                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                                <Loader2 className="h-5 w-5 animate-spin" />
                                             ) : (
-                                                <Save className="w-5 h-5" />
+                                                <Save className="h-5 w-5" />
                                             )}
                                             {isSaving ? "Guardando..." : "Guardar Escenario"}
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             onClick={onClose}
-                                            className="px-6 font-bold h-12 rounded-2xl text-muted-foreground uppercase text-xs"
+                                            className="h-12 rounded-2xl px-6 text-xs font-bold uppercase text-muted-foreground"
                                         >
                                             Cancelar
                                         </Button>

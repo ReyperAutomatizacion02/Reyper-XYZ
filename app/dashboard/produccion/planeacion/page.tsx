@@ -15,7 +15,7 @@ export default async function PlaneacionPage() {
     const rangeEnd = format(addDays(new Date(), 180), "yyyy-MM-dd");
 
     // Fetch all necessary data in parallel
-    const [machinesRes, ordersRes, tasksRes, treatmentsRes] = await Promise.all([
+    const [machinesRes, ordersRes, tasksRes, treatmentsRes, shiftsRes] = await Promise.all([
         supabase.from("machines").select("*").neq("is_active", false).order("name"),
         supabase
             .from("production_orders")
@@ -31,12 +31,14 @@ export default async function PlaneacionPage() {
             .lte("planned_date", rangeEnd)
             .order("planned_date", { ascending: false }),
         supabase.from("production_treatments").select("id, name, avg_lead_days").order("name"),
+        supabase.from("work_shifts").select("*").eq("active", true).order("sort_order").order("start_time"),
     ]);
 
     const machines = machinesRes.data || [];
     const rawOrders = ordersRes.data || [];
     const tasks = tasksRes.data || [];
     const treatments = treatmentsRes.data || [];
+    const shifts = shiftsRes.data || [];
     // Derive operators from fetched tasks instead of a separate query
     const operators = Array.from(new Set(tasks.map((t) => t.operator as string).filter(Boolean))).sort();
 
@@ -57,6 +59,7 @@ export default async function PlaneacionPage() {
                 tasks={tasks}
                 operators={operators}
                 treatments={treatments}
+                shifts={shifts}
             />
         </>
     );

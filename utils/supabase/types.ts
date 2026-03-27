@@ -44,6 +44,39 @@ export type Database = {
                 };
                 Relationships: [];
             };
+            work_shifts: {
+                Row: {
+                    id: string;
+                    name: string;
+                    start_time: string;
+                    end_time: string;
+                    days_of_week: number[];
+                    active: boolean;
+                    sort_order: number;
+                    created_at: string | null;
+                };
+                Insert: {
+                    id?: string;
+                    name: string;
+                    start_time: string;
+                    end_time: string;
+                    days_of_week?: number[];
+                    active?: boolean;
+                    sort_order?: number;
+                    created_at?: string | null;
+                };
+                Update: {
+                    id?: string;
+                    name?: string;
+                    start_time?: string;
+                    end_time?: string;
+                    days_of_week?: number[];
+                    active?: boolean;
+                    sort_order?: number;
+                    created_at?: string | null;
+                };
+                Relationships: [];
+            };
             inventory_items: {
                 Row: {
                     category_name: string | null;

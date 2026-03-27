@@ -19,28 +19,28 @@ export default async function AdminPanelPage() {
         redirect("/dashboard");
     }
 
-    // Fetch pending users
-    const { data: pendingUsers } = await supabase
-        .from("user_profiles")
-        .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
-        .eq("is_approved", false)
-        .order("created_at", { ascending: false });
-
-    // Fetch approved users
-    const { data: approvedUsers } = await supabase
-        .from("user_profiles")
-        .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
-        .eq("is_approved", true)
-        .order("updated_at", { ascending: false });
-
-    // Fetch employees
-    const { data: employees } = await supabase.from("employees").select("*").order("full_name", { ascending: true });
+    // Fetch all data in parallel
+    const [pendingRes, approvedRes, employeesRes, shiftsRes] = await Promise.all([
+        supabase
+            .from("user_profiles")
+            .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
+            .eq("is_approved", false)
+            .order("created_at", { ascending: false }),
+        supabase
+            .from("user_profiles")
+            .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
+            .eq("is_approved", true)
+            .order("updated_at", { ascending: false }),
+        supabase.from("employees").select("*").order("full_name", { ascending: true }),
+        supabase.from("work_shifts").select("*").order("sort_order").order("start_time"),
+    ]);
 
     return (
         <AdminPanelClient
-            pendingUsers={pendingUsers || []}
-            approvedUsers={approvedUsers || []}
-            employees={employees || []}
+            pendingUsers={pendingRes.data || []}
+            approvedUsers={approvedRes.data || []}
+            employees={employeesRes.data || []}
+            shifts={shiftsRes.data || []}
             currentUserId={user.id}
         />
     );

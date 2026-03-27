@@ -9,6 +9,8 @@ import {
     UpdateUserRolesSchema,
     UpsertEmployeeSchema,
     DeleteEmployeeSchema,
+    UpsertWorkShiftSchema,
+    DeleteWorkShiftSchema,
 } from "@/lib/validations/admin";
 
 const VALID_ROLES = [
@@ -254,5 +256,74 @@ export async function deleteEmployee(id: string) {
     }
 
     revalidatePath("/dashboard/admin-panel");
+    return { success: true };
+}
+
+// ── Work Shifts ───────────────────────────────────────────────────────────────
+
+export type WorkShiftRow = {
+    id: string;
+    name: string;
+    start_time: string;
+    end_time: string;
+    days_of_week: number[];
+    active: boolean;
+    sort_order: number;
+    created_at: string | null;
+};
+
+export async function upsertWorkShift(data: Partial<WorkShiftRow>) {
+    const parsed = UpsertWorkShiftSchema.parse(data);
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    const payload = {
+        name: parsed.name,
+        start_time: parsed.start_time,
+        end_time: parsed.end_time,
+        days_of_week: parsed.days_of_week,
+        active: parsed.active,
+        sort_order: parsed.sort_order,
+        ...(parsed.id ? { id: parsed.id } : {}),
+    };
+
+    const { data: result, error } = await supabase.from("work_shifts").upsert(payload).select().single();
+
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
+
+    revalidatePath("/dashboard/admin-panel");
+    revalidatePath("/dashboard/produccion/planeacion");
+    return { success: true, data: result };
+}
+
+export async function deleteWorkShift(id: string) {
+    const parsed = DeleteWorkShiftSchema.parse({ id });
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    const { error } = await supabase.from("work_shifts").delete().eq("id", parsed.id);
+
+    if (error) {
+        console.error("[admin]", error.message);
+        throw new Error("Error en la operación. Intenta de nuevo.");
+    }
+
+    revalidatePath("/dashboard/admin-panel");
+    revalidatePath("/dashboard/produccion/planeacion");
     return { success: true };
 }

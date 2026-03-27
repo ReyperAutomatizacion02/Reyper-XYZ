@@ -27,6 +27,8 @@ import {
     getNextValidWorkTime,
     snapToNext15Minutes,
     OrderWithRelations,
+    WorkShift,
+    DEFAULT_SHIFTS,
 } from "@/lib/scheduling-utils";
 import { StrategyToolbar } from "./strategy-toolbar";
 import { GanttControls } from "./gantt-controls";
@@ -49,9 +51,17 @@ interface ProductionViewProps {
     tasks: PlanningTask[];
     operators: string[];
     treatments: { id: string; name: string; avg_lead_days: number | null }[];
+    shifts?: WorkShift[];
 }
 
-export function ProductionView({ machines, orders, tasks, operators, treatments }: ProductionViewProps) {
+export function ProductionView({
+    machines,
+    orders,
+    tasks,
+    operators,
+    treatments,
+    shifts = DEFAULT_SHIFTS,
+}: ProductionViewProps) {
     const router = useRouter();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -199,17 +209,19 @@ export function ProductionView({ machines, orders, tasks, operators, treatments 
                 localOrders,
                 optimisticTasks,
                 machines.map((m) => m.name),
-                { mainStrategy: activeStrategy, ...strategyFilters }
+                { mainStrategy: activeStrategy, ...strategyFilters },
+                shifts
             );
 
             const nowSnapped = snapToNext15Minutes(new Date());
-            const globalStart = getNextValidWorkTime(nowSnapped);
+            const globalStart = getNextValidWorkTime(nowSnapped, shifts);
 
             const shifted = shiftTasksToCurrent(
                 result.tasks,
                 globalStart,
                 optimisticTasks as SchedulingPlanningTask[],
-                machines.map((m) => m.name)
+                machines.map((m) => m.name),
+                shifts
             );
             setLiveDraftResult({ ...result, tasks: shifted });
         }, 400);
@@ -230,7 +242,7 @@ export function ProductionView({ machines, orders, tasks, operators, treatments 
             ];
 
             const nowSnapped = snapToNext15Minutes(new Date());
-            const globalStart = getNextValidWorkTime(nowSnapped);
+            const globalStart = getNextValidWorkTime(nowSnapped, shifts);
 
             const fixedTasks = optimisticTasks.filter((t) => {
                 const isFuture = !isBefore(new Date(t.planned_date!), globalStart);

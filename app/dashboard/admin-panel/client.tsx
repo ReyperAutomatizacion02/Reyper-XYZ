@@ -22,7 +22,16 @@ import {
     X,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { approveUser, rejectUser, updateUserRoles, upsertEmployee, deleteEmployee, type Employee } from "./actions";
+import {
+    approveUser,
+    rejectUser,
+    updateUserRoles,
+    upsertEmployee,
+    deleteEmployee,
+    type Employee,
+    type WorkShiftRow,
+} from "./actions";
+import { WorkShiftManager } from "@/components/admin/work-shift-manager";
 import {
     ROLE_AVAILABLE_PERMISSIONS,
     ROLE_DEFAULT_PERMISSIONS,
@@ -74,6 +83,7 @@ interface AdminPanelClientProps {
     pendingUsers: UserProfile[];
     approvedUsers: UserProfile[];
     employees: Employee[];
+    shifts: WorkShiftRow[];
     currentUserId: string;
 }
 
@@ -584,13 +594,19 @@ function EmployeesTab({ employees }: { employees: Employee[] }) {
     );
 }
 
-export function AdminPanelClient({ pendingUsers, approvedUsers, employees, currentUserId }: AdminPanelClientProps) {
+export function AdminPanelClient({
+    pendingUsers,
+    approvedUsers,
+    employees,
+    shifts,
+    currentUserId,
+}: AdminPanelClientProps) {
     const [isPending, startTransition] = useTransition();
     const [selectedRoles, setSelectedRoles] = useState<Record<string, string[]>>({});
     const [selectedPermissions, setSelectedPermissions] = useState<Record<string, string[]>>({});
     const [operatorNames, setOperatorNames] = useState<Record<string, string>>({});
     const [editingUser, setEditingUser] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<"users" | "collaborators">("users");
+    const [activeTab, setActiveTab] = useState<"users" | "collaborators" | "shifts">("users");
 
     const handleRolesChange = (userId: string, newRoles: string[]) => {
         const prevRoles = selectedRoles[userId] || [];
@@ -711,11 +727,35 @@ export function AdminPanelClient({ pendingUsers, approvedUsers, employees, curre
                         >
                             Colaboradores / Operadores
                         </button>
+                        <button
+                            onClick={() => setActiveTab("shifts")}
+                            className={`rounded-md px-4 py-2 text-sm font-medium transition-all ${
+                                activeTab === "shifts"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            Turnos de Producción
+                        </button>
                     </div>
                 }
             />
 
-            {activeTab === "collaborators" ? (
+            {activeTab === "shifts" ? (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-blue-500" />
+                        <div>
+                            <h2 className="text-lg font-semibold">Turnos de Producción</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Define los horarios de trabajo. El planificador automático respeta estos turnos al
+                                dividir tareas.
+                            </p>
+                        </div>
+                    </div>
+                    <WorkShiftManager initialShifts={shifts} />
+                </section>
+            ) : activeTab === "collaborators" ? (
                 <EmployeesTab employees={employees} />
             ) : (
                 <>

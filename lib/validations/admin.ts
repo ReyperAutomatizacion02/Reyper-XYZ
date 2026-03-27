@@ -47,3 +47,20 @@ export const UpsertEmployeeSchema = z.object({
 export const DeleteEmployeeSchema = z.object({
     id: z.string().uuid("ID de empleado inválido"),
 });
+
+/** Validates HH:MM or HH:MM:SS time strings */
+const timeString = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Formato de hora inválido (HH:MM)");
+
+export const UpsertWorkShiftSchema = z.object({
+    id: z.string().uuid().optional(),
+    name: z.string().min(1, "El nombre es obligatorio").max(100).trim(),
+    start_time: timeString,
+    end_time: timeString,
+    days_of_week: z.array(z.number().int().min(0).max(6)).min(1, "Selecciona al menos un día"),
+    active: z.boolean().default(true),
+    sort_order: z.number().int().min(0).default(0),
+});
+
+export const DeleteWorkShiftSchema = z.object({
+    id: z.string().uuid("ID de turno inválido"),
+});
