@@ -261,13 +261,21 @@ export function GanttSVG({
                 if (!isSelected) return false;
 
                 // When a project filter is active, always hide machines with no project tasks
-                if (hideEmptyMachines || projectFilter?.length) {
+                if (hideEmptyMachines || projectFilter?.length || searchQuery) {
+                    const q = searchQuery?.toLowerCase();
                     const hasTasksInWindow = optimisticTasks.some((t) => {
                         if (t.check_in && t.check_out) return false; // exclude completed tasks
                         const isThisMachine =
                             t.machine === name || (name === "Sin Máquina" && !t.machine && !(t as any).is_treatment);
                         if (!isThisMachine) return false;
-                        if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? "")) return false;
+                        if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? ""))
+                            return false;
+                        if (
+                            q &&
+                            !t.production_orders?.part_code?.toLowerCase().includes(q) &&
+                            !t.production_orders?.part_name?.toLowerCase().includes(q)
+                        )
+                            return false;
                         const taskStart = new Date(t.planned_date!);
                         const taskEnd = new Date(t.planned_end!);
                         return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
@@ -279,10 +287,17 @@ export function GanttSVG({
             .sort();
 
         // Add "TRATAMIENTO" row at the end when there are treatment tasks visible
+        const q = searchQuery?.toLowerCase();
         const hasTreatmentTasksInWindow = optimisticTasks.some((t) => {
             if (!(t as any).is_treatment) return false;
             if (t.check_in && t.check_out) return false; // exclude completed tasks
             if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? "")) return false;
+            if (
+                q &&
+                !t.production_orders?.part_code?.toLowerCase().includes(q) &&
+                !t.production_orders?.part_name?.toLowerCase().includes(q)
+            )
+                return false;
             const taskStart = new Date(t.planned_date!);
             const taskEnd = new Date(t.planned_end!);
             return isAfter(taskEnd, timeWindow.start) && isBefore(taskStart, timeWindow.end);
@@ -290,7 +305,7 @@ export function GanttSVG({
         if (hasTreatmentTasksInWindow) machineMachines.push("TRATAMIENTO");
 
         return machineMachines;
-    }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, projectFilter, timeWindow]);
+    }, [initialMachines, optimisticTasks, selectedMachines, hideEmptyMachines, projectFilter, searchQuery, timeWindow]);
 
     // Filter tasks by machine, search, project, AND visible time window
     const filteredTasks = useMemo(() => {
@@ -299,7 +314,8 @@ export function GanttSVG({
             if (task.check_in && task.check_out) return false;
 
             // Project filter (applied to all task types)
-            if (projectFilter?.length && !projectFilter.includes(task.production_orders?.project_id ?? "")) return false;
+            if (projectFilter?.length && !projectFilter.includes(task.production_orders?.project_id ?? ""))
+                return false;
 
             // Treatment tasks are always included when they have dates (rendered in TRATAMIENTO row)
             if ((task as any).is_treatment) {

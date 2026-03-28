@@ -1,19 +1,8 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-    CheckCircle2,
-    ChevronDown,
-    Filter,
-    FolderOpen,
-    Maximize2,
-    Minimize2,
-    Search,
-    X,
-    ZoomIn,
-    ZoomOut,
-} from "lucide-react";
+import { CheckCircle2, ChevronDown, Filter, Maximize2, Minimize2, Search, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -77,8 +66,47 @@ export function GanttControls({
     const [isProjectsExpanded, setIsProjectsExpanded] = useState(false);
     const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
     const [projectSearch, setProjectSearch] = useState("");
+    const [panelPos, setPanelPos] = useState<{
+        top?: number;
+        bottom?: number;
+        right: number;
+        maxHeight: number;
+    }>({ top: 0, right: 0, maxHeight: 400 });
 
     const filtersRef = useRef<HTMLDivElement>(null);
+    const filterButtonRef = useRef<HTMLButtonElement>(null);
+
+    const computePanelPos = useCallback(() => {
+        if (!filterButtonRef.current) return;
+        const rect = filterButtonRef.current.getBoundingClientRect();
+        const PANEL_WIDTH = 288; // w-72
+        const GAP = 8;
+        const rawRight = window.innerWidth - rect.right;
+        const right = Math.max(GAP, Math.min(rawRight, window.innerWidth - PANEL_WIDTH - GAP));
+        const spaceBelow = window.innerHeight - rect.bottom - GAP;
+        const spaceAbove = rect.top - GAP;
+        const MIN_HEIGHT = 200;
+        if (spaceBelow >= MIN_HEIGHT || spaceBelow >= spaceAbove) {
+            setPanelPos({ top: rect.bottom + GAP, right, maxHeight: Math.max(MIN_HEIGHT, spaceBelow) });
+        } else {
+            setPanelPos({
+                bottom: window.innerHeight - rect.top + GAP,
+                right,
+                maxHeight: Math.max(MIN_HEIGHT, spaceAbove),
+            });
+        }
+    }, []);
+
+    // Keep panel anchored to button while open (handles page scroll and window resize)
+    useEffect(() => {
+        if (!isFiltersOpen) return;
+        window.addEventListener("scroll", computePanelPos, true);
+        window.addEventListener("resize", computePanelPos);
+        return () => {
+            window.removeEventListener("scroll", computePanelPos, true);
+            window.removeEventListener("resize", computePanelPos);
+        };
+    }, [isFiltersOpen, computePanelPos]);
 
     const activeFilterCount =
         (searchQuery ? 1 : 0) +
@@ -139,9 +167,13 @@ export function GanttControls({
                 <div className="relative" ref={filtersRef}>
                     <Button
                         id="planning-machine-filter"
+                        ref={filterButtonRef}
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                        onClick={() => {
+                            if (!isFiltersOpen) computePanelPos();
+                            setIsFiltersOpen(!isFiltersOpen);
+                        }}
                         className={cn(
                             "h-8 gap-2 rounded-xl border-border/60 px-3 text-[10px] font-bold uppercase",
                             activeFilterCount > 0 && "border-primary/50 bg-primary/5 text-primary"
@@ -163,8 +195,15 @@ export function GanttControls({
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                                 transition={{ duration: 0.13 }}
-                                className="absolute right-0 z-[100] mt-2 flex w-72 flex-col rounded-2xl border border-border bg-card shadow-2xl backdrop-blur-md"
-                                style={{ maxHeight: "calc(100vh - 120px)" }}
+                                className="flex w-72 flex-col rounded-2xl border border-border bg-card shadow-2xl backdrop-blur-md"
+                                style={{
+                                    position: "fixed",
+                                    top: panelPos.top,
+                                    bottom: panelPos.bottom,
+                                    right: panelPos.right,
+                                    maxHeight: panelPos.maxHeight,
+                                    zIndex: 9999,
+                                }}
                             >
                                 {/* Panel header — sticky */}
                                 <div className="flex shrink-0 items-center justify-between px-4 pb-2 pt-4">
@@ -175,7 +214,7 @@ export function GanttControls({
                                         <button
                                             onClick={() => {
                                                 onSearchChange("");
-                                                onProjectFilterChange(null);
+                                                onProjectFilterChange([]);
                                                 onSelectAllMachines();
                                             }}
                                             className="text-[9px] font-bold text-muted-foreground transition-colors hover:text-destructive"
@@ -212,72 +251,94 @@ export function GanttControls({
                                         </div>
                                     </div>
 
-                                    {/* Project combobox */}
+                                    {/* Projects — collapsible multi-select */}
                                     {availableProjects.length > 0 && (
                                         <div className="space-y-1.5">
-                                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                Proyecto
-                                            </span>
-                                            <div className="relative">
-                                                <FolderOpen
+                                            <button
+                                                onClick={() => setIsProjectsExpanded(!isProjectsExpanded)}
+                                                className="group flex w-full items-center justify-between"
+                                            >
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                                                        Proyectos
+                                                    </span>
+                                                    {projectFilter.length > 0 && (
+                                                        <span className="rounded-full bg-primary px-1.5 py-0.5 text-[8px] leading-none text-white">
+                                                            {projectFilter.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <ChevronDown
                                                     className={cn(
-                                                        "pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 transition-colors",
-                                                        activeProject ? "text-primary" : "text-muted-foreground"
+                                                        "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                                                        isProjectsExpanded && "rotate-180"
                                                     )}
                                                 />
-                                                <input
-                                                    ref={projectInputRef}
-                                                    type="text"
-                                                    value={projectInputValue}
-                                                    onChange={(e) => handleProjectInputChange(e.target.value)}
-                                                    onFocus={() => setIsProjectDropdownOpen(true)}
-                                                    placeholder="Buscar proyecto..."
-                                                    className={cn(
-                                                        "h-8 w-full rounded-xl border bg-background pl-8 pr-8 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
-                                                        activeProject
-                                                            ? "border-primary/50 bg-primary/5 font-bold text-primary"
-                                                            : "border-border/60"
-                                                    )}
-                                                />
-                                                {(projectInputValue || projectFilter) && (
-                                                    <button
-                                                        onClick={handleProjectClear}
-                                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                                            </button>
+
+                                            <AnimatePresence initial={false}>
+                                                {isProjectsExpanded && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: "auto", opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        transition={{ duration: 0.18 }}
+                                                        className="overflow-hidden"
                                                     >
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                )}
-                                                <AnimatePresence>
-                                                    {isProjectDropdownOpen && filteredProjects.length > 0 && (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, y: 4 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            exit={{ opacity: 0, y: 4 }}
-                                                            transition={{ duration: 0.1 }}
-                                                            className="custom-scrollbar absolute left-0 top-full z-[110] mt-1 max-h-[180px] w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl"
-                                                        >
-                                                            {filteredProjects.map((project) => (
+                                                        {/* Search within projects */}
+                                                        <div className="relative mb-2">
+                                                            <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                                                            <input
+                                                                type="text"
+                                                                value={projectSearch}
+                                                                onChange={(e) => setProjectSearch(e.target.value)}
+                                                                placeholder="Buscar proyecto..."
+                                                                className="h-7 w-full rounded-lg border border-border/60 bg-background pl-7 pr-7 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                                            />
+                                                            {projectSearch && (
                                                                 <button
-                                                                    key={project.id}
-                                                                    onMouseDown={(e) => e.preventDefault()}
-                                                                    onClick={() => handleProjectSelect(project)}
-                                                                    className={cn(
-                                                                        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
-                                                                        project.id === projectFilter
-                                                                            ? "bg-primary/10 text-primary"
-                                                                            : "text-foreground hover:bg-muted/60"
-                                                                    )}
+                                                                    onClick={() => setProjectSearch("")}
+                                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                                                 >
-                                                                    <FolderOpen
-                                                                        className={cn(
-                                                                            "h-3 w-3 shrink-0",
-                                                                            project.id === projectFilter
-                                                                                ? "text-primary"
-                                                                                : "text-muted-foreground"
-                                                                        )}
-                                                                    />
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+
+                                                        {projectFilter.length > 0 && (
+                                                            <div className="mb-1 flex justify-end">
+                                                                <button
+                                                                    onClick={() => onProjectFilterChange([])}
+                                                                    className="text-[9px] font-bold text-muted-foreground hover:underline"
+                                                                >
+                                                                    Limpiar
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="space-y-0.5">
+                                                            {filteredProjects.map((project) => (
+                                                                <label
+                                                                    key={project.id}
+                                                                    className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50"
+                                                                >
+                                                                    <div className="relative flex shrink-0 items-center justify-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={projectFilter.includes(project.id)}
+                                                                            onChange={() => toggleProject(project.id)}
+                                                                            className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-border transition-all checked:border-primary checked:bg-primary"
+                                                                        />
+                                                                        <CheckCircle2 className="pointer-events-none absolute h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
+                                                                    </div>
                                                                     <div className="min-w-0">
-                                                                        <div className="text-[11px] font-bold leading-none">
+                                                                        <div
+                                                                            className={cn(
+                                                                                "truncate text-[11px] font-bold leading-none transition-colors group-hover:text-foreground",
+                                                                                projectFilter.includes(project.id) &&
+                                                                                    "text-primary"
+                                                                            )}
+                                                                        >
                                                                             {project.code}
                                                                         </div>
                                                                         {project.company && (
@@ -286,12 +347,12 @@ export function GanttControls({
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                </button>
+                                                                </label>
                                                             ))}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
                                         </div>
                                     )}
 
