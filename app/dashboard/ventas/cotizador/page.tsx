@@ -1,11 +1,31 @@
 "use client";
 
 import React, { useEffect, useState, useRef, forwardRef, type ReactNode } from "react";
-import { Plus, Trash2, Save, FileText, ArrowLeft, Loader2, Printer, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Eye, Copy, FileEdit, FileCheck, UploadCloud, ZoomIn, ZoomOut, Maximize, X, GripVertical } from "lucide-react";
+import {
+    Plus,
+    Trash2,
+    Save,
+    FileText,
+    ArrowLeft,
+    Loader2,
+    Printer,
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    Copy,
+    FileEdit,
+    FileCheck,
+    UploadCloud,
+    ZoomIn,
+    ZoomOut,
+    Maximize,
+    X,
+    GripVertical,
+} from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { Calendar } from "@/components/ui/calendar";
+import { DateSelector } from "@/components/ui/date-selector";
 import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,21 +38,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Separator } from "@/components/ui/separator";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
     AlertDialog,
@@ -45,12 +52,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 
@@ -66,7 +68,7 @@ import {
     getCatalogData,
     saveQuote,
     getQuoteById,
-    updateQuote
+    updateQuote,
 } from "../actions";
 
 import { QuotePDF } from "@/components/sales/quote-pdf";
@@ -75,72 +77,14 @@ import { createClient } from "@/utils/supabase/client";
 import { useTour } from "@/hooks/use-tour";
 import { Dropzone } from "@/components/sales/dropzone";
 
-
-const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    {
-        ssr: false,
-        loading: () => <Button disabled variant="outline">Cargando PDF...</Button>,
-    }
-);
-
-// Custom Date Selector Component - Manual Absolute Positioning
-function DateSelector({
-    date,
-    onSelect,
-    label
-}: {
-    date: Date | undefined;
-    onSelect: (d: Date | undefined) => void;
-    label: string
-}) {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    return (
-        <div className="space-y-2 relative" ref={containerRef}>
-            <label className="text-xs font-semibold text-red-500 uppercase">{label}</label>
-            <Button
-                variant={"outline"}
-                className={cn(
-                    "w-full justify-start text-left font-normal bg-background border-input shadow-none transition-all duration-200",
-                    !date && "text-muted-foreground"
-                )}
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <CalendarIcon className="mr-2 h-4 w-4 text-red-500" />
-                {date ? format(date, "PPP", { locale: es }) : <span>Seleccionar</span>}
-            </Button>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        <div
-                            className="fixed inset-0 z-[9998] bg-transparent"
-                            onClick={() => setIsOpen(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute top-full mt-1 left-0 z-[9999] bg-popover border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-border/20"
-                        >
-                            <Calendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(d) => {
-                                    onSelect(d);
-                                    setIsOpen(false);
-                                }}
-                                initialFocus
-                            />
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
+const PDFDownloadLink = dynamic(() => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink), {
+    ssr: false,
+    loading: () => (
+        <Button disabled variant="outline">
+            Cargando PDF...
+        </Button>
+    ),
+});
 
 type QuoteItem = {
     id: string; // Temporary ID for UI
@@ -200,7 +144,7 @@ function QuoteGeneratorContent() {
 
     // Catalogs
     const [clients, setClients] = useState<Option[]>([]);
-    const [allContacts, setAllContacts] = useState<{ id: string, name: string, client_id?: string | null }[]>([]);
+    const [allContacts, setAllContacts] = useState<{ id: string; name: string; client_id?: string | null }[]>([]);
     const [positions, setPositions] = useState<Option[]>([]);
     const [areas, setAreas] = useState<Option[]>([]);
     const [units, setUnits] = useState<{ value: string; label: string }[]>([]);
@@ -214,7 +158,7 @@ function QuoteGeneratorContent() {
         quote_type: "services",
         requisition_no: "",
         part_no: "",
-        issue_date: new Date().toISOString().split('T')[0],
+        issue_date: new Date().toISOString().split("T")[0],
         delivery_date: "",
         currency: "MXN",
         client_id: "",
@@ -223,22 +167,34 @@ function QuoteGeneratorContent() {
         position_id: "",
         area_id: "",
         validity_days: 30,
-        tax_rate: 16
+        tax_rate: 16,
     });
 
     // Filtered Contacts Logic
     const filteredContacts = allContacts
-        .filter(c => !formData.client_id || c.client_id === formData.client_id)
-        .map(c => ({ value: c.id, label: c.name }));
+        .filter((c) => !formData.client_id || c.client_id === formData.client_id)
+        .map((c) => ({ value: c.id, label: c.name }));
 
     // Items State
     const [items, setItems] = useState<QuoteItem[]>([
-        { id: "1", description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+        {
+            id: "1",
+            description: "",
+            part_name: "",
+            material: "",
+            material_id: "",
+            treatment_id: "",
+            treatment_name: "",
+            quantity: 1,
+            unit: "PZA",
+            unit_price: 0,
+            total: 0,
+        },
     ]);
 
     // Totals
     const [totals, setTotals] = useState({ subtotal: 0, tax: 0, total: 0 });
-    const [savedQuote, setSavedQuote] = useState<{ id: string, quote_number: number } | null>(null);
+    const [savedQuote, setSavedQuote] = useState<{ id: string; quote_number: number } | null>(null);
     const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
     const [isUploadingFiles, setIsUploadingFiles] = useState(false);
     const supabase = createClient();
@@ -250,7 +206,7 @@ function QuoteGeneratorContent() {
         setTotals({
             subtotal: sub,
             tax: tax,
-            total: sub + tax
+            total: sub + tax,
         });
     }, [items, formData.tax_rate]);
 
@@ -284,14 +240,15 @@ function QuoteGeneratorContent() {
         // Auto-generate items from filenames
         const newItems: QuoteItem[] = [];
 
-        files.forEach(file => {
-            const fileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        files.forEach((file) => {
+            const fileName = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
             const upperName = fileName.toUpperCase();
 
             // Check if this file name already exists as an item WITH a drawing_url (already uploaded or blob)
-            const exists = items.some(item =>
-                item.description.toUpperCase().trim() === upperName.trim() &&
-                (item.drawing_url || pendingFiles.has(item.id))
+            const exists = items.some(
+                (item) =>
+                    item.description.toUpperCase().trim() === upperName.trim() &&
+                    (item.drawing_url || pendingFiles.has(item.id))
             );
 
             if (exists) {
@@ -316,7 +273,9 @@ function QuoteGeneratorContent() {
                 unit: "PZA",
                 unit_price: 0,
                 total: 0,
-                drawing_url: URL.createObjectURL(file) + (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf') ? '#pdf' : '')
+                drawing_url:
+                    URL.createObjectURL(file) +
+                    (file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf") ? "#pdf" : ""),
             });
         });
 
@@ -328,20 +287,22 @@ function QuoteGeneratorContent() {
         }
 
         // Update pendingFiles once
-        setPendingFiles(prev => {
+        setPendingFiles((prev) => {
             const updated = new Map(prev);
             newPendingFiles.forEach((file, id) => updated.set(id, file));
             return updated;
         });
 
-        setItems(prev => {
+        setItems((prev) => {
             // Remove initial empty item if it's there and empty
-            const filtered = prev.filter(i => i.description !== "" || i.unit_price > 0);
+            const filtered = prev.filter((i) => i.description !== "" || i.unit_price > 0);
             return [...filtered, ...newItems];
         });
 
         if (ignoredFiles.length > 0) {
-            toast.success(`${processedFiles.length} archivos agregados. ${ignoredFiles.length} omitidos por ya existir.`);
+            toast.success(
+                `${processedFiles.length} archivos agregados. ${ignoredFiles.length} omitidos por ya existir.`
+            );
         } else {
             toast.success(`${processedFiles.length} archivos procesados localmente.`);
         }
@@ -352,21 +313,19 @@ function QuoteGeneratorContent() {
         const results: Record<string, string> = {};
 
         for (const [id, file] of pendingFiles.entries()) {
-            const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
             const filePath = `${quoteId}/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from("quotes")
-                .upload(filePath, file);
+            const { error: uploadError } = await supabase.storage.from("quotes").upload(filePath, file);
 
             if (uploadError) {
                 console.error(`Error uploading ${file.name}:`, uploadError);
                 throw new Error(`Fallo al subir ${file.name}`);
             }
 
-            const { data: { publicUrl } } = supabase.storage
-                .from("quotes")
-                .getPublicUrl(filePath);
+            const {
+                data: { publicUrl },
+            } = supabase.storage.from("quotes").getPublicUrl(filePath);
 
             results[id] = publicUrl;
         }
@@ -376,9 +335,9 @@ function QuoteGeneratorContent() {
 
     // Helper to format numbers with commas
     const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('es-MX', {
+        return new Intl.NumberFormat("es-MX", {
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            maximumFractionDigits: 2,
         }).format(val);
     };
 
@@ -423,7 +382,7 @@ function QuoteGeneratorContent() {
                 const lot = getLotNumber(idx);
                 // description is now optional, removed validation
 
-                if (formData.quote_type === 'pieces') {
+                if (formData.quote_type === "pieces") {
                     if (!item.part_name?.trim()) missingPartNames.push(lot);
                     if (!item.material?.trim()) missingMaterials.push(lot);
                     if (!item.treatment_id?.trim()) missingTreatments.push(lot);
@@ -433,19 +392,19 @@ function QuoteGeneratorContent() {
             });
 
             if (missingPartNames.length > 0) {
-                errors.push(`Nombre de Pieza vacío: Partida ${missingPartNames.join(', ')}`);
+                errors.push(`Nombre de Pieza vacío: Partida ${missingPartNames.join(", ")}`);
             }
             if (missingMaterials.length > 0) {
-                errors.push(`Material vacío: Partida ${missingMaterials.join(', ')}`);
+                errors.push(`Material vacío: Partida ${missingMaterials.join(", ")}`);
             }
             if (missingTreatments.length > 0) {
-                errors.push(`Tratamiento vacío: Partida ${missingTreatments.join(', ')}`);
+                errors.push(`Tratamiento vacío: Partida ${missingTreatments.join(", ")}`);
             }
             if (invalidQuantities.length > 0) {
-                errors.push(`Cantidad inválida: Partida ${invalidQuantities.join(', ')}`);
+                errors.push(`Cantidad inválida: Partida ${invalidQuantities.join(", ")}`);
             }
             if (invalidPrices.length > 0) {
-                errors.push(`Precio Unitario inválido o vacío: Partida ${invalidPrices.join(', ')}`);
+                errors.push(`Precio Unitario inválido o vacío: Partida ${invalidPrices.join(", ")}`);
             }
         }
         return errors;
@@ -458,13 +417,13 @@ function QuoteGeneratorContent() {
         async function loadAll() {
             try {
                 const catalog = await getCatalogData();
-                setClients(catalog.clients.map(c => ({ value: c.id, label: c.name })));
+                setClients(catalog.clients.map((c) => ({ value: c.id, label: c.name })));
                 setAllContacts(catalog.contacts); // Store raw contacts for filtering
-                setPositions(catalog.positions.map(c => ({ value: c.id, label: c.name })));
-                setAreas(catalog.areas.map(c => ({ value: c.id, label: c.name })));
-                setUnits(catalog.units.map(c => ({ value: c.name, label: c.name })));
-                setMaterials(catalog.materials.map(c => ({ value: c.id, label: c.name })));
-                setTreatments(catalog.treatments.map(c => ({ value: c.id, label: c.name })));
+                setPositions(catalog.positions.map((c) => ({ value: c.id, label: c.name })));
+                setAreas(catalog.areas.map((c) => ({ value: c.id, label: c.name })));
+                setUnits(catalog.units.map((c) => ({ value: c.name, label: c.name })));
+                setMaterials(catalog.materials.map((c) => ({ value: c.id, label: c.name })));
+                setTreatments(catalog.treatments.map((c) => ({ value: c.id, label: c.name })));
 
                 if (editingId) {
                     const existing = await getQuoteById(editingId);
@@ -483,26 +442,28 @@ function QuoteGeneratorContent() {
                         position_id: existing.position_id ?? "",
                         area_id: existing.area_id ?? "",
                         validity_days: existing.validity_days ?? 0,
-                        tax_rate: (existing.tax_rate ?? 0) * 100 // Convert back to %
+                        tax_rate: (existing.tax_rate ?? 0) * 100, // Convert back to %
                     });
 
                     // Pre-fill items
-                    setItems(existing.items.map((i: any) => ({
-                        id: Math.random().toString(),
-                        description: i.description,
-                        part_name: i.part_name || "",
-                        material: i.material || "",
-                        material_id: i.material_id || "",
-                        treatment_id: i.treatment_id || "",
-                        treatment_name: i.treatment || i.treatment_name || "",
-                        quantity: i.quantity,
-                        unit: i.unit,
-                        unit_price: i.unit_price,
-                        total: i.total_price,
-                        design_no: i.design_no,
-                        drawing_url: i.drawing_url,
-                        is_sub_item: i.is_sub_item || false
-                    })));
+                    setItems(
+                        existing.items.map((i: any) => ({
+                            id: Math.random().toString(),
+                            description: i.description,
+                            part_name: i.part_name || "",
+                            material: i.material || "",
+                            material_id: i.material_id || "",
+                            treatment_id: i.treatment_id || "",
+                            treatment_name: i.treatment || i.treatment_name || "",
+                            quantity: i.quantity,
+                            unit: i.unit,
+                            unit_price: i.unit_price,
+                            total: i.total_price,
+                            design_no: i.design_no,
+                            drawing_url: i.drawing_url,
+                            is_sub_item: i.is_sub_item || false,
+                        }))
+                    );
 
                     // Prepare ID for PDF download (only if not cloning)
                     if (!isClone) {
@@ -524,12 +485,12 @@ function QuoteGeneratorContent() {
             // We can check if the current contact is valid for the new client.
             // But simpler: just clear it if the client changes, forcing re-selection.
             // Or verify against allContacts (which is available here).
-            const currentContact = allContacts.find(c => c.id === formData.contact_id);
+            const currentContact = allContacts.find((c) => c.id === formData.contact_id);
             if (currentContact && currentContact.client_id !== updates.client_id) {
                 updates.contact_id = "";
             }
         }
-        setFormData(prev => ({ ...prev, ...updates }));
+        setFormData((prev) => ({ ...prev, ...updates }));
         setIsDirty(true);
     };
 
@@ -538,7 +499,19 @@ function QuoteGeneratorContent() {
         setIsDirty(true);
         setItems([
             ...items,
-            { id: Math.random().toString(), description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+            {
+                id: Math.random().toString(),
+                description: "",
+                part_name: "",
+                material: "",
+                material_id: "",
+                treatment_id: "",
+                treatment_name: "",
+                quantity: 1,
+                unit: "PZA",
+                unit_price: 0,
+                total: 0,
+            },
         ]);
     };
 
@@ -551,9 +524,9 @@ function QuoteGeneratorContent() {
         // If it's the last item, don't remove it, just reset its values
         if (items.length === 1) {
             // Cleanup if it was a pending file
-            if (itemToRemove.drawing_url?.startsWith('blob:')) {
-                URL.revokeObjectURL(itemToRemove.drawing_url.split('#')[0]);
-                setPendingFiles(prev => {
+            if (itemToRemove.drawing_url?.startsWith("blob:")) {
+                URL.revokeObjectURL(itemToRemove.drawing_url.split("#")[0]);
+                setPendingFiles((prev) => {
                     const updated = new Map(prev);
                     updated.delete(itemToRemove.id);
                     return updated;
@@ -562,30 +535,30 @@ function QuoteGeneratorContent() {
 
             const resetItem: QuoteItem = {
                 id: Math.random().toString(36).substr(2, 9),
-                description: '',
-                part_name: '',
-                material: '',
-                treatment_id: '',
+                description: "",
+                part_name: "",
+                material: "",
+                treatment_id: "",
                 quantity: 1,
-                unit: 'PZA',
+                unit: "PZA",
                 unit_price: 0,
                 total: 0,
-                drawing_url: undefined
+                drawing_url: undefined,
             };
             setItems([resetItem]);
             if (hadFile) {
                 toast.info("Plano removido de la partida", {
-                    icon: <FileText className="w-4 h-4 text-zinc-500" />,
-                    duration: 2000
+                    icon: <FileText className="h-4 w-4 text-zinc-500" />,
+                    duration: 2000,
                 });
             }
             return;
         }
 
         // Cleanup if it was a pending file
-        if (itemToRemove.drawing_url?.startsWith('blob:')) {
-            URL.revokeObjectURL(itemToRemove.drawing_url.split('#')[0]);
-            setPendingFiles(prev => {
+        if (itemToRemove.drawing_url?.startsWith("blob:")) {
+            URL.revokeObjectURL(itemToRemove.drawing_url.split("#")[0]);
+            setPendingFiles((prev) => {
                 const updated = new Map(prev);
                 updated.delete(itemToRemove.id);
                 return updated;
@@ -598,8 +571,8 @@ function QuoteGeneratorContent() {
 
         if (hadFile) {
             toast.info("Partida y plano asociado eliminados", {
-                icon: <Trash2 className="w-4 h-4 text-red-500" />,
-                duration: 2000
+                icon: <Trash2 className="h-4 w-4 text-red-500" />,
+                duration: 2000,
             });
         }
     };
@@ -607,12 +580,12 @@ function QuoteGeneratorContent() {
     // Logic: Update Item
     const updateItem = (index: number, updates: Partial<QuoteItem>) => {
         setIsDirty(true);
-        setItems(prevItems => {
+        setItems((prevItems) => {
             const newItems = [...prevItems];
             const item = { ...newItems[index], ...updates };
 
             // Force uppercase for description if updated
-            if (updates.description !== undefined && typeof updates.description === 'string') {
+            if (updates.description !== undefined && typeof updates.description === "string") {
                 item.description = updates.description.toUpperCase();
             }
 
@@ -633,7 +606,7 @@ function QuoteGeneratorContent() {
             quote_type: "services",
             requisition_no: "",
             part_no: "",
-            issue_date: new Date().toISOString().split('T')[0],
+            issue_date: new Date().toISOString().split("T")[0],
             delivery_date: "",
             currency: "MXN",
             client_id: "",
@@ -642,10 +615,22 @@ function QuoteGeneratorContent() {
             position_id: "",
             area_id: "",
             validity_days: 30,
-            tax_rate: 16
+            tax_rate: 16,
         });
         setItems([
-            { id: "1", description: "", part_name: "", material: "", material_id: "", treatment_id: "", treatment_name: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
+            {
+                id: "1",
+                description: "",
+                part_name: "",
+                material: "",
+                material_id: "",
+                treatment_id: "",
+                treatment_name: "",
+                quantity: 1,
+                unit: "PZA",
+                unit_price: 0,
+                total: 0,
+            },
         ]);
         setSavedQuote(null);
         setIsDirty(false);
@@ -653,7 +638,7 @@ function QuoteGeneratorContent() {
         if (editingId) {
             router.push("/dashboard/ventas/cotizador");
         }
-        document.getElementById('cotizador-top')?.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById("cotizador-top")?.scrollIntoView({ behavior: "smooth" });
         toast.info("Nueva cotización iniciada.");
     };
 
@@ -664,7 +649,7 @@ function QuoteGeneratorContent() {
             quote_type: "services",
             requisition_no: "",
             part_no: "",
-            issue_date: new Date().toISOString().split('T')[0],
+            issue_date: new Date().toISOString().split("T")[0],
             delivery_date: "",
             currency: "MXN",
             client_id: "",
@@ -673,14 +658,12 @@ function QuoteGeneratorContent() {
             position_id: "",
             area_id: "",
             validity_days: 30,
-            tax_rate: 16
+            tax_rate: 16,
         });
-        setItems([
-            { id: "1", description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }
-        ]);
+        setItems([{ id: "1", description: "", quantity: 1, unit: "PZA", unit_price: 0, total: 0 }]);
         // Do NOT clear savedQuote or editingId
         setIsDirty(false);
-        document.getElementById('cotizador-top')?.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById("cotizador-top")?.scrollIntoView({ behavior: "smooth" });
         toast.info("Formulario reiniciado (Folio conservado).");
     };
 
@@ -699,11 +682,11 @@ function QuoteGeneratorContent() {
                 tax_amount: totals.tax,
                 tax_rate: formData.tax_rate / 100, // DB expects 0.16
                 total: totals.total,
-                quote_as: formData.quote_as || "DMR" // Default fallback
+                quote_as: formData.quote_as || "DMR", // Default fallback
             };
 
             // Prepare Items for DB (remove UI id, keep others)
-            const dbItems = items.map(i => ({
+            const dbItems = items.map((i) => ({
                 description: i.description,
                 part_name: i.part_name || "",
                 material: i.material || "",
@@ -716,12 +699,12 @@ function QuoteGeneratorContent() {
                 total_price: i.total,
                 design_no: i.design_no,
                 drawing_url: i.drawing_url,
-                is_sub_item: i.is_sub_item || false
+                is_sub_item: i.is_sub_item || false,
             }));
 
             // Determine if we are updating an existing quote
             // We update if we have a URL id (editingId) or if we just saved it in this session (savedQuote.id)
-            const currentId = (editingId && !isClone) ? editingId : savedQuote?.id;
+            const currentId = editingId && !isClone ? editingId : savedQuote?.id;
 
             if (currentId) {
                 // If we have pending files, upload them now
@@ -751,17 +734,19 @@ function QuoteGeneratorContent() {
                 await updateQuote(currentId, dbQuote, finalItems);
 
                 // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
-                setItems(prev => prev.map((item, idx) => {
-                    const realUrl = drawingUrls[item.id];
-                    if (realUrl) {
-                        // Revoke the old blob URL to free memory
-                        if (item.drawing_url?.startsWith('blob:')) {
-                            URL.revokeObjectURL(item.drawing_url.split('#')[0]);
+                setItems((prev) =>
+                    prev.map((item, idx) => {
+                        const realUrl = drawingUrls[item.id];
+                        if (realUrl) {
+                            // Revoke the old blob URL to free memory
+                            if (item.drawing_url?.startsWith("blob:")) {
+                                URL.revokeObjectURL(item.drawing_url.split("#")[0]);
+                            }
+                            return { ...item, drawing_url: realUrl };
                         }
-                        return { ...item, drawing_url: realUrl };
-                    }
-                    return item;
-                }));
+                        return item;
+                    })
+                );
 
                 toast.success(`Cotización #${savedQuote?.quote_number || ""} actualizada.`);
                 setPendingFiles(new Map());
@@ -796,16 +781,18 @@ function QuoteGeneratorContent() {
                 await updateQuote(result.id, dbQuote, finalItems);
 
                 // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
-                setItems(prev => prev.map(item => {
-                    const realUrl = drawingUrls[item.id];
-                    if (realUrl) {
-                        if (item.drawing_url?.startsWith('blob:')) {
-                            URL.revokeObjectURL(item.drawing_url.split('#')[0]);
+                setItems((prev) =>
+                    prev.map((item) => {
+                        const realUrl = drawingUrls[item.id];
+                        if (realUrl) {
+                            if (item.drawing_url?.startsWith("blob:")) {
+                                URL.revokeObjectURL(item.drawing_url.split("#")[0]);
+                            }
+                            return { ...item, drawing_url: realUrl };
                         }
-                        return { ...item, drawing_url: realUrl };
-                    }
-                    return item;
-                }));
+                        return item;
+                    })
+                );
 
                 toast.success(`Cotización #${result.quote_number} generada exitosamente.`);
                 setSavedQuote(result);
@@ -817,7 +804,6 @@ function QuoteGeneratorContent() {
                     router.replace(`/dashboard/ventas/cotizador?id=${result.id}`);
                 }
             }
-
         } catch (error: any) {
             console.error(error);
             toast.error("Error al guardar la cotización: " + error.message);
@@ -834,7 +820,7 @@ function QuoteGeneratorContent() {
             const newId = await createClientEntry(name);
             if (newId) {
                 const newClientOption = { value: newId, label: name };
-                setClients(prev => [...prev, newClientOption].sort((a, b) => a.label.localeCompare(b.label)));
+                setClients((prev) => [...prev, newClientOption].sort((a, b) => a.label.localeCompare(b.label)));
                 toast.success(`Cliente "${name}" creado exitosamente.`);
                 return newId;
             }
@@ -857,7 +843,7 @@ function QuoteGeneratorContent() {
             const newId = await createContactEntry(name, formData.client_id);
             if (newId) {
                 const newContact = { id: newId, name: name, client_id: formData.client_id };
-                setAllContacts(prev => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
+                setAllContacts((prev) => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
                 toast.success(`Usuario "${name}" creado exitosamente.`);
                 return newId;
             }
@@ -876,7 +862,7 @@ function QuoteGeneratorContent() {
         const originalFormData = { ...formData };
 
         // Inject demo data to ensure all features are visible for the tour
-        const exists = items.some(i => i.id === "tour-demo");
+        const exists = items.some((i) => i.id === "tour-demo");
         if (!exists) {
             const demoItem: QuoteItem = {
                 id: "tour-demo",
@@ -886,138 +872,149 @@ function QuoteGeneratorContent() {
                 unit_price: 1250,
                 total: 6250,
                 drawing_url: "demo-tour-url", // This shows the Eye Icon
-                is_sub_item: false
+                is_sub_item: false,
             };
             setItems([demoItem, ...items]);
         }
 
         // Ensure we are in pieces mode to show dropzone/upload options
-        setFormData(prev => ({ ...prev, quote_type: 'pieces' }));
+        setFormData((prev) => ({ ...prev, quote_type: "pieces" }));
 
-        startTour([
-            {
-                element: "#quote-header-inputs",
-                popover: {
-                    title: "Datos de Encabezado",
-                    description: "Define quién cotiza, número de parte y requisición.",
-                    side: "bottom",
-                    align: "start"
-                }
-            },
-            {
-                element: "#quote-dates-inputs",
-                popover: {
-                    title: "Fechas y Moneda",
-                    description: "Emisión, entrega estimada y moneda de la oferta.",
-                    side: "bottom",
-                    align: "start"
-                }
-            },
-            {
-                element: "#quote-client-inputs",
-                popover: {
-                    title: "Cliente y Usuario",
-                    description: "Selecciona el cliente y contacto. Puedes crearlos si no existen.",
-                    side: "top",
-                    align: "start"
-                }
-            },
-            {
-                element: "#quote-extra-inputs",
-                popover: {
-                    title: "Detalles Adicionales",
-                    description: "Define el puesto, área y vigencia de la oferta para completar el perfil del cliente.",
-                    side: "top",
-                    align: "start"
-                }
-            },
-            {
-                element: "#quote-mode-container",
-                popover: {
-                    title: "Modo de Cotización",
-                    description: "Crucial: Elige 'Servicios' para venta libre o 'Piezas' si vas a cargar planos detallados.",
-                    side: "bottom",
-                    align: "end"
-                }
-            },
-            {
-                element: "#quote-item-grip",
-                popover: {
-                    title: "Reordenar Partidas",
-                    description: "Puedes arrastrar las filas desde este icono para cambiar su orden en cualquier momento.",
-                    side: "right",
-                    align: "center"
-                }
-            },
-            {
-                element: "#quote-items-section",
-                popover: {
-                    title: "Detalle de Partidas",
-                    description: "Aquí editas descripción, cantidades y precios. Escribe en mayúsculas por estándar.",
-                    side: "top",
-                    align: "center"
-                }
-            },
-            {
-                element: "#quote-subitem-toggle",
-                popover: {
-                    title: "Uso de Subpartidas",
-                    description: "Activa este switch para indentar partidas y desglosar componentes de una pieza principal.",
-                    side: "top",
-                    align: "center"
-                }
-            },
-            {
-                element: "#quote-view-drawing-btn",
-                popover: {
-                    title: "Visor de Planos",
-                    description: "El icono del ojo aparece cuando hay un plano. Úsalo para previsualizar sin salir.",
-                    side: "left",
-                    align: "center"
-                }
-            },
-            {
-                element: "#quote-pieces-options",
-                popover: {
-                    title: "Opciones de Ingeniería",
-                    description: "En modo 'Piezas', puedes cargar planos arrastrándolos a la tabla o usando el botón.",
-                    side: "top",
-                    align: "end"
-                }
-            },
-            {
-                element: "#quote-totals-section",
-                popover: {
-                    title: "Cálculos e IVA",
-                    description: "Verifica montos finales y alertas de validación si faltan datos mandatorios.",
-                    side: "left",
-                    align: "center"
-                }
-            },
-            {
-                element: "#quote-final-actions",
-                popover: {
-                    title: "Guardado y PDF",
-                    description: "Guarda para obtener el folio oficial. Tras guardar, el botón de 'Imprimir PDF' se activará.",
-                    side: "top",
-                    align: "end"
-                }
+        startTour(
+            [
+                {
+                    element: "#quote-header-inputs",
+                    popover: {
+                        title: "Datos de Encabezado",
+                        description: "Define quién cotiza, número de parte y requisición.",
+                        side: "bottom",
+                        align: "start",
+                    },
+                },
+                {
+                    element: "#quote-dates-inputs",
+                    popover: {
+                        title: "Fechas y Moneda",
+                        description: "Emisión, entrega estimada y moneda de la oferta.",
+                        side: "bottom",
+                        align: "start",
+                    },
+                },
+                {
+                    element: "#quote-client-inputs",
+                    popover: {
+                        title: "Cliente y Usuario",
+                        description: "Selecciona el cliente y contacto. Puedes crearlos si no existen.",
+                        side: "top",
+                        align: "start",
+                    },
+                },
+                {
+                    element: "#quote-extra-inputs",
+                    popover: {
+                        title: "Detalles Adicionales",
+                        description:
+                            "Define el puesto, área y vigencia de la oferta para completar el perfil del cliente.",
+                        side: "top",
+                        align: "start",
+                    },
+                },
+                {
+                    element: "#quote-mode-container",
+                    popover: {
+                        title: "Modo de Cotización",
+                        description:
+                            "Crucial: Elige 'Servicios' para venta libre o 'Piezas' si vas a cargar planos detallados.",
+                        side: "bottom",
+                        align: "end",
+                    },
+                },
+                {
+                    element: "#quote-item-grip",
+                    popover: {
+                        title: "Reordenar Partidas",
+                        description:
+                            "Puedes arrastrar las filas desde este icono para cambiar su orden en cualquier momento.",
+                        side: "right",
+                        align: "center",
+                    },
+                },
+                {
+                    element: "#quote-items-section",
+                    popover: {
+                        title: "Detalle de Partidas",
+                        description:
+                            "Aquí editas descripción, cantidades y precios. Escribe en mayúsculas por estándar.",
+                        side: "top",
+                        align: "center",
+                    },
+                },
+                {
+                    element: "#quote-subitem-toggle",
+                    popover: {
+                        title: "Uso de Subpartidas",
+                        description:
+                            "Activa este switch para indentar partidas y desglosar componentes de una pieza principal.",
+                        side: "top",
+                        align: "center",
+                    },
+                },
+                {
+                    element: "#quote-view-drawing-btn",
+                    popover: {
+                        title: "Visor de Planos",
+                        description:
+                            "El icono del ojo aparece cuando hay un plano. Úsalo para previsualizar sin salir.",
+                        side: "left",
+                        align: "center",
+                    },
+                },
+                {
+                    element: "#quote-pieces-options",
+                    popover: {
+                        title: "Opciones de Ingeniería",
+                        description:
+                            "En modo 'Piezas', puedes cargar planos arrastrándolos a la tabla o usando el botón.",
+                        side: "top",
+                        align: "end",
+                    },
+                },
+                {
+                    element: "#quote-totals-section",
+                    popover: {
+                        title: "Cálculos e IVA",
+                        description: "Verifica montos finales y alertas de validación si faltan datos mandatorios.",
+                        side: "left",
+                        align: "center",
+                    },
+                },
+                {
+                    element: "#quote-final-actions",
+                    popover: {
+                        title: "Guardado y PDF",
+                        description:
+                            "Guarda para obtener el folio oficial. Tras guardar, el botón de 'Imprimir PDF' se activará.",
+                        side: "top",
+                        align: "end",
+                    },
+                },
+            ],
+            () => {
+                // Callback: Restore original state when tour ends
+                setItems(originalItems);
+                setFormData(originalFormData);
+                setIsDirty(false);
             }
-        ], () => {
-            // Callback: Restore original state when tour ends
-            setItems(originalItems);
-            setFormData(originalFormData);
-            setIsDirty(false);
-        });
+        );
     };
 
     return (
-        <div id="cotizador-top" className="space-y-6 max-w-7xl mx-auto pb-20">
+        <div id="cotizador-top" className="mx-auto max-w-7xl space-y-6 pb-20">
             {/* Header / Nav */}
             <DashboardHeader
                 title="Nueva Cotización"
                 description="Generar una nueva cotización detallada para clientes"
-                icon={<FileText className="w-8 h-8" />}
+                icon={<FileText className="h-8 w-8" />}
                 onBack={handleBack}
                 colorClass="text-red-500"
                 bgClass="bg-red-500/10"
@@ -1025,23 +1022,26 @@ function QuoteGeneratorContent() {
             />
 
             {/* General Info Card */}
-            <Card id="quote-client-section" className="bg-card border-border">
-                <CardHeader className="pb-4 border-b border-border">
-                    <CardTitle className="text-red-500 font-semibold text-lg flex items-center gap-2">
-                        <FileText className="w-5 h-5" />
+            <Card id="quote-client-section" className="border-border bg-card">
+                <CardHeader className="border-b border-border pb-4">
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-red-500">
+                        <FileText className="h-5 w-5" />
                         Información General
                     </CardTitle>
                 </CardHeader>
-                <CardContent id="quote-details-section" className="pt-6 grid gap-6 md:grid-cols-3">
+                <CardContent id="quote-details-section" className="grid gap-6 pt-6 md:grid-cols-3">
                     {/* Row 1 */}
-                    <div id="quote-header-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                    <div
+                        id="quote-header-inputs"
+                        className="col-span-1 grid grid-cols-1 gap-6 md:col-span-3 md:grid-cols-3"
+                    >
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Cotizar como</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Cotizar como</label>
                             <Select
                                 value={formData.quote_as}
                                 onValueChange={(value) => handleFormChange({ quote_as: value })}
                             >
-                                <SelectTrigger className="bg-background border-input text-foreground">
+                                <SelectTrigger className="border-input bg-background text-foreground">
                                     <SelectValue placeholder="Seleccionar..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1052,48 +1052,57 @@ function QuoteGeneratorContent() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">No. Parte</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">No. Parte</label>
                             <Input
                                 value={formData.part_no}
-                                onChange={e => handleFormChange({ part_no: e.target.value.toUpperCase() })}
+                                onChange={(e) => handleFormChange({ part_no: e.target.value.toUpperCase() })}
                                 placeholder="PN-X99"
-                                className="bg-background border-input text-foreground uppercase"
+                                className="border-input bg-background uppercase text-foreground"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">No. Requisición</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">No. Requisición</label>
                             <Input
                                 value={formData.requisition_no}
-                                onChange={e => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
+                                onChange={(e) => handleFormChange({ requisition_no: e.target.value.toUpperCase() })}
                                 placeholder="Ej. REQ-12345..."
-                                className="bg-background border-input text-foreground uppercase"
+                                className="border-input bg-background uppercase text-foreground"
                             />
                         </div>
                     </div>
 
                     {/* Row 2 */}
-                    <div id="quote-dates-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                    <div
+                        id="quote-dates-inputs"
+                        className="col-span-1 grid grid-cols-1 gap-6 md:col-span-3 md:grid-cols-3"
+                    >
                         <div className="space-y-2">
                             <DateSelector
                                 label="Fecha de Emisión"
-                                date={formData.issue_date ? new Date(formData.issue_date + 'T12:00:00') : undefined}
-                                onSelect={(d) => handleFormChange({ issue_date: d ? format(d, 'yyyy-MM-dd') : '' })}
+                                labelClassName="text-xs font-semibold text-red-500 uppercase tracking-normal"
+                                buttonClassName="bg-background border-input shadow-none"
+                                date={formData.issue_date ? new Date(formData.issue_date + "T12:00:00") : undefined}
+                                onSelect={(d) => handleFormChange({ issue_date: d ? format(d, "yyyy-MM-dd") : "" })}
                             />
                         </div>
                         <div className="space-y-2">
                             <DateSelector
                                 label="Fecha de Entrega"
-                                date={formData.delivery_date ? new Date(formData.delivery_date + 'T12:00:00') : undefined}
-                                onSelect={(d) => handleFormChange({ delivery_date: d ? format(d, 'yyyy-MM-dd') : '' })}
+                                labelClassName="text-xs font-semibold text-red-500 uppercase tracking-normal"
+                                buttonClassName="bg-background border-input shadow-none"
+                                date={
+                                    formData.delivery_date ? new Date(formData.delivery_date + "T12:00:00") : undefined
+                                }
+                                onSelect={(d) => handleFormChange({ delivery_date: d ? format(d, "yyyy-MM-dd") : "" })}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Moneda</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Moneda</label>
                             <Select
                                 value={formData.currency}
                                 onValueChange={(value) => handleFormChange({ currency: value })}
                             >
-                                <SelectTrigger className="bg-background border-input text-foreground">
+                                <SelectTrigger className="border-input bg-background text-foreground">
                                     <SelectValue placeholder="Seleccionar..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1105,9 +1114,12 @@ function QuoteGeneratorContent() {
                     </div>
 
                     {/* Row 3 - Dynamic Comboboxes */}
-                    <div id="quote-client-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                    <div
+                        id="quote-client-inputs"
+                        className="col-span-1 grid grid-cols-1 gap-6 md:col-span-3 md:grid-cols-3"
+                    >
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Cliente</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Cliente</label>
                             <ComboboxCreatable
                                 options={clients}
                                 value={formData.client_id}
@@ -1118,33 +1130,40 @@ function QuoteGeneratorContent() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Usuario (Contacto)</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Usuario (Contacto)</label>
                             <ComboboxCreatable
                                 options={filteredContacts}
                                 value={formData.contact_id}
                                 onSelect={(val) => handleFormChange({ contact_id: val })}
                                 onCreate={handleCreateContact}
                                 createLabel="Crear Contacto"
-                                placeholder={formData.client_id ? "Seleccionar Usuario..." : "Selecciona Cliente primero"}
+                                placeholder={
+                                    formData.client_id ? "Seleccionar Usuario..." : "Selecciona Cliente primero"
+                                }
                                 disabled={!formData.client_id}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Condiciones de Pago (Días)</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">
+                                Condiciones de Pago (Días)
+                            </label>
                             <Input
                                 type="number"
                                 step={5}
                                 value={formData.payment_terms_days}
-                                onChange={e => handleFormChange({ payment_terms_days: parseInt(e.target.value) })}
-                                className="bg-background border-input text-foreground"
+                                onChange={(e) => handleFormChange({ payment_terms_days: parseInt(e.target.value) })}
+                                className="border-input bg-background text-foreground"
                             />
                         </div>
                     </div>
 
                     {/* Row 4 */}
-                    <div id="quote-extra-inputs" className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-3">
+                    <div
+                        id="quote-extra-inputs"
+                        className="col-span-1 grid grid-cols-1 gap-6 md:col-span-3 md:grid-cols-3"
+                    >
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Puesto</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Puesto</label>
                             <ComboboxCreatable
                                 options={positions}
                                 value={formData.position_id}
@@ -1160,7 +1179,7 @@ function QuoteGeneratorContent() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Área</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Área</label>
                             <ComboboxCreatable
                                 options={areas}
                                 value={formData.area_id}
@@ -1176,13 +1195,13 @@ function QuoteGeneratorContent() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-red-500 uppercase">Vigencia (Días)</label>
+                            <label className="text-xs font-semibold uppercase text-red-500">Vigencia (Días)</label>
                             <Input
                                 type="number"
                                 step={5}
                                 value={formData.validity_days}
-                                onChange={e => handleFormChange({ validity_days: parseInt(e.target.value) })}
-                                className="bg-background border-input text-foreground"
+                                onChange={(e) => handleFormChange({ validity_days: parseInt(e.target.value) })}
+                                className="border-input bg-background text-foreground"
                             />
                         </div>
                     </div>
@@ -1190,34 +1209,38 @@ function QuoteGeneratorContent() {
             </Card>
 
             {/* Items Table Card */}
-            <Card className="bg-card border-border">
-                <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
-                    <CardTitle className="text-red-500 font-semibold text-lg">Lotes y/o Items</CardTitle>
+            <Card className="border-border bg-card">
+                <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
+                    <CardTitle className="text-lg font-semibold text-red-500">Lotes y/o Items</CardTitle>
                     <div id="quote-mode-container" className="flex items-center gap-3">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Modo:</label>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Modo:</label>
                         <Select
                             value={formData.quote_type}
                             onValueChange={(value: "services" | "pieces") => handleFormChange({ quote_type: value })}
                         >
-                            <SelectTrigger className="h-8 w-[200px] bg-background border-zinc-500/20 text-xs font-bold uppercase transition-all focus:ring-red-500/20">
+                            <SelectTrigger className="h-8 w-[200px] border-zinc-500/20 bg-background text-xs font-bold uppercase transition-all focus:ring-red-500/20">
                                 <SelectValue placeholder="Seleccionar..." />
                             </SelectTrigger>
-                            <SelectContent className="bg-card border-border">
-                                <SelectItem value="services" className="text-xs font-bold uppercase">Servicios (Venta Libre)</SelectItem>
-                                <SelectItem value="pieces" className="text-xs font-bold uppercase">Piezas (Planos)</SelectItem>
+                            <SelectContent className="border-border bg-card">
+                                <SelectItem value="services" className="text-xs font-bold uppercase">
+                                    Servicios (Venta Libre)
+                                </SelectItem>
+                                <SelectItem value="pieces" className="text-xs font-bold uppercase">
+                                    Piezas (Planos)
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                 </CardHeader>
-                <CardContent className="pt-0 px-0 relative">
+                <CardContent className="relative px-0 pt-0">
                     <Dropzone
                         onFilesSelected={onFilesSelected}
                         isUploading={isUploadingFiles}
-                        className="border-0 p-0 rounded-none hover:bg-transparent"
+                        className="rounded-none border-0 p-0 hover:bg-transparent"
                         ref={dropzoneRef}
                     >
-                        <div id="quote-items-section" className="relative group/table p-0 flex flex-col min-h-full">
-                            <div className="overflow-x-auto flex-1">
+                        <div id="quote-items-section" className="group/table relative flex min-h-full flex-col p-0">
+                            <div className="flex-1 overflow-x-auto">
                                 <SharedItemsTable
                                     mode="quote"
                                     quoteType={formData.quote_type}
@@ -1226,7 +1249,9 @@ function QuoteGeneratorContent() {
                                     materials={materials}
                                     treatments={treatments}
                                     onReorder={(newItems) => setItems(newItems as unknown as QuoteItem[])}
-                                    onUpdateItem={(indexOrId, data) => updateItem(indexOrId as number, data as Partial<QuoteItem>)}
+                                    onUpdateItem={(indexOrId, data) =>
+                                        updateItem(indexOrId as number, data as Partial<QuoteItem>)
+                                    }
                                     onDeleteItem={(indexOrId) => removeItem(indexOrId as number)}
                                     onCreateUnit={async (name) => {
                                         const upperName = name.toUpperCase();
@@ -1255,31 +1280,36 @@ function QuoteGeneratorContent() {
                                 />
                             </div>
 
-                            <div id="quote-items-footer" className="p-4 border-t border-border flex flex-col gap-4">
+                            <div id="quote-items-footer" className="flex flex-col gap-4 border-t border-border p-4">
                                 <div className="flex items-center justify-between">
-                                    <Button id="quote-add-item-btn" onClick={addItem} variant="outline" className="border-zinc-500/20 text-muted-foreground hover:bg-muted hover:text-foreground shadow-sm">
-                                        <Plus className="w-4 h-4 mr-2" />
+                                    <Button
+                                        id="quote-add-item-btn"
+                                        onClick={addItem}
+                                        variant="outline"
+                                        className="border-zinc-500/20 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" />
                                         Agregar Fila
                                     </Button>
 
-                                    {formData.quote_type === 'pieces' && (
+                                    {formData.quote_type === "pieces" && (
                                         <div id="quote-pieces-options" className="flex items-center gap-3">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => dropzoneRef.current?.click()}
-                                                className="h-8 border-red-500/20 text-red-500 hover:bg-red-500/10 hover:text-red-600 font-bold uppercase text-[10px] shadow-sm"
+                                                className="h-8 border-red-500/20 text-[10px] font-bold uppercase text-red-500 shadow-sm hover:bg-red-500/10 hover:text-red-600"
                                             >
-                                                <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                                                <UploadCloud className="mr-1.5 h-3.5 w-3.5" />
                                                 Cargar Planos
                                             </Button>
 
                                             <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                                                    <FileCheck className="w-3.5 h-3.5" />
-                                                    {items.filter(i => i.drawing_url).length} Planos cargados
+                                                <div className="flex items-center gap-2 rounded border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] font-bold uppercase text-green-600">
+                                                    <FileCheck className="h-3.5 w-3.5" />
+                                                    {items.filter((i) => i.drawing_url).length} Planos cargados
                                                 </div>
-                                                <p className="hidden sm:block text-[10px] text-muted-foreground uppercase font-bold tracking-tight opacity-70">
+                                                <p className="hidden text-[10px] font-bold uppercase tracking-tight text-muted-foreground opacity-70 sm:block">
                                                     O arrastra archivos a la tabla
                                                 </p>
                                             </div>
@@ -1290,44 +1320,54 @@ function QuoteGeneratorContent() {
                         </div>
                     </Dropzone>
                 </CardContent>
-            </Card >
+            </Card>
 
             {/* Totals Section */}
-            < div className="flex flex-col items-end gap-6" >
-                <Card id="quote-totals-section" className="w-full md:w-[350px] bg-card border-border">
-                    <CardContent className="pt-6 space-y-4">
+            <div className="flex flex-col items-end gap-6">
+                <Card id="quote-totals-section" className="w-full border-border bg-card md:w-[350px]">
+                    <CardContent className="space-y-4 pt-6">
                         {validationErrors.length > 0 && (
-                            <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-md mb-4">
-                                <p className="text-red-500 text-xs font-bold uppercase mb-2">Campos Faltantes:</p>
-                                <ul className="list-disc list-inside space-y-1">
+                            <div className="mb-4 rounded-md border border-red-500/20 bg-red-500/10 p-3">
+                                <p className="mb-2 text-xs font-bold uppercase text-red-500">Campos Faltantes:</p>
+                                <ul className="list-inside list-disc space-y-1">
                                     {validationErrors.map((err, i) => (
-                                        <li key={i} className="text-red-400 text-[10px] leading-tight font-medium">{err}</li>
+                                        <li key={i} className="text-[10px] font-medium leading-tight text-red-400">
+                                            {err}
+                                        </li>
                                     ))}
                                 </ul>
                             </div>
                         )}
-                        <div className="flex justify-between items-center text-muted-foreground">
+                        <div className="flex items-center justify-between text-muted-foreground">
                             <span>Subtotal:</span>
-                            <span className="font-mono text-foreground text-lg">${formatCurrency(totals.subtotal)}</span>
+                            <span className="font-mono text-lg text-foreground">
+                                ${formatCurrency(totals.subtotal)}
+                            </span>
                         </div>
-                        <div className="flex justify-between items-center text-muted-foreground">
+                        <div className="flex items-center justify-between text-muted-foreground">
                             <div className="flex items-center gap-2">
                                 <span>IVA</span>
                                 <Input
                                     type="number"
                                     value={formData.tax_rate === 0 ? "" : formData.tax_rate}
-                                    onChange={e => handleFormChange({ tax_rate: e.target.value === "" ? 0 : parseFloat(e.target.value) })}
-                                    className="w-16 h-6 px-1 text-center bg-background border-input text-foreground text-xs"
+                                    onChange={(e) =>
+                                        handleFormChange({
+                                            tax_rate: e.target.value === "" ? 0 : parseFloat(e.target.value),
+                                        })
+                                    }
+                                    className="h-6 w-16 border-input bg-background px-1 text-center text-xs text-foreground"
                                     placeholder="0"
                                 />
                                 <span>%:</span>
                             </div>
-                            <span className="font-mono text-foreground text-lg">${formatCurrency(totals.tax)}</span>
+                            <span className="font-mono text-lg text-foreground">${formatCurrency(totals.tax)}</span>
                         </div>
                         <Separator className="bg-border" />
-                        <div className="flex justify-between items-center">
-                            <span className="text-red-500 font-bold text-xl uppercase">Total:</span>
-                            <span className="font-mono text-red-500 font-bold text-2xl">${formatCurrency(totals.total)}</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xl font-bold uppercase text-red-500">Total:</span>
+                            <span className="font-mono text-2xl font-bold text-red-500">
+                                ${formatCurrency(totals.total)}
+                            </span>
                         </div>
                     </CardContent>
                 </Card>
@@ -1340,17 +1380,24 @@ function QuoteGeneratorContent() {
                                 Reiniciar
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="bg-card border-border">
+                        <AlertDialogContent className="border-border bg-card">
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Reiniciar Campos?</AlertDialogTitle>
+                                <AlertDialogTitle className="font-bold uppercase text-red-500">
+                                    ¿Reiniciar Campos?
+                                </AlertDialogTitle>
                                 <AlertDialogDescription className="text-muted-foreground">
                                     Se borrará la información capturada en el formulario actual.
                                     {savedQuote ? " El folio de la cotización se mantendrá." : ""}
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                                <AlertDialogCancel className="border-border hover:bg-muted font-bold uppercase text-xs">Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleResetFields} className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-xs">
+                                <AlertDialogCancel className="border-border text-xs font-bold uppercase hover:bg-muted">
+                                    Cancelar
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={handleResetFields}
+                                    className="bg-red-600 text-xs font-bold uppercase text-white hover:bg-red-700"
+                                >
                                     Sí, Reiniciar
                                 </AlertDialogAction>
                             </AlertDialogFooter>
@@ -1361,21 +1408,32 @@ function QuoteGeneratorContent() {
                     {(savedQuote || editingId) && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button variant="outline" className="border-blue-500/30 text-blue-500 hover:bg-blue-500/10 font-semibold uppercase">
-                                    <Plus className="w-4 h-4 mr-2" />
+                                <Button
+                                    variant="outline"
+                                    className="border-blue-500/30 font-semibold uppercase text-blue-500 hover:bg-blue-500/10"
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
                                     Nueva
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent className="bg-card border-border">
+                            <AlertDialogContent className="border-border bg-card">
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle className="text-blue-500 font-bold uppercase">¿Nueva Cotización?</AlertDialogTitle>
+                                    <AlertDialogTitle className="font-bold uppercase text-blue-500">
+                                        ¿Nueva Cotización?
+                                    </AlertDialogTitle>
                                     <AlertDialogDescription className="text-muted-foreground">
-                                        Se cerrará la cotización actual y se iniciará una completamente nueva con un folio distinto. Asegúrate de haber guardado cambios.
+                                        Se cerrará la cotización actual y se iniciará una completamente nueva con un
+                                        folio distinto. Asegúrate de haber guardado cambios.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel className="border-border hover:bg-muted font-bold uppercase text-xs">Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleNewQuote} className="bg-blue-600 hover:bg-blue-700 text-white font-bold uppercase text-xs">
+                                    <AlertDialogCancel className="border-border text-xs font-bold uppercase hover:bg-muted">
+                                        Cancelar
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleNewQuote}
+                                        className="bg-blue-600 text-xs font-bold uppercase text-white hover:bg-blue-700"
+                                    >
                                         Sí, Crear Nueva
                                     </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -1385,7 +1443,7 @@ function QuoteGeneratorContent() {
 
                     <div className="flex gap-2">
                         {/* Imprimir PDF - Only visible if saved AND not modified */}
-                        {((savedQuote || (editingId && !isClone)) && !isDirty) && (
+                        {(savedQuote || (editingId && !isClone)) && !isDirty && (
                             <PDFDownloadLink
                                 document={
                                     <QuotePDF
@@ -1393,10 +1451,13 @@ function QuoteGeneratorContent() {
                                             ...formData,
                                             ...totals,
                                             quote_number: savedQuote?.quote_number || 0,
-                                            client_name: clients.find(c => c.value === formData.client_id)?.label || "",
-                                            contact_name: allContacts.find(c => c.id === formData.contact_id)?.name || "",
-                                            position_name: positions.find(c => c.value === formData.position_id)?.label || "",
-                                            area_name: areas.find(c => c.value === formData.area_id)?.label || "",
+                                            client_name:
+                                                clients.find((c) => c.value === formData.client_id)?.label || "",
+                                            contact_name:
+                                                allContacts.find((c) => c.id === formData.contact_id)?.name || "",
+                                            position_name:
+                                                positions.find((c) => c.value === formData.position_id)?.label || "",
+                                            area_name: areas.find((c) => c.value === formData.area_id)?.label || "",
                                         }}
                                         items={items}
                                     />
@@ -1405,8 +1466,12 @@ function QuoteGeneratorContent() {
                             >
                                 {/* @ts-ignore - render prop issues in some versions */}
                                 {({ loading: pdfLoading }) => (
-                                    <Button className="bg-green-600 hover:bg-green-700 text-white min-w-[200px] h-12 text-lg font-bold shadow-lg shadow-green-500/20 animate-in fade-in zoom-in duration-300">
-                                        {pdfLoading ? <Loader2 className="w-5 h-5 mr-3 animate-spin" /> : <Printer className="w-5 h-5 mr-3" />}
+                                    <Button className="h-12 min-w-[200px] bg-green-600 text-lg font-bold text-white shadow-lg shadow-green-500/20 duration-300 animate-in fade-in zoom-in hover:bg-green-700">
+                                        {pdfLoading ? (
+                                            <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <Printer className="mr-3 h-5 w-5" />
+                                        )}
                                         Imprimir PDF
                                     </Button>
                                 )}
@@ -1417,45 +1482,58 @@ function QuoteGeneratorContent() {
                         {(!savedQuote || (editingId && !isClone) || isDirty) && (
                             <Button
                                 onClick={handleSave}
-                                disabled={saving || (!isDirty && (Boolean(savedQuote) || Boolean(editingId && !isClone)))}
+                                disabled={
+                                    saving || (!isDirty && (Boolean(savedQuote) || Boolean(editingId && !isClone)))
+                                }
                                 className={cn(
-                                    "min-w-[220px] h-12 text-lg font-bold shadow-lg transition-all duration-300",
+                                    "h-12 min-w-[220px] text-lg font-bold shadow-lg transition-all duration-300",
                                     (savedQuote || (editingId && !isClone)) && isDirty
-                                        ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/20 animate-in slide-in-from-right-4"
-                                        : "bg-red-600 hover:bg-red-700 text-white shadow-red-500/20"
+                                        ? "bg-red-600 text-white shadow-red-500/20 animate-in slide-in-from-right-4 hover:bg-red-700"
+                                        : "bg-red-600 text-white shadow-red-500/20 hover:bg-red-700"
                                 )}
                             >
-                                {saving ? <Loader2 className="w-5 h-5 mr-3 animate-spin" /> : <Save className="w-5 h-5 mr-3" />}
-                                {(savedQuote || (editingId && !isClone)) && isDirty ? "Actualizar Cambios" : "Guardar Cotización"}
+                                {saving ? (
+                                    <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                                ) : (
+                                    <Save className="mr-3 h-5 w-5" />
+                                )}
+                                {(savedQuote || (editingId && !isClone)) && isDirty
+                                    ? "Actualizar Cambios"
+                                    : "Guardar Cotización"}
                             </Button>
                         )}
                     </div>
                 </div>
-            </div >
+            </div>
 
             {/* Confirmation Modal for Back Bridge */}
-            < AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm} >
-                <AlertDialogContent className="bg-card border-border">
+            <AlertDialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+                <AlertDialogContent className="border-border bg-card">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-red-500 font-bold uppercase">¿Salir sin guardar?</AlertDialogTitle>
+                        <AlertDialogTitle className="font-bold uppercase text-red-500">
+                            ¿Salir sin guardar?
+                        </AlertDialogTitle>
                         <AlertDialogDescription className="text-muted-foreground">
-                            Tienes cambios sin guardar. Si sales ahora, perderás la información capturada en el formulario.
+                            Tienes cambios sin guardar. Si sales ahora, perderás la información capturada en el
+                            formulario.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="border-border hover:bg-muted font-bold uppercase text-xs">Continuar Editando</AlertDialogCancel>
+                        <AlertDialogCancel className="border-border text-xs font-bold uppercase hover:bg-muted">
+                            Continuar Editando
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => {
                                 setIsDirty(false);
                                 router.push("/dashboard/ventas");
                             }}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold uppercase text-xs"
+                            className="bg-red-600 text-xs font-bold uppercase text-white hover:bg-red-700"
                         >
                             Salir y Perder Cambios
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog >
+            </AlertDialog>
 
             <DrawingViewer
                 url={viewerUrl}
@@ -1465,8 +1543,8 @@ function QuoteGeneratorContent() {
                     setViewerTitle("");
                 }}
                 onNext={() => {
-                    const attachments = items.filter(i => i.drawing_url);
-                    const currentIdx = attachments.findIndex(i => i.drawing_url === viewerUrl);
+                    const attachments = items.filter((i) => i.drawing_url);
+                    const currentIdx = attachments.findIndex((i) => i.drawing_url === viewerUrl);
                     if (currentIdx !== -1 && currentIdx < attachments.length - 1) {
                         const nextItem = attachments[currentIdx + 1];
                         setViewerUrl(nextItem.drawing_url!);
@@ -1474,17 +1552,20 @@ function QuoteGeneratorContent() {
                     }
                 }}
                 onPrevious={() => {
-                    const attachments = items.filter(i => i.drawing_url);
-                    const currentIdx = attachments.findIndex(i => i.drawing_url === viewerUrl);
+                    const attachments = items.filter((i) => i.drawing_url);
+                    const currentIdx = attachments.findIndex((i) => i.drawing_url === viewerUrl);
                     if (currentIdx > 0) {
                         const prevItem = attachments[currentIdx - 1];
                         setViewerUrl(prevItem.drawing_url!);
                         setViewerTitle(prevItem.description || prevItem.design_no || "Sin nombre");
                     }
                 }}
-                hasNext={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) < items.filter(i => i.drawing_url).length - 1}
-                hasPrevious={items.filter(i => i.drawing_url).findIndex(i => i.drawing_url === viewerUrl) > 0}
+                hasNext={
+                    items.filter((i) => i.drawing_url).findIndex((i) => i.drawing_url === viewerUrl) <
+                    items.filter((i) => i.drawing_url).length - 1
+                }
+                hasPrevious={items.filter((i) => i.drawing_url).findIndex((i) => i.drawing_url === viewerUrl) > 0}
             />
-        </div >
+        </div>
     );
 }

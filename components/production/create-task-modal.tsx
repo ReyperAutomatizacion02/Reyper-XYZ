@@ -3,20 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPlanningTask } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
-import { CalendarIcon, Clock, X } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { DateSelector } from "@/components/ui/date-selector";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
@@ -31,69 +25,6 @@ interface CreateTaskModalProps {
     } | null;
     orders: Order[];
     onSuccess: () => void;
-}
-
-// Custom Date Selector Component - EXACT COPY from project-form.tsx
-function DateSelector({
-    date,
-    onSelect,
-    label
-}: {
-    date: Date | undefined;
-    onSelect: (d: Date | undefined) => void;
-    label: string
-}) {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    return (
-        <div className="space-y-2 relative" ref={containerRef}>
-            <Label className="text-muted-foreground font-medium text-xs uppercase tracking-wider">{label}</Label>
-            <Button
-                type="button"
-                variant={"outline"}
-                className={cn(
-                    "w-full justify-start text-left font-normal bg-muted/50 hover:bg-card border-border shadow-sm transition-all duration-200 h-10",
-                    !date && "text-muted-foreground"
-                )}
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <CalendarIcon className="mr-2 h-4 w-4 text-red-500" />
-                {date ? format(date, "PPP", { locale: es }) : <span>Seleccionar</span>}
-            </Button>
-
-            {/* Manual Popover */}
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        {/* Fixed Backdrop for click-outside closing */}
-                        <div
-                            className="fixed inset-0 z-[9998] bg-transparent"
-                            onClick={() => setIsOpen(false)}
-                        />
-
-                        {/* Calendar Container - Strictly below the button with minimal margin */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute top-full mt-1 left-0 z-[9999] bg-popover border rounded-xl shadow-xl w-auto overflow-hidden ring-1 ring-border/20"
-                        >
-                            <Calendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(d) => {
-                                    onSelect(d);
-                                    setIsOpen(false);
-                                }}
-                                initialFocus
-                            />
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-        </div>
-    );
 }
 
 // Internal TimePicker Component
@@ -122,10 +53,12 @@ function TimePicker({ date, onChange }: TimePickerProps) {
     };
 
     return (
-        <div className="flex items-center gap-2 pt-6"> {/* Added padding top to align with DateSelector's button below label */}
-            <div className="flex flex-col gap-1 items-center">
+        <div className="flex items-center gap-2 pt-6">
+            {" "}
+            {/* Added padding top to align with DateSelector's button below label */}
+            <div className="flex flex-col items-center gap-1">
                 <Select value={currentHour} onValueChange={handleHourChange}>
-                    <SelectTrigger className="w-[70px] bg-muted/50 border-border h-10">
+                    <SelectTrigger className="h-10 w-[70px] border-border bg-muted/50">
                         <SelectValue placeholder="HH" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -136,12 +69,12 @@ function TimePicker({ date, onChange }: TimePickerProps) {
                         ))}
                     </SelectContent>
                 </Select>
-                <span className="text-[10px] text-muted-foreground font-medium uppercase mt-1">Hora</span>
+                <span className="mt-1 text-[10px] font-medium uppercase text-muted-foreground">Hora</span>
             </div>
-            <span className="text-muted-foreground font-bold pb-6">:</span>
-            <div className="flex flex-col gap-1 items-center">
+            <span className="pb-6 font-bold text-muted-foreground">:</span>
+            <div className="flex flex-col items-center gap-1">
                 <Select value={currentMinute} onValueChange={handleMinuteChange}>
-                    <SelectTrigger className="w-[70px] bg-muted/50 border-border h-10">
+                    <SelectTrigger className="h-10 w-[70px] border-border bg-muted/50">
                         <SelectValue placeholder="MM" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -152,7 +85,7 @@ function TimePicker({ date, onChange }: TimePickerProps) {
                         ))}
                     </SelectContent>
                 </Select>
-                <span className="text-[10px] text-muted-foreground font-medium uppercase mt-1">Min</span>
+                <span className="mt-1 text-[10px] font-medium uppercase text-muted-foreground">Min</span>
             </div>
         </div>
     );
@@ -208,40 +141,40 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg overflow-visible animate-in zoom-in-95 duration-200"> {/* Changed overflow-hidden to visible for DateSelector popover */}
-                <div className="bg-muted/30 px-6 py-4 border-b border-border flex justify-between items-center rounded-t-xl">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
+            <div className="w-full max-w-lg overflow-visible rounded-xl border border-border bg-card shadow-2xl duration-200 animate-in zoom-in-95">
+                {" "}
+                {/* Changed overflow-hidden to visible for DateSelector popover */}
+                <div className="flex items-center justify-between rounded-t-xl border-b border-border bg-muted/30 px-6 py-4">
                     <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                        <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
                             <span className="text-primary">✨</span> Nuevo Registro
                         </h3>
                         {initialData && (
-                            <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono text-muted-foreground border border-border">
+                            <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                                 {initialData.machine}
                             </span>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-                        <X className="w-5 h-5" />
+                    <button onClick={onClose} className="text-muted-foreground transition-colors hover:text-foreground">
+                        <X className="h-5 w-5" />
                     </button>
                 </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
-
+                <form onSubmit={handleSubmit} className="space-y-6 p-6">
                     {/* Partida Selection */}
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
+                        <Label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <Clock className="h-3 w-3" />
                             Pieza / Partida
                         </Label>
                         <Select value={selectedOrder} onValueChange={setSelectedOrder}>
-                            <SelectTrigger className="w-full bg-muted/50 border-border h-10">
+                            <SelectTrigger className="h-10 w-full border-border bg-muted/50">
                                 <SelectValue placeholder="Buscar pieza..." />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
-                                {orders.map(order => (
+                                {orders.map((order) => (
                                     <SelectItem key={order.id} value={order.id}>
-                                        <span className="font-mono font-bold mr-2">{order.part_code}</span>
+                                        <span className="mr-2 font-mono font-bold">{order.part_code}</span>
                                         {order.part_name}
                                     </SelectItem>
                                 ))}
@@ -250,28 +183,20 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
                     </div>
 
                     {/* Start Date & Time */}
-                    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
-                        <div className="flex gap-4 items-start">
+                    <div className="space-y-4 rounded-xl border border-border/50 bg-muted/30 p-4">
+                        <div className="flex items-start gap-4">
                             <div className="flex-1">
-                                <DateSelector
-                                    label="Inicio del Maquinado"
-                                    date={startDate}
-                                    onSelect={setStartDate}
-                                />
+                                <DateSelector label="Inicio del Maquinado" date={startDate} onSelect={setStartDate} />
                             </div>
                             <TimePicker date={startDate} onChange={(d) => setStartDate(d)} />
                         </div>
                     </div>
 
                     {/* End Date & Time */}
-                    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
-                        <div className="flex gap-4 items-start">
+                    <div className="space-y-4 rounded-xl border border-border/50 bg-muted/30 p-4">
+                        <div className="flex items-start gap-4">
                             <div className="flex-1">
-                                <DateSelector
-                                    label="Fin Estimado"
-                                    date={endDate}
-                                    onSelect={setEndDate}
-                                />
+                                <DateSelector label="Fin Estimado" date={endDate} onSelect={setEndDate} />
                             </div>
                             <TimePicker date={endDate} onChange={(d) => setEndDate(d)} />
                         </div>
@@ -279,29 +204,26 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
 
                     {/* Operator */}
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Operador</Label>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Operador
+                        </Label>
                         <Input
                             type="text"
-                            className="w-full bg-muted/50 border-border h-10"
+                            className="h-10 w-full border-border bg-muted/50"
                             placeholder="Nombre del operador..."
                             value={operator}
-                            onChange={e => setOperator(e.target.value)}
+                            onChange={(e) => setOperator(e.target.value)}
                         />
                     </div>
 
-                    <div className="pt-2 flex justify-end gap-3">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={onClose}
-                            className="h-10 rounded-lg"
-                        >
+                    <div className="flex justify-end gap-3 pt-2">
+                        <Button type="button" variant="ghost" onClick={onClose} className="h-10 rounded-lg">
                             Cancelar
                         </Button>
                         <Button
                             type="submit"
                             disabled={isLoading}
-                            className="h-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 px-8 font-semibold shadow-lg shadow-primary/20"
+                            className="h-10 rounded-lg bg-primary px-8 font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90"
                         >
                             {isLoading ? "Guardando..." : "Guardar Registro"}
                         </Button>

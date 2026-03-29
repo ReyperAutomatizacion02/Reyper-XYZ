@@ -2,19 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import {
-    X,
-    Calendar as CalendarIcon,
-    Clock,
-    User,
-    Box,
-    Save,
-    Trash2,
-    ChevronDown,
-    ChevronUp,
-    Sparkles,
-    Edit,
-} from "lucide-react";
+import { X, Clock, User, Box, Save, Trash2, ChevronDown, ChevronUp, Sparkles, Edit } from "lucide-react";
 import { createPlanningTask, updateTaskDetails } from "@/app/dashboard/produccion/actions";
 import { Database } from "@/utils/supabase/types";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -23,9 +11,8 @@ import { es } from "date-fns/locale";
 import logger from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { DateSelector } from "@/components/ui/date-selector";
 import { motion, AnimatePresence } from "framer-motion";
-import { Label } from "@/components/ui/label"; // Ensure Label is imported if used inside DateSelector or elsewhere
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 
@@ -48,66 +35,6 @@ interface TaskModalProps {
     operators: string[];
     onSuccess: () => void;
     container?: HTMLElement | null;
-}
-
-// Custom Date Selector Component - EXACT COPY from project-form.tsx
-function DateSelector({
-    date,
-    onSelect,
-    label,
-}: {
-    date: Date | undefined;
-    onSelect: (d: Date | undefined) => void;
-    label: string;
-}) {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    return (
-        <div className="relative space-y-2" ref={containerRef}>
-            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</Label>
-            <Button
-                type="button"
-                variant={"outline"}
-                className={cn(
-                    "h-11 w-full justify-start border-border bg-muted/50 text-left font-normal shadow-sm transition-all duration-200 hover:bg-card", // Matched height with TimePicker inputs
-                    !date && "text-muted-foreground"
-                )}
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <CalendarIcon className="mr-2 h-4 w-4 text-red-500" />
-                {date ? format(date, "PPP", { locale: es }) : <span>Seleccionar</span>}
-            </Button>
-
-            {/* Manual Popover */}
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        {/* Fixed Backdrop for click-outside closing */}
-                        <div className="fixed inset-0 z-[9998] bg-transparent" onClick={() => setIsOpen(false)} />
-
-                        {/* Calendar Container - Strictly below the button with minimal margin */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute left-0 top-full z-[9999] mt-1 w-auto overflow-hidden rounded-xl border bg-popover shadow-xl ring-1 ring-border/20"
-                        >
-                            <Calendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(d) => {
-                                    onSelect(d);
-                                    setIsOpen(false);
-                                }}
-                                initialFocus
-                            />
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-        </div>
-    );
 }
 
 // Custom Time Picker Component (24h strict - Custom Dropdown)
@@ -515,6 +442,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                                             label="Inicio del Maquinado"
                                             date={getSafeDate(formData.startDate)}
                                             onSelect={handleStartDateChange}
+                                            buttonClassName="h-11"
                                         />
                                     </div>
                                     <div className="w-40 pt-6">
@@ -539,6 +467,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                                             label="Fin del Maquinado"
                                             date={getSafeDate(formData.endDate)}
                                             onSelect={handleEndDateChange}
+                                            buttonClassName="h-11"
                                         />
                                     </div>
                                     <div className="w-40 pt-6">

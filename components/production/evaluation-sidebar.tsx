@@ -20,7 +20,6 @@ import {
     Trash2,
     Wrench,
     XCircle,
-    Calendar as CalendarIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -28,8 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { DateSelector } from "@/components/ui/date-selector";
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 import { extractDriveFileId } from "@/lib/drive-utils";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -571,49 +569,18 @@ export function EvaluationSidebar({
                                                             )}
                                                         </div>
                                                         {evalFilterType !== "none" && (
-                                                            <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        className={cn(
-                                                                            "h-8 w-full justify-start text-left text-[10px] font-normal",
-                                                                            !evalDateValue && "text-muted-foreground"
-                                                                        )}
-                                                                    >
-                                                                        <CalendarIcon className="mr-2 h-3 w-3" />
-                                                                        {evalDateValue ? (
-                                                                            format(
-                                                                                new Date(evalDateValue),
-                                                                                "dd 'de' MMMM, yyyy",
-                                                                                {
-                                                                                    locale: es,
-                                                                                }
-                                                                            )
-                                                                        ) : (
-                                                                            <span>Seleccionar fecha</span>
-                                                                        )}
-                                                                    </Button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent
-                                                                    className="z-[2000] w-auto p-0"
-                                                                    align="start"
-                                                                >
-                                                                    <Calendar
-                                                                        mode="single"
-                                                                        selected={
-                                                                            evalDateValue
-                                                                                ? new Date(evalDateValue)
-                                                                                : undefined
-                                                                        }
-                                                                        onSelect={(date) =>
-                                                                            setEvalDateValue(
-                                                                                date ? format(date, "yyyy-MM-dd") : ""
-                                                                            )
-                                                                        }
-                                                                        initialFocus
-                                                                    />
-                                                                </PopoverContent>
-                                                            </Popover>
+                                                            <DateSelector
+                                                                date={
+                                                                    evalDateValue ? new Date(evalDateValue) : undefined
+                                                                }
+                                                                onSelect={(date) =>
+                                                                    setEvalDateValue(
+                                                                        date ? format(date, "yyyy-MM-dd") : ""
+                                                                    )
+                                                                }
+                                                                placeholder="Seleccionar fecha"
+                                                                buttonClassName="h-8 text-[10px]"
+                                                            />
                                                         )}
                                                     </div>
 

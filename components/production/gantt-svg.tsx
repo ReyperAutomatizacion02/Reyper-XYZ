@@ -1135,6 +1135,7 @@ export function GanttSVG({
                                         <CalendarUI
                                             mode="single"
                                             selected={selectedDate}
+                                            defaultMonth={selectedDate}
                                             onSelect={(date) => date && setSelectedDate(date)}
                                             initialFocus
                                             locale={es}
@@ -1164,6 +1165,7 @@ export function GanttSVG({
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeStart}
+                                                defaultMonth={dateRangeStart}
                                                 onSelect={(date) => date && setDateRangeStart(date)}
                                                 initialFocus
                                                 locale={es}
@@ -1191,6 +1193,7 @@ export function GanttSVG({
                                             <CalendarUI
                                                 mode="single"
                                                 selected={dateRangeEnd}
+                                                defaultMonth={dateRangeEnd}
                                                 onSelect={(date) => date && setDateRangeEnd(date)}
                                                 initialFocus
                                                 locale={es}
