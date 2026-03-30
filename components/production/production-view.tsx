@@ -21,9 +21,7 @@ import { toast } from "sonner";
 import {
     generateAutomatedPlanning,
     SchedulingResult,
-    PlanningTask as SchedulingPlanningTask,
     SchedulingStrategy,
-    shiftTasksToCurrent,
     getNextValidWorkTime,
     snapToNext15Minutes,
     OrderWithRelations,
@@ -206,6 +204,11 @@ export function ProductionView({
         if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
 
         draftDebounceRef.current = setTimeout(() => {
+            // generateAutomatedPlanning already schedules tasks starting from
+            // the current time with proper shift-splitting and collision avoidance.
+            // Do NOT re-process through shiftTasksToCurrent — that function doesn't
+            // perform shift-splitting, so it can collapse post-treatment segments
+            // into single tasks that span overnight, ignoring active work schedules.
             const result = generateAutomatedPlanning(
                 localOrders,
                 optimisticTasks,
@@ -214,23 +217,13 @@ export function ProductionView({
                 shifts
             );
 
-            const nowSnapped = snapToNext15Minutes(new Date());
-            const globalStart = getNextValidWorkTime(nowSnapped, shifts);
-
-            const shifted = shiftTasksToCurrent(
-                result.tasks,
-                globalStart,
-                optimisticTasks as SchedulingPlanningTask[],
-                machines.map((m) => m.name),
-                shifts
-            );
-            setLiveDraftResult({ ...result, tasks: shifted });
+            setLiveDraftResult(result);
         }, 400);
 
         return () => {
             if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
         };
-    }, [activeStrategy, strategyFilters, localOrders, optimisticTasks, machines]);
+    }, [activeStrategy, strategyFilters, localOrders, optimisticTasks, machines, shifts]);
 
     // List of all tasks (real + draft) for the Gantt chart
     const allTasks = useMemo(() => {
