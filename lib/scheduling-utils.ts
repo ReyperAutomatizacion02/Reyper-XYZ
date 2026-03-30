@@ -163,15 +163,7 @@ export interface SavedScenario {
     applied_at: string | null;
 }
 
-export type SchedulingStrategy =
-    | "DELIVERY_DATE"
-    | "FAB_TIME"
-    | "FAST_TRACK"
-    | "TREATMENTS"
-    | "CRITICAL_PATH"
-    | "PROJECT_GROUP"
-    | "MATERIAL_OPTIMIZATION"
-    | "URGENCY";
+export type SchedulingStrategy = "CRITICAL_PATH";
 
 export interface StrategyConfig {
     mainStrategy: SchedulingStrategy;
@@ -253,6 +245,24 @@ export function compareOrdersByPriority(a: Order, b: Order): number {
 }
 
 /**
+ * Returns the total machine hours for steps BEFORE the first treatment step.
+ * Multiplied by quantity to reflect real scheduling load.
+ * Used to sort treatment-group orders so the heaviest job goes first, reducing
+ * the chance that the bottleneck order gets pushed to the next day.
+ */
+function getPreTreatmentHours(o: Order): number {
+    const evaluation = o.evaluation as EvaluationStep[] | null;
+    if (!evaluation) return 0;
+    const quantity = Math.max(1, (o as any).quantity ?? 1);
+    let hours = 0;
+    for (const step of evaluation) {
+        if (isTreatmentStep(step)) break;
+        hours += (step as any).hours || 0;
+    }
+    return hours * quantity;
+}
+
+/**
  * Filter and sort orders for scheduling based on a specific strategy.
  */
 export function prepareOrdersForScheduling(orders: Order[], config: StrategyConfig): Order[] {
@@ -288,53 +298,27 @@ export function prepareOrdersForScheduling(orders: Order[], config: StrategyConf
             return true;
         })
         .sort((a, b) => {
-            const getHoursTotal = (o: Order) =>
-                (o.evaluation as EvaluationStep[] | null)?.reduce(
-                    (sum: number, s: EvaluationStep) => sum + (isTreatmentStep(s) ? 0 : s.hours || 0),
-                    0
-                ) ?? 0;
+            // CRITICAL_PATH sort:
+            // 1. Orders with treatment come FIRST — they need the earliest machine slots
+            //    so that all parts of the same treatment batch are ready at the same time.
+            const hasTreatA = a.treatment && a.treatment !== "" && a.treatment !== "N/A" ? 0 : 1;
+            const hasTreatB = b.treatment && b.treatment !== "" && b.treatment !== "N/A" ? 0 : 1;
+            if (hasTreatA !== hasTreatB) return hasTreatA - hasTreatB;
 
-            switch (config.mainStrategy) {
-                case "FAB_TIME":
-                    return getHoursTotal(b) - getHoursTotal(a); // Longest first
-
-                case "FAST_TRACK":
-                    return getHoursTotal(a) - getHoursTotal(b); // Shortest first
-
-                case "CRITICAL_PATH": {
-                    const hasTreatA = a.treatment && a.treatment !== "" && a.treatment !== "N/A" ? 0 : 1;
-                    const hasTreatB = b.treatment && b.treatment !== "" && b.treatment !== "N/A" ? 0 : 1;
-                    if (hasTreatA !== hasTreatB) return hasTreatA - hasTreatB;
-                    return compareOrdersByPriority(a, b);
+            // 2. Orders in the same treatment group: longest pre-treatment job goes first.
+            //    This ensures the bottleneck piece gets the earliest machine slots, so the
+            //    whole batch is ready to ship to the supplier as soon as possible.
+            if (hasTreatA === 0) {
+                const treatA = (a as any).treatment || "";
+                const treatB = (b as any).treatment || "";
+                if (treatA === treatB) {
+                    const diff = getPreTreatmentHours(b) - getPreTreatmentHours(a);
+                    if (diff !== 0) return diff;
                 }
-
-                case "PROJECT_GROUP": {
-                    const projA = a.project_id || "";
-                    const projB = b.project_id || "";
-                    if (projA !== projB) return projA.localeCompare(projB);
-                    return compareOrdersByPriority(a, b);
-                }
-
-                case "MATERIAL_OPTIMIZATION": {
-                    const matA = a.material || "";
-                    const matB = b.material || "";
-                    if (matA !== matB) return matA.localeCompare(matB);
-                    return compareOrdersByPriority(a, b);
-                }
-
-                case "TREATMENTS": {
-                    const treatA = a.treatment || "";
-                    const treatB = b.treatment || "";
-                    return treatA.localeCompare(treatB);
-                }
-
-                case "DELIVERY_DATE":
-                case "URGENCY":
-                // Urgency strategy actually just uses the fallback which now handles urgency first,
-                // but we explicitly define it for clarity.
-                default:
-                    return compareOrdersByPriority(a, b);
             }
+
+            // 3. Fall back to standard priority (urgencia → status → delivery date)
+            return compareOrdersByPriority(a, b);
         });
 }
 
@@ -412,7 +396,7 @@ export function generateAutomatedPlanning(
     existingTasks: PlanningTask[],
     machines: string[],
     config: StrategyConfig = {
-        mainStrategy: "DELIVERY_DATE",
+        mainStrategy: "CRITICAL_PATH",
         onlyWithCAD: false,
         onlyWithBlueprint: false,
         onlyWithMaterial: false,
@@ -534,7 +518,7 @@ export function generateAutomatedPlanning(
             let remainingHours = Math.max(0, totalStepHours - coveredHours);
             let currentSearchStart = getNextValidWorkTime(new Date(stepEndTime), shifts);
 
-            while (remainingHours > 0) {
+            while (remainingHours > 1e-9) {
                 currentSearchStart = getNextValidWorkTime(currentSearchStart, shifts);
                 const shiftEnd = getShiftEnd(currentSearchStart, shifts);
                 const hoursInShift = differenceInMilliseconds(shiftEnd, currentSearchStart) / (1000 * 60 * 60);
@@ -545,17 +529,27 @@ export function generateAutomatedPlanning(
                 }
 
                 const segmentDuration = Math.min(remainingHours, hoursInShift);
-                const proposedEnd = addHours(currentSearchStart, segmentDuration);
+                // Clamp to shiftEnd to prevent floating-point overflow past the shift boundary.
+                // addHours with a fractional value can produce a time 1–2 ms past shiftEnd.
+                const proposedEnd = new Date(
+                    Math.min(addHours(currentSearchStart, segmentDuration).getTime(), shiftEnd.getTime())
+                );
 
                 // Only avoid collisions from OTHER orders on the same machine.
                 // Same-order sequencing is handled by batchEndTime / stepEndTime.
-                const collision = allKnownTasks.find(
-                    (t) =>
+                // Use the earliest-ENDING collision so we jump the minimum distance
+                // and don't skip over valid slots that open up before a longer task ends.
+                let collision: (typeof allKnownTasks)[0] | null = null;
+                for (const t of allKnownTasks) {
+                    if (
                         t.machine === step.machine &&
-                        t.order_id !== order.id &&
+                        (t as any).order_id !== order.id &&
                         t.startMs < proposedEnd.getTime() &&
                         t.endMs > currentSearchStart.getTime()
-                );
+                    ) {
+                        if (!collision || t.endMs < collision.endMs) collision = t;
+                    }
+                }
 
                 if (collision) {
                     currentSearchStart = new Date(collision.endMs);
@@ -617,12 +611,35 @@ export function generateAutomatedPlanning(
             if (uniqueOrders.size < 2) continue;
 
             // ── Phase 1: Align all treatment tasks to the latest "machine-ready" time ──
-            const maxStartMs = Math.max(...treatmentGroup.map((t: any) => t.startMs as number));
+            // IMPORTANT: Do NOT use treatTask.startMs directly — it may be stale.
+            // When an order has multiple treatment types (e.g. TreatA → Machine → TreatB),
+            // a previous treatment group's Phase 2 may have re-scheduled the intermediate
+            // machine step to a later time WITHOUT updating TreatB.startMs.  Reading the
+            // stale value would make TreatB appear to start before that machine step ends,
+            // causing a visible overlap on the Gantt.
+            // Instead, scan draftTasks for the actual end of the last machine task that
+            // precedes this treatment step; fall back to treatTask.startMs only when no
+            // machine task exists before it (e.g. the treatment is the very first step).
+            const getActualReadyTime = (treatTask: any): number => {
+                const ordId = treatTask.order_id as string;
+                const tStepNum = parseInt((treatTask.register as string).replace("-T", ""));
+                let maxEnd = 0;
+                for (const dt of draftTasks) {
+                    if ((dt as any).order_id !== ordId) continue;
+                    if ((dt as any).is_treatment || !(dt as any).machine) continue;
+                    if (parseInt((dt as any).register || "0") < tStepNum && (dt as any).endMs > maxEnd) {
+                        maxEnd = (dt as any).endMs as number;
+                    }
+                }
+                return maxEnd > 0 ? maxEnd : (treatTask.startMs as number);
+            };
 
-            // Capture original start BEFORE modifying (used to establish priority order)
+            // Capture actual ready time per order — used both to compute maxStartMs and
+            // to establish Phase 2 priority (the order ready earliest goes first).
             const originalStartByOrder = new Map<string, number>(
-                treatmentGroup.map((t: any) => [t.order_id as string, t.startMs as number])
+                treatmentGroup.map((t: any) => [t.order_id as string, getActualReadyTime(t)])
             );
+            const maxStartMs = Math.max(...Array.from(originalStartByOrder.values()));
 
             for (const t of treatmentGroup) {
                 const calMs = (t.endMs as number) - (t.startMs as number);
@@ -641,15 +658,34 @@ export function generateAutomatedPlanning(
                 (a, b) => (originalStartByOrder.get(a) || 0) - (originalStartByOrder.get(b) || 0)
             );
 
-            // Collect IDs of post-treatment tasks to remove and replace
+            // Collect IDs of post-treatment tasks to remove and replace.
+            // IMPORTANT: only remove machine steps between THIS treatment and the NEXT
+            // treatment step (if any).  Removing steps that belong to a later treatment
+            // group would cause those tasks to disappear if that later group's
+            // uniqueOrders < 2 (and therefore its Phase 2 is skipped).
             const toRemoveIds = new Set<string>();
             for (const orderId of sortedOrders) {
                 const treatTask = treatmentGroup.find((t: any) => t.order_id === orderId)!;
                 const treatStepNum = parseInt((treatTask.register as string).replace("-T", ""));
+                const evalForRemove = (treatTask.production_orders as any)?.evaluation as any[] | null;
+
+                // Find the 1-indexed step number of the NEXT treatment after this one
+                let nextTreatStepNum = (evalForRemove?.length ?? 0) + 1;
+                if (evalForRemove) {
+                    for (let si = treatStepNum; si < evalForRemove.length; si++) {
+                        if (isTreatmentStep(evalForRemove[si])) {
+                            nextTreatStepNum = si + 1; // 1-indexed
+                            break;
+                        }
+                    }
+                }
+
                 for (const t of draftTasks) {
                     if ((t as any).order_id !== orderId) continue;
                     if ((t as any).is_treatment || !(t as any).machine) continue;
-                    if (parseInt((t as any).register || "0") > treatStepNum) toRemoveIds.add((t as any).id);
+                    const reg = parseInt((t as any).register || "0");
+                    // Only remove steps between this treatment and the next treatment
+                    if (reg > treatStepNum && reg < nextTreatStepNum) toRemoveIds.add((t as any).id);
                 }
             }
 
@@ -688,7 +724,7 @@ export function generateAutomatedPlanning(
                         shifts
                     );
 
-                    while (remainingHours > 0) {
+                    while (remainingHours > 1e-9) {
                         cursor = getNextValidWorkTime(cursor, shifts);
                         const shiftEnd = getShiftEnd(cursor, shifts);
                         const hoursInShift = differenceInMilliseconds(shiftEnd, cursor) / (1000 * 60 * 60);
@@ -699,18 +735,26 @@ export function generateAutomatedPlanning(
                         }
 
                         const segDuration = Math.min(remainingHours, hoursInShift);
-                        const proposedEnd = addHours(cursor, segDuration);
-
-                        // Avoid collisions with other orders on this machine
-                        const collision = allKnownTasks.find(
-                            (t: any) =>
-                                t.machine === machine &&
-                                t.order_id !== orderId &&
-                                t.startMs < proposedEnd.getTime() &&
-                                t.endMs > cursor.getTime()
+                        // Clamp to shiftEnd to prevent floating-point overflow.
+                        const proposedEnd = new Date(
+                            Math.min(addHours(cursor, segDuration).getTime(), shiftEnd.getTime())
                         );
+
+                        // Avoid collisions with other orders on this machine.
+                        // Pick the earliest-ending collision to minimise the jump distance.
+                        let collision: (typeof allKnownTasks)[0] | null = null;
+                        for (const t of allKnownTasks) {
+                            if (
+                                (t as any).machine === machine &&
+                                (t as any).order_id !== orderId &&
+                                (t as any).startMs < proposedEnd.getTime() &&
+                                (t as any).endMs > cursor.getTime()
+                            ) {
+                                if (!collision || (t as any).endMs < (collision as any).endMs) collision = t;
+                            }
+                        }
                         if (collision) {
-                            cursor = new Date(collision.endMs);
+                            cursor = new Date((collision as any).endMs);
                             continue;
                         }
 
@@ -742,6 +786,26 @@ export function generateAutomatedPlanning(
                         .reduce((max: number, t: any) => Math.max(max, t.endMs as number), orderCursor);
                     machineEndTimes.set(machine, Math.max(machineEndTimes.get(machine) || 0, stepEnd));
                     orderCursor = Math.max(orderCursor, stepEnd);
+                }
+
+                // After re-scheduling this order's post-treatment steps, propagate the
+                // new orderCursor to any SUBSEQUENT treatment tasks for the same order.
+                // Without this, those treatment tasks keep their stale startMs from the
+                // main loop — causing them to appear to start before the preceding machine
+                // work finishes (visual overlap on the Gantt) and giving Phase 1 of later
+                // treatment groups an incorrect alignment anchor.
+                for (const dt of draftTasks) {
+                    if ((dt as any).order_id !== orderId) continue;
+                    if (!(dt as any).is_treatment) continue;
+                    const dtRegNum = parseInt(((dt as any).register as string).replace("-T", ""));
+                    if (dtRegNum <= treatStepNum) continue;
+                    if (orderCursor > (dt as any).startMs) {
+                        const duration = (dt as any).endMs - (dt as any).startMs;
+                        (dt as any).startMs = orderCursor;
+                        (dt as any).endMs = orderCursor + duration;
+                        (dt as any).planned_date = format(new Date(orderCursor), "yyyy-MM-dd'T'HH:mm:ss");
+                        (dt as any).planned_end = format(new Date(orderCursor + duration), "yyyy-MM-dd'T'HH:mm:ss");
+                    }
                 }
             }
         }

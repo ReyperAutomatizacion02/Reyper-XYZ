@@ -70,7 +70,7 @@ function makeTask(overrides: Partial<PlanningTask> = {}): PlanningTask {
 }
 
 const DEFAULT_CONFIG: StrategyConfig = {
-    mainStrategy: "DELIVERY_DATE",
+    mainStrategy: "CRITICAL_PATH",
     onlyWithCAD: false,
     onlyWithBlueprint: false,
     onlyWithMaterial: false,
@@ -326,8 +326,8 @@ describe("prepareOrdersForScheduling", () => {
         expect(result[0].treatment).toBe("Anodizado");
     });
 
-    it("sorts by FAB_TIME strategy (longest first)", () => {
-        const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "FAB_TIME" };
+    it("sorts by CRITICAL_PATH strategy (treatment first, longest pre-treatment first)", () => {
+        const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "CRITICAL_PATH" };
         const short = makeOrder({
             evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
         });
@@ -340,29 +340,12 @@ describe("prepareOrdersForScheduling", () => {
         expect(getHours(result[0])).toBeGreaterThan(getHours(result[1]));
     });
 
-    it("sorts by FAST_TRACK strategy (shortest first)", () => {
-        const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "FAST_TRACK" };
-        const short = makeOrder({
-            evaluation: [{ machine: "CNC-1", hours: 1 }] as unknown as import("@/utils/supabase/types").Json,
-        });
-        const long = makeOrder({
-            evaluation: [{ machine: "CNC-1", hours: 10 }] as unknown as import("@/utils/supabase/types").Json,
-        });
-        const result = prepareOrdersForScheduling([short, long], config);
-        const getHours = (o: Order) =>
-            (o.evaluation as EvaluationStep[])?.reduce((s, e) => s + (isTreatmentStep(e) ? 0 : e.hours), 0) ?? 0;
-        expect(getHours(result[0])).toBeLessThan(getHours(result[1]));
-    });
-
-    it("sorts by PROJECT_GROUP strategy (groups by project_id)", () => {
-        const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "PROJECT_GROUP" };
-        const projA1 = makeOrder({ project_id: "aaa" });
-        const projB1 = makeOrder({ project_id: "bbb" });
-        const projA2 = makeOrder({ project_id: "aaa" });
-        const result = prepareOrdersForScheduling([projB1, projA1, projA2], config);
-        expect(result[0].project_id).toBe("aaa");
-        expect(result[1].project_id).toBe("aaa");
-        expect(result[2].project_id).toBe("bbb");
+    it("sorts treatment orders before non-treatment orders", () => {
+        const config: StrategyConfig = { ...DEFAULT_CONFIG, mainStrategy: "CRITICAL_PATH" };
+        const noTreat = makeOrder({ treatment: null });
+        const withTreat = makeOrder({ treatment: "Anodizado" });
+        const result = prepareOrdersForScheduling([noTreat, withTreat], config);
+        expect(result[0].treatment).toBe("Anodizado");
     });
 });
 

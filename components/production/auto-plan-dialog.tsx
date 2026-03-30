@@ -44,50 +44,7 @@ interface AutoPlanDialogProps {
     container?: HTMLElement | null;
 }
 
-const STRATEGIES: { id: SchedulingStrategy; label: string; icon: any; description: string }[] = [
-    {
-        id: "URGENCY",
-        label: "Urgencia (Manual)",
-        icon: AlertTriangle,
-        description: "Prioriza piezas marcadas manualmente como 'Urgente' en su evaluación.",
-    },
-    {
-        id: "DELIVERY_DATE",
-        label: "Prioridad x Entrega",
-        icon: Calendar,
-        description: "Prioriza piezas cuya fecha de entrega está más cerca o vencida.",
-    },
-    {
-        id: "CRITICAL_PATH",
-        label: "Ruta Crítica",
-        icon: Wand2,
-        description: "Prioriza piezas con tratamiento externo para que salgan rápido de planta.",
-    },
-    {
-        id: "PROJECT_GROUP",
-        label: "Por Proyecto",
-        icon: Layers,
-        description: "Agrupa todas las piezas de un mismo proyecto para entregarlos completos.",
-    },
-    {
-        id: "MATERIAL_OPTIMIZATION",
-        label: "Optimización Material",
-        icon: Package,
-        description: "Agrupa por tipo de material para reducir cambios de herramienta y limpieza.",
-    },
-    {
-        id: "FAB_TIME",
-        label: "Carga de Trabajo",
-        icon: Clock,
-        description: "Prioriza piezas con procesos más largos (Evitar cuellos de botella).",
-    },
-    {
-        id: "FAST_TRACK",
-        label: "Fast Track (Express)",
-        icon: Zap,
-        description: "Prioriza piezas cortas y rápidas para sacarlas rápido de planta.",
-    },
-];
+const STRATEGY_LABEL = "Ruta Crítica";
 
 /* ── Toggle Switch ────────────────────────────────────────────── */
 function FilterToggle({
@@ -140,18 +97,15 @@ export function AutoPlanDialog({
     scenarioCount,
     container,
 }: AutoPlanDialogProps) {
-    const [mainStrategy, setMainStrategy] = useState<SchedulingStrategy>("DELIVERY_DATE");
+    const mainStrategy: SchedulingStrategy = "CRITICAL_PATH";
     const [onlyWithCAD, setOnlyWithCAD] = useState(false);
     const [onlyWithBlueprint, setOnlyWithBlueprint] = useState(false);
     const [onlyWithMaterial, setOnlyWithMaterial] = useState(false);
     const [requireTreatment, setRequireTreatment] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const strategyLabel = STRATEGIES.find((s) => s.id === mainStrategy)?.label || mainStrategy;
     const [scenarioName, setScenarioName] = useState("");
-
-    // Auto-suggest name when strategy changes
-    const suggestedName = `Escenario #${scenarioCount + 1}: ${strategyLabel}`;
+    const suggestedName = `Escenario #${scenarioCount + 1}: ${STRATEGY_LABEL}`;
 
     const result = useMemo(() => {
         if (!isOpen) return null;
@@ -254,41 +208,24 @@ export function AutoPlanDialog({
                                         Define las reglas de oro para este escenario de planeación.
                                     </p>
 
-                                    {/* Strategies */}
+                                    {/* Strategy */}
                                     <div className="space-y-2">
                                         <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                                             Estrategia de Ordenamiento
                                         </label>
-                                        <div className="grid gap-2">
-                                            {STRATEGIES.map((s) => (
-                                                <button
-                                                    key={s.id}
-                                                    onClick={() => setMainStrategy(s.id)}
-                                                    className={`group flex items-start gap-3 rounded-2xl border p-3 text-left transition-all duration-200 ${
-                                                        mainStrategy === s.id
-                                                            ? "border-primary bg-background shadow-md ring-2 ring-primary/5"
-                                                            : "border-border bg-background/50 hover:border-muted-foreground/30 hover:bg-background"
-                                                    }`}
-                                                >
-                                                    <div
-                                                        className={`shrink-0 rounded-xl p-2 transition-colors ${
-                                                            mainStrategy === s.id
-                                                                ? "bg-primary text-white"
-                                                                : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/10"
-                                                        }`}
-                                                    >
-                                                        <s.icon className="h-4 w-4" />
-                                                    </div>
-                                                    <div className="space-y-0.5">
-                                                        <div className="text-xs font-black uppercase tracking-tight">
-                                                            {s.label}
-                                                        </div>
-                                                        <div className="text-[10px] leading-tight text-muted-foreground">
-                                                            {s.description}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            ))}
+                                        <div className="flex items-start gap-3 rounded-2xl border border-primary bg-background p-3 shadow-md ring-2 ring-primary/5">
+                                            <div className="shrink-0 rounded-xl bg-primary p-2 text-white">
+                                                <Wand2 className="h-4 w-4" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <div className="text-xs font-black uppercase tracking-tight">
+                                                    Ruta Crítica
+                                                </div>
+                                                <div className="text-[10px] leading-tight text-muted-foreground">
+                                                    Prioriza piezas con tratamiento externo para que salgan rápido de
+                                                    planta.
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 

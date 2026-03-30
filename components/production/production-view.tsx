@@ -309,7 +309,7 @@ export function ProductionView({
                     const start2 = new Date(t2.planned_date);
                     const end2 = new Date(t2.planned_end);
 
-                    if (isBefore(start1, end2) && !isBefore(end1, start2)) {
+                    if (isBefore(start1, end2) && isBefore(start2, end1)) {
                         if (!flaggedTaskIds.has(t2.id)) {
                             alerts.push({
                                 type: "OVERLAP",
