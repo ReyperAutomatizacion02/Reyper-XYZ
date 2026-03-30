@@ -516,7 +516,7 @@ export function generateAutomatedPlanning(
 
             // Schedule remaining hours as shift-split segments
             let remainingHours = Math.max(0, totalStepHours - coveredHours);
-            let currentSearchStart = getNextValidWorkTime(new Date(stepEndTime), shifts);
+            let currentSearchStart = getNextValidWorkTime(snapToNext15Minutes(new Date(stepEndTime)), shifts);
 
             while (remainingHours > 1e-9) {
                 currentSearchStart = getNextValidWorkTime(currentSearchStart, shifts);
@@ -552,7 +552,7 @@ export function generateAutomatedPlanning(
                 }
 
                 if (collision) {
-                    currentSearchStart = new Date(collision.endMs);
+                    currentSearchStart = snapToNext15Minutes(new Date(collision.endMs));
                     continue;
                 }
 
@@ -720,7 +720,7 @@ export function generateAutomatedPlanning(
                     const register = `${si + 1}`; // 1-indexed step number
                     let remainingHours = totalHours;
                     let cursor = getNextValidWorkTime(
-                        new Date(Math.max(orderCursor, machineEndTimes.get(machine) || 0)),
+                        snapToNext15Minutes(new Date(Math.max(orderCursor, machineEndTimes.get(machine) || 0))),
                         shifts
                     );
 
@@ -754,7 +754,7 @@ export function generateAutomatedPlanning(
                             }
                         }
                         if (collision) {
-                            cursor = new Date((collision as any).endMs);
+                            cursor = snapToNext15Minutes(new Date((collision as any).endMs));
                             continue;
                         }
 
