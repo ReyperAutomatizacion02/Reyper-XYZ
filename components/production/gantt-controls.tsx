@@ -66,6 +66,7 @@ export function GanttControls({
     const [isProjectsExpanded, setIsProjectsExpanded] = useState(false);
     const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
     const [projectSearch, setProjectSearch] = useState("");
+    const [machineSearch, setMachineSearch] = useState("");
     const [panelPos, setPanelPos] = useState<{
         top?: number;
         bottom?: number;
@@ -117,6 +118,10 @@ export function GanttControls({
         const q = projectSearch.toLowerCase();
         return !q || p.code.toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
     });
+
+    const filteredMachines = allMachineNames.filter(
+        (name) => !machineSearch || name.toLowerCase().includes(machineSearch.toLowerCase())
+    );
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -389,6 +394,26 @@ export function GanttControls({
                                                     transition={{ duration: 0.18 }}
                                                     className="overflow-hidden"
                                                 >
+                                                    {/* Search within machines */}
+                                                    <div className="relative mb-2">
+                                                        <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                                                        <input
+                                                            type="text"
+                                                            value={machineSearch}
+                                                            onChange={(e) => setMachineSearch(e.target.value)}
+                                                            placeholder="Buscar máquina..."
+                                                            className="h-7 w-full rounded-lg border border-border/60 bg-background pl-7 pr-7 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                                        />
+                                                        {machineSearch && (
+                                                            <button
+                                                                onClick={() => setMachineSearch("")}
+                                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
                                                     <div className="mb-1 flex justify-end gap-2">
                                                         <button
                                                             onClick={onSelectAllMachines}
@@ -404,7 +429,7 @@ export function GanttControls({
                                                         </button>
                                                     </div>
                                                     <div className="space-y-0.5">
-                                                        {allMachineNames.map((name) => (
+                                                        {filteredMachines.map((name) => (
                                                             <label
                                                                 key={name}
                                                                 className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50"
