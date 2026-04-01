@@ -783,6 +783,7 @@ export function ProductionView({
                 isEvalListOpen={isEvalListOpen}
                 onToggleEvalList={() => setIsEvalListOpen(!isEvalListOpen)}
                 ordersPendingEvalCount={evalFilters.ordersPendingEvaluation.length}
+                showEvaluated={evalFilters.showEvaluated}
                 changedTasksCount={changedTasks.length}
                 draftTasksCount={draftTasks.length}
                 containerRef={containerRef}

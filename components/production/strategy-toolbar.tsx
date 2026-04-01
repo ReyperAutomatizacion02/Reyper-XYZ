@@ -31,6 +31,7 @@ interface StrategyToolbarProps {
     isEvalListOpen: boolean;
     onToggleEvalList: () => void;
     ordersPendingEvalCount: number;
+    showEvaluated: boolean;
     changedTasksCount: number;
     draftTasksCount: number;
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -51,6 +52,7 @@ export function StrategyToolbar({
     isEvalListOpen,
     onToggleEvalList,
     ordersPendingEvalCount,
+    showEvaluated,
     changedTasksCount,
     draftTasksCount,
     containerRef,
@@ -234,7 +236,7 @@ export function StrategyToolbar({
                             )}
                         >
                             <ClipboardList className="h-3.5 w-3.5" />
-                            <span>Por Evaluar</span>
+                            <span>{showEvaluated ? "Evaluadas" : "Por Evaluar"}</span>
                             {ordersPendingEvalCount > 0 && (
                                 <span
                                     className={cn(

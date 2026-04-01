@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import {
     AlertTriangle,
     ArrowDownZA,
     ArrowUpAZ,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     ClipboardList,
@@ -19,6 +20,7 @@ import {
     Search,
     Trash2,
     Wrench,
+    X,
     XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -77,6 +79,8 @@ export function EvaluationSidebar({
     onEvalSuccess,
 }: EvaluationSidebarProps) {
     const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+    const [isPinSectionExpanded, setIsPinSectionExpanded] = useState(false);
+    const [pinSearch, setPinSearch] = useState("");
     const filterPanelRef = useRef<HTMLDivElement>(null);
     const { isCollapsed } = useSidebar();
 
@@ -133,6 +137,19 @@ export function EvaluationSidebar({
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isFilterPanelOpen]);
+
+    // Must be before early return to satisfy Rules of Hooks
+    const projectsForPin = useMemo(() => {
+        const map = new Map<string, { code: string; company: string | null; orderIds: string[] }>();
+        filters.ordersPendingEvaluation.forEach((o) => {
+            const rel = (o as OrderWithRelations).projects;
+            const code = rel?.code;
+            if (!code) return;
+            if (!map.has(code)) map.set(code, { code, company: rel?.company ?? null, orderIds: [] });
+            map.get(code)!.orderIds.push(o.id);
+        });
+        return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code));
+    }, [filters.ordersPendingEvaluation]);
 
     if (!isOpen) return null;
 
@@ -324,6 +341,14 @@ export function EvaluationSidebar({
         searchSuggestions,
     } = filters;
 
+    const toggleProjectPin = (orderIds: string[], allPinned: boolean) => {
+        orderIds.forEach((id) => {
+            const isPinned = pinnedOrderIds.has(id);
+            if (allPinned && isPinned) togglePin(id);
+            else if (!allPinned && !isPinned) togglePin(id);
+        });
+    };
+
     const hasDrawing = !!selectedOrder?.drawing_url;
     const drawingFileId = hasDrawing ? extractDriveFileId(selectedOrder!.drawing_url!) : null;
     const drawingUrl = selectedOrder?.drawing_url ?? null;
@@ -376,7 +401,7 @@ export function EvaluationSidebar({
                             <div className="flex items-center justify-between border-b border-border bg-muted/30 p-4">
                                 <h3 className="flex items-center gap-2 text-sm font-bold">
                                     <AlertTriangle className="h-4 w-4 text-[#EC1C21]" />
-                                    Piezas por Evaluar
+                                    {showEvaluated ? "Piezas Evaluadas" : "Piezas por Evaluar"}
                                 </h3>
                                 <Button
                                     variant="ghost"
@@ -426,37 +451,6 @@ export function EvaluationSidebar({
                                             value={evalSearchQuery}
                                             onChange={(e) => setEvalSearchQuery(e.target.value)}
                                         />
-                                        {/* Search suggestions dropdown */}
-                                        {searchSuggestions.length > 0 && (
-                                            <div className="absolute left-0 right-0 top-full z-[1600] mt-1.5 overflow-hidden rounded-xl border border-border bg-popover shadow-xl duration-150 animate-in fade-in slide-in-from-top-2">
-                                                <div className="border-b border-border/50 bg-muted/30 px-3 py-1.5">
-                                                    <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                        <Pin className="h-3 w-3" />
-                                                        Fijar al tope de la lista
-                                                    </span>
-                                                </div>
-                                                {searchSuggestions.map((o) => (
-                                                    <button
-                                                        key={o.id}
-                                                        onClick={() => togglePin(o.id)}
-                                                        className="group/sug flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
-                                                    >
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="truncate text-[11px] font-black text-primary">
-                                                                {o.part_code}
-                                                            </div>
-                                                            <div className="truncate text-[10px] text-muted-foreground">
-                                                                {o.part_name}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 items-center gap-1 text-[9px] font-bold text-muted-foreground transition-colors group-hover/sug:text-primary">
-                                                            <Pin className="h-3 w-3" />
-                                                            Fijar
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
                                     </div>
                                     <div className="relative" ref={filterPanelRef}>
                                         <Button
@@ -498,6 +492,169 @@ export function EvaluationSidebar({
                                                             >
                                                                 Limpiar
                                                             </Button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Fijados — collapsible */}
+                                                    <div className="space-y-1.5 border-b border-border pb-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setIsPinSectionExpanded(!isPinSectionExpanded)
+                                                            }
+                                                            className="group flex w-full items-center justify-between"
+                                                        >
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                                                                    Fijados
+                                                                </span>
+                                                                {projectsForPin.filter((p) =>
+                                                                    p.orderIds.every((id) => pinnedOrderIds.has(id))
+                                                                ).length > 0 && (
+                                                                    <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[8px] leading-none text-white">
+                                                                        {
+                                                                            projectsForPin.filter((p) =>
+                                                                                p.orderIds.every((id) =>
+                                                                                    pinnedOrderIds.has(id)
+                                                                                )
+                                                                            ).length
+                                                                        }
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <ChevronDown
+                                                                className={cn(
+                                                                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                                                                    isPinSectionExpanded && "rotate-180"
+                                                                )}
+                                                            />
+                                                        </button>
+
+                                                        {isPinSectionExpanded && (
+                                                            <div className="space-y-1.5">
+                                                                <div className="relative">
+                                                                    <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={pinSearch}
+                                                                        onChange={(e) => setPinSearch(e.target.value)}
+                                                                        placeholder="Buscar proyecto..."
+                                                                        className="h-7 w-full rounded-lg border border-border/60 bg-background pl-7 pr-7 text-[10px] transition-all focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                                                    />
+                                                                    {pinSearch && (
+                                                                        <button
+                                                                            onClick={() => setPinSearch("")}
+                                                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                                                        >
+                                                                            <X className="h-3 w-3" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                <div className="custom-scrollbar max-h-44 space-y-0.5 overflow-y-auto">
+                                                                    {projectsForPin
+                                                                        .filter((p) => {
+                                                                            if (!pinSearch) return true;
+                                                                            const q = pinSearch.toLowerCase();
+                                                                            return (
+                                                                                p.code.toLowerCase().includes(q) ||
+                                                                                (p.company ?? "")
+                                                                                    .toLowerCase()
+                                                                                    .includes(q)
+                                                                            );
+                                                                        })
+                                                                        .map((project) => {
+                                                                            const allPinned = project.orderIds.every(
+                                                                                (id) => pinnedOrderIds.has(id)
+                                                                            );
+                                                                            const somePinned =
+                                                                                !allPinned &&
+                                                                                project.orderIds.some((id) =>
+                                                                                    pinnedOrderIds.has(id)
+                                                                                );
+                                                                            return (
+                                                                                <label
+                                                                                    key={project.code}
+                                                                                    className={cn(
+                                                                                        "group flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 transition-all",
+                                                                                        allPinned
+                                                                                            ? "bg-amber-50/60 dark:bg-amber-950/20"
+                                                                                            : "hover:bg-muted/50"
+                                                                                    )}
+                                                                                >
+                                                                                    <div
+                                                                                        className={cn(
+                                                                                            "flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[3px] border transition-all",
+                                                                                            allPinned
+                                                                                                ? "border-amber-500 bg-amber-500"
+                                                                                                : somePinned
+                                                                                                  ? "border-amber-400 bg-amber-100"
+                                                                                                  : "border-border bg-background group-hover:border-amber-400/60"
+                                                                                        )}
+                                                                                    >
+                                                                                        {allPinned && (
+                                                                                            <svg
+                                                                                                viewBox="0 0 10 7"
+                                                                                                className="h-2.5 w-2.5"
+                                                                                                fill="none"
+                                                                                                stroke="white"
+                                                                                                strokeWidth="1.8"
+                                                                                                strokeLinecap="round"
+                                                                                                strokeLinejoin="round"
+                                                                                            >
+                                                                                                <path d="M1 3.5L3.5 6L9 1" />
+                                                                                            </svg>
+                                                                                        )}
+                                                                                        {somePinned && !allPinned && (
+                                                                                            <div className="h-1.5 w-1.5 rounded-sm bg-amber-500" />
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={allPinned}
+                                                                                        onChange={() =>
+                                                                                            toggleProjectPin(
+                                                                                                project.orderIds,
+                                                                                                allPinned
+                                                                                            )
+                                                                                        }
+                                                                                        className="sr-only"
+                                                                                    />
+                                                                                    <div className="min-w-0">
+                                                                                        <div
+                                                                                            className={cn(
+                                                                                                "truncate text-[11px] leading-none transition-colors",
+                                                                                                allPinned
+                                                                                                    ? "font-semibold text-amber-700 dark:text-amber-400"
+                                                                                                    : somePinned
+                                                                                                      ? "font-medium text-amber-600/80"
+                                                                                                      : "font-medium text-foreground/80 group-hover:text-foreground"
+                                                                                            )}
+                                                                                        >
+                                                                                            {project.code}
+                                                                                        </div>
+                                                                                        {project.company && (
+                                                                                            <div className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                                                                                                {project.company}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </label>
+                                                                            );
+                                                                        })}
+                                                                    {projectsForPin.filter((p) => {
+                                                                        if (!pinSearch) return true;
+                                                                        const q = pinSearch.toLowerCase();
+                                                                        return (
+                                                                            p.code.toLowerCase().includes(q) ||
+                                                                            (p.company ?? "").toLowerCase().includes(q)
+                                                                        );
+                                                                    }).length === 0 && (
+                                                                        <p className="py-3 text-center text-[10px] text-muted-foreground">
+                                                                            Sin resultados
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         )}
                                                     </div>
 
