@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, ChevronDown, Filter, Maximize2, Minimize2, Search, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, Filter, Maximize2, Minimize2, Search, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -322,38 +322,66 @@ export function GanttControls({
                                                         )}
 
                                                         <div className="space-y-0.5">
-                                                            {filteredProjects.map((project) => (
-                                                                <label
-                                                                    key={project.id}
-                                                                    className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50"
-                                                                >
-                                                                    <div className="relative flex shrink-0 items-center justify-center">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={projectFilter.includes(project.id)}
-                                                                            onChange={() => toggleProject(project.id)}
-                                                                            className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-border transition-all checked:border-primary checked:bg-primary"
-                                                                        />
-                                                                        <CheckCircle2 className="pointer-events-none absolute h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
-                                                                    </div>
-                                                                    <div className="min-w-0">
+                                                            {filteredProjects.map((project) => {
+                                                                const isChecked = projectFilter.includes(project.id);
+                                                                return (
+                                                                    <label
+                                                                        key={project.id}
+                                                                        className={cn(
+                                                                            "group flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 transition-all",
+                                                                            isChecked
+                                                                                ? "bg-primary/10"
+                                                                                : "hover:bg-muted/50"
+                                                                        )}
+                                                                    >
                                                                         <div
                                                                             className={cn(
-                                                                                "truncate text-[11px] font-bold leading-none transition-colors group-hover:text-foreground",
-                                                                                projectFilter.includes(project.id) &&
-                                                                                    "text-primary"
+                                                                                "flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[3px] border transition-all",
+                                                                                isChecked
+                                                                                    ? "border-primary bg-primary"
+                                                                                    : "border-border bg-background group-hover:border-primary/60"
                                                                             )}
                                                                         >
-                                                                            {project.code}
+                                                                            {isChecked && (
+                                                                                <svg
+                                                                                    viewBox="0 0 10 7"
+                                                                                    className="h-2.5 w-2.5"
+                                                                                    fill="none"
+                                                                                    stroke="white"
+                                                                                    strokeWidth="1.8"
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                >
+                                                                                    <path d="M1 3.5L3.5 6L9 1" />
+                                                                                </svg>
+                                                                            )}
                                                                         </div>
-                                                                        {project.company && (
-                                                                            <div className="mt-0.5 truncate text-[9px] text-muted-foreground">
-                                                                                {project.company}
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isChecked}
+                                                                            onChange={() => toggleProject(project.id)}
+                                                                            className="sr-only"
+                                                                        />
+                                                                        <div className="min-w-0">
+                                                                            <div
+                                                                                className={cn(
+                                                                                    "truncate text-[11px] leading-none transition-colors",
+                                                                                    isChecked
+                                                                                        ? "font-semibold text-primary"
+                                                                                        : "font-bold text-foreground/80 group-hover:text-foreground"
+                                                                                )}
+                                                                            >
+                                                                                {project.code}
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-                                                                </label>
-                                                            ))}
+                                                                            {project.company && (
+                                                                                <div className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                                                                                    {project.company}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </label>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </motion.div>
                                                 )}
@@ -429,25 +457,59 @@ export function GanttControls({
                                                         </button>
                                                     </div>
                                                     <div className="space-y-0.5">
-                                                        {filteredMachines.map((name) => (
-                                                            <label
-                                                                key={name}
-                                                                className="group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50"
-                                                            >
-                                                                <div className="relative flex shrink-0 items-center justify-center">
+                                                        {filteredMachines.map((name) => {
+                                                            const isChecked = selectedMachines.has(name);
+                                                            return (
+                                                                <label
+                                                                    key={name}
+                                                                    className={cn(
+                                                                        "group flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 transition-all",
+                                                                        isChecked
+                                                                            ? "bg-primary/10"
+                                                                            : "hover:bg-muted/50"
+                                                                    )}
+                                                                >
+                                                                    <div
+                                                                        className={cn(
+                                                                            "flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[3px] border transition-all",
+                                                                            isChecked
+                                                                                ? "border-primary bg-primary"
+                                                                                : "border-border bg-background group-hover:border-primary/60"
+                                                                        )}
+                                                                    >
+                                                                        {isChecked && (
+                                                                            <svg
+                                                                                viewBox="0 0 10 7"
+                                                                                className="h-2.5 w-2.5"
+                                                                                fill="none"
+                                                                                stroke="white"
+                                                                                strokeWidth="1.8"
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                            >
+                                                                                <path d="M1 3.5L3.5 6L9 1" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
                                                                     <input
                                                                         type="checkbox"
-                                                                        checked={selectedMachines.has(name)}
+                                                                        checked={isChecked}
                                                                         onChange={() => onToggleMachine(name)}
-                                                                        className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-border transition-all checked:border-primary checked:bg-primary"
+                                                                        className="sr-only"
                                                                     />
-                                                                    <CheckCircle2 className="pointer-events-none absolute h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100" />
-                                                                </div>
-                                                                <span className="truncate text-[11px] font-medium transition-colors group-hover:text-foreground">
-                                                                    {name}
-                                                                </span>
-                                                            </label>
-                                                        ))}
+                                                                    <span
+                                                                        className={cn(
+                                                                            "truncate text-[11px] leading-none transition-colors",
+                                                                            isChecked
+                                                                                ? "font-semibold text-primary"
+                                                                                : "font-medium text-foreground/80 group-hover:text-foreground"
+                                                                        )}
+                                                                    >
+                                                                        {name}
+                                                                    </span>
+                                                                </label>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </motion.div>
                                             )}
