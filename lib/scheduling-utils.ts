@@ -388,6 +388,68 @@ export function snapToNearest15Minutes(date: Date): Date {
     return set(new Date(date), { minutes: roundedMinutes, seconds: 0, milliseconds: 0 });
 }
 
+const TREATMENT_HOUR_START = 8;
+const TREATMENT_HOUR_END = 18;
+
+/**
+ * Snap a date to the next valid treatment slot (Mon–Fri, 08:00–18:00).
+ * - Weekday, time in [08:00, 18:00) → keep as-is (treatment starts immediately)
+ * - Weekday, time < 08:00           → same day at 08:00
+ * - Weekday, time >= 18:00          → next weekday at 08:00
+ * - Saturday or Sunday              → next Monday at 08:00
+ *   (weekend days are never treatment days, so hour context is discarded)
+ */
+export function snapTreatmentToWeekday(date: Date): Date {
+    let result = new Date(date);
+    const h = result.getHours() + result.getMinutes() / 60;
+
+    // If after treatment hours on a weekday, advance to next weekday at 08:00
+    if (getDay(result) !== 0 && getDay(result) !== 6 && h >= TREATMENT_HOUR_END) {
+        result = addDays(result, 1);
+        // Fall through to weekend-skip + before-hours clamp below
+    }
+
+    // Skip weekend days → always land at 08:00 (weekend has no treatment context)
+    if (getDay(result) === 0 || getDay(result) === 6) {
+        while (getDay(result) === 0 || getDay(result) === 6) {
+            result = addDays(result, 1);
+        }
+        return set(result, { hours: TREATMENT_HOUR_START, minutes: 0, seconds: 0, milliseconds: 0 });
+    }
+
+    // Weekday: clamp time to 08:00 if before treatment start
+    if (result.getHours() + result.getMinutes() / 60 < TREATMENT_HOUR_START) {
+        result = set(result, { hours: TREATMENT_HOUR_START, minutes: 0, seconds: 0, milliseconds: 0 });
+    }
+
+    return result;
+}
+
+/**
+ * Add N working days (Mon–Fri) to a date, skipping Saturday and Sunday.
+ * Days=0 returns the same date unchanged.
+ */
+export function addWorkingDays(date: Date, days: number): Date {
+    let result = new Date(date);
+    let remaining = Math.ceil(days);
+    while (remaining > 0) {
+        result = addDays(result, 1);
+        const d = getDay(result);
+        if (d !== 0 && d !== 6) remaining--;
+    }
+    return result;
+}
+
+/**
+ * Compute treatment end: the same H:M as start, N working days later.
+ * Each day is a full forward jump: days=2 starting Wed 9:45 → Fri 9:45
+ * (Wed→Thu = day 1, Thu→Fri = day 2).
+ */
+export function treatmentEndDate(start: Date, days: number): Date {
+    const lastDay = addWorkingDays(start, days);
+    return set(lastDay, { hours: start.getHours(), minutes: start.getMinutes(), seconds: 0, milliseconds: 0 });
+}
+
 /**
  * Generates automated planning tasks with shift splitting logic.
  */
@@ -456,8 +518,8 @@ export function generateAutomatedPlanning(
 
             // ── Treatment step: no machine occupied, advance batchEndTime by calendar days ──
             if (isTreatmentStep(step)) {
-                const treatmentStart = new Date(batchEndTime);
-                const treatmentEnd = addDays(treatmentStart, step.days);
+                const treatmentStart = snapTreatmentToWeekday(new Date(batchEndTime));
+                const treatmentEnd = treatmentEndDate(treatmentStart, step.days);
                 const register = `${stepNumber}-T`;
 
                 // One treatment record per order (whole batch goes to treatment together)
@@ -642,11 +704,16 @@ export function generateAutomatedPlanning(
             const maxStartMs = Math.max(...Array.from(originalStartByOrder.values()));
 
             for (const t of treatmentGroup) {
-                const calMs = (t.endMs as number) - (t.startMs as number);
-                t.planned_date = format(new Date(maxStartMs), "yyyy-MM-dd'T'HH:mm:ss");
-                t.planned_end = format(new Date(maxStartMs + calMs), "yyyy-MM-dd'T'HH:mm:ss");
-                t.startMs = maxStartMs;
-                t.endMs = maxStartMs + calMs;
+                const alignedStart = snapTreatmentToWeekday(new Date(maxStartMs));
+                // Recalculate end using working days from the original step definition
+                const evalSteps = (t.production_orders as any)?.evaluation as any[] | null;
+                const stepIdx = parseInt((t.register as string).replace("-T", "")) - 1;
+                const workingDays: number = evalSteps?.[stepIdx]?.days ?? 1;
+                const alignedEnd = treatmentEndDate(alignedStart, workingDays);
+                t.planned_date = format(alignedStart, "yyyy-MM-dd'T'HH:mm:ss");
+                t.planned_end = format(alignedEnd, "yyyy-MM-dd'T'HH:mm:ss");
+                t.startMs = alignedStart.getTime();
+                t.endMs = alignedEnd.getTime();
             }
 
             // Common treatment end (take max in case different orders have different days)
