@@ -15,6 +15,8 @@ export interface UserPreferences {
         zoomLevel?: number;
         showDependencies?: boolean;
         hideEmptyMachines?: boolean;
+        projectFilter?: string[];
+        cascadeMode?: boolean;
     };
 }
 
@@ -31,7 +33,9 @@ export function useUserPreferences() {
     useEffect(() => {
         const loadPreferences = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
+                const {
+                    data: { user },
+                } = await supabase.auth.getUser();
                 if (!user) {
                     setIsLoading(false);
                     return;
@@ -61,45 +65,48 @@ export function useUserPreferences() {
     }, [supabase]);
 
     // Save preferences to database (debounced)
-    const savePreferences = useCallback((newPrefs: UserPreferences) => {
-        if (!userId) return;
+    const savePreferences = useCallback(
+        (newPrefs: UserPreferences) => {
+            if (!userId) return;
 
-        // Clear existing timeout
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-        }
-
-        // Debounce save
-        saveTimeoutRef.current = setTimeout(async () => {
-            try {
-                const { error } = await supabase
-                    .from("user_profiles")
-                    .update({ preferences: newPrefs as unknown as Json })
-                    .eq("id", userId);
-
-                if (error) {
-                    console.error("Error saving preferences:", error);
-                }
-            } catch (err) {
-                console.error("Failed to save preferences:", err);
+            // Clear existing timeout
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
             }
-        }, DEBOUNCE_MS);
-    }, [userId, supabase]);
+
+            // Debounce save
+            saveTimeoutRef.current = setTimeout(async () => {
+                try {
+                    const { error } = await supabase
+                        .from("user_profiles")
+                        .update({ preferences: newPrefs as unknown as Json })
+                        .eq("id", userId);
+
+                    if (error) {
+                        console.error("Error saving preferences:", error);
+                    }
+                } catch (err) {
+                    console.error("Failed to save preferences:", err);
+                }
+            }, DEBOUNCE_MS);
+        },
+        [userId, supabase]
+    );
 
     // Update a specific preference key
-    const updatePreference = useCallback(<K extends keyof UserPreferences>(
-        key: K,
-        value: UserPreferences[K]
-    ) => {
-        setPreferences(prev => {
-            const newPrefs = {
-                ...prev,
-                [key]: { ...prev[key], ...value }
-            };
-            savePreferences(newPrefs);
-            return newPrefs;
-        });
-    }, [savePreferences]);
+    const updatePreference = useCallback(
+        <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
+            setPreferences((prev) => {
+                const newPrefs = {
+                    ...prev,
+                    [key]: { ...prev[key], ...value },
+                };
+                savePreferences(newPrefs);
+                return newPrefs;
+            });
+        },
+        [savePreferences]
+    );
 
     // Get sidebar preferences
     const getSidebarPrefs = useCallback(() => {
@@ -112,14 +119,20 @@ export function useUserPreferences() {
     }, [preferences.gantt]);
 
     // Update sidebar specific preference
-    const updateSidebarPref = useCallback((updates: Partial<UserPreferences["sidebar"]>) => {
-        updatePreference("sidebar", { ...getSidebarPrefs(), ...updates });
-    }, [updatePreference, getSidebarPrefs]);
+    const updateSidebarPref = useCallback(
+        (updates: Partial<UserPreferences["sidebar"]>) => {
+            updatePreference("sidebar", { ...getSidebarPrefs(), ...updates });
+        },
+        [updatePreference, getSidebarPrefs]
+    );
 
     // Update gantt specific preference
-    const updateGanttPref = useCallback((updates: Partial<UserPreferences["gantt"]>) => {
-        updatePreference("gantt", { ...getGanttPrefs(), ...updates });
-    }, [updatePreference, getGanttPrefs]);
+    const updateGanttPref = useCallback(
+        (updates: Partial<UserPreferences["gantt"]>) => {
+            updatePreference("gantt", { ...getGanttPrefs(), ...updates });
+        },
+        [updatePreference, getGanttPrefs]
+    );
 
     return {
         preferences,
@@ -128,6 +141,6 @@ export function useUserPreferences() {
         getSidebarPrefs,
         getGanttPrefs,
         updateSidebarPref,
-        updateGanttPref
+        updateGanttPref,
     };
 }

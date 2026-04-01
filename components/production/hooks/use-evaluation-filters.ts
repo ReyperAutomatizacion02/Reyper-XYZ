@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { isBefore, isAfter, startOfDay } from "date-fns";
 import { compareOrdersByPriority, OrderWithRelations } from "@/lib/scheduling-utils";
 import { Database } from "@/utils/supabase/types";
@@ -36,17 +36,66 @@ export interface EvaluationFiltersState {
     searchSuggestions: Order[];
 }
 
+const LS_KEY = "reyper_eval_filters";
+
+function readStoredFilters() {
+    if (typeof window === "undefined") return {} as Record<string, any>;
+    try {
+        const raw = localStorage.getItem(LS_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
+
 export function useEvaluationFilters(orders: OrderWithRelations[]): EvaluationFiltersState {
+    // Lazy-initialize from localStorage (runs only on first render)
+    const [stored] = useState(readStoredFilters);
+
     const [evalSearchQuery, setEvalSearchQuery] = useState("");
-    const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">("none");
-    const [evalDateValue, setEvalDateValue] = useState("");
-    const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">("after");
-    const [clientFilter, setClientFilter] = useState<string[]>([]);
-    const [treatmentFilter, setTreatmentFilter] = useState("all");
-    const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">("asc");
-    const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">("auto");
-    const [showEvaluated, setShowEvaluated] = useState(false);
-    const [pinnedOrderIds, setPinnedOrderIds] = useState<Set<string>>(new Set());
+    const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">(
+        stored.evalFilterType ?? "none"
+    );
+    const [evalDateValue, setEvalDateValue] = useState<string>(stored.evalDateValue ?? "");
+    const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">(stored.evalDateOperator ?? "after");
+    const [clientFilter, setClientFilter] = useState<string[]>(stored.clientFilter ?? []);
+    const [treatmentFilter, setTreatmentFilter] = useState<string>(stored.treatmentFilter ?? "all");
+    const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">(stored.evalSortDirection ?? "asc");
+    const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">(stored.evalSortBy ?? "auto");
+    const [showEvaluated, setShowEvaluated] = useState<boolean>(stored.showEvaluated ?? false);
+    const [pinnedOrderIds, setPinnedOrderIds] = useState<Set<string>>(
+        new Set<string>(Array.isArray(stored.pinnedOrderIds) ? stored.pinnedOrderIds : [])
+    );
+
+    // Persist filters to localStorage whenever they change (search query excluded — it's transient)
+    useEffect(() => {
+        try {
+            localStorage.setItem(
+                LS_KEY,
+                JSON.stringify({
+                    evalFilterType,
+                    evalDateValue,
+                    evalDateOperator,
+                    clientFilter,
+                    treatmentFilter,
+                    evalSortDirection,
+                    evalSortBy,
+                    showEvaluated,
+                    pinnedOrderIds: Array.from(pinnedOrderIds),
+                })
+            );
+        } catch {}
+    }, [
+        evalFilterType,
+        evalDateValue,
+        evalDateOperator,
+        clientFilter,
+        treatmentFilter,
+        evalSortDirection,
+        evalSortBy,
+        showEvaluated,
+        pinnedOrderIds,
+    ]);
 
     const clearAllFilters = () => {
         setEvalSearchQuery("");

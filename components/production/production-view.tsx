@@ -111,6 +111,8 @@ export function ProductionView({
             if (ganttPrefs.showDependencies !== undefined) setShowDependencies(ganttPrefs.showDependencies);
             if (ganttPrefs.zoomLevel) setZoomLevel(ganttPrefs.zoomLevel);
             if (ganttPrefs.hideEmptyMachines !== undefined) setHideEmptyMachines(ganttPrefs.hideEmptyMachines);
+            if (ganttPrefs.projectFilter) setProjectFilter(ganttPrefs.projectFilter);
+            if (ganttPrefs.cascadeMode !== undefined) setCascadeMode(ganttPrefs.cascadeMode);
             setPrefsInitialized(true);
         }
     }, [prefsLoading, prefsInitialized, ganttPrefs]);
@@ -130,6 +132,16 @@ export function ProductionView({
     const handleHideEmptyMachinesChange = (value: boolean) => {
         setHideEmptyMachines(value);
         updateGanttPref({ hideEmptyMachines: value });
+    };
+
+    const handleProjectFilterChange = (newFilter: string[]) => {
+        setProjectFilter(newFilter);
+        updateGanttPref({ projectFilter: newFilter });
+    };
+
+    const handleCascadeModeChange = (value: boolean) => {
+        setCascadeMode(value);
+        updateGanttPref({ cascadeMode: value });
     };
 
     const confirmClearEvaluation = async (orderId: string) => {
@@ -713,10 +725,10 @@ export function ProductionView({
         hideEmptyMachines,
         onHideEmptyMachinesChange: handleHideEmptyMachinesChange,
         cascadeMode,
-        onCascadeModeChange: setCascadeMode,
+        onCascadeModeChange: handleCascadeModeChange,
         availableProjects,
         projectFilter,
-        onProjectFilterChange: setProjectFilter,
+        onProjectFilterChange: handleProjectFilterChange,
         zoomLevel,
         onZoomChange: handleZoomChange,
         isFullscreen,
