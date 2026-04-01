@@ -61,7 +61,7 @@ const nextConfig: NextConfig = {
                         "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://lh3.googleusercontent.com",
                         "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://prod-files-secure.s3.us-west-2.amazonaws.com https://drive.google.com",
                         "font-src 'self'",
-                        "frame-src 'none'",
+                        "frame-src https://drive.google.com",
                         "frame-ancestors 'none'",
                         "object-src 'none'",
                         "base-uri 'self'",
