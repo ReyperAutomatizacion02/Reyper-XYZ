@@ -63,7 +63,10 @@ export async function signup(formData: FormData) {
 
     if (error) {
         console.error("[signup] Auth error:", error.message);
-        return redirect("/register?message=" + encodeURIComponent("No se pudo crear la cuenta. Verifica tus datos e intenta de nuevo."));
+        return redirect(
+            "/register?message=" +
+                encodeURIComponent("No se pudo crear la cuenta. Verifica tus datos e intenta de nuevo.")
+        );
     }
 
     // revalidatePath("/", "layout"); // This redirect should only happen after email confirmation
@@ -83,13 +86,17 @@ export async function forgotPassword(formData: FormData) {
     const supabase = createClient(cookieStore);
 
     const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '')}/auth/callback?next=/account/update-password`, // Need proper URL handling
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/account/update-password`,
     });
 
     if (error) {
         console.error("[forgotPassword] Auth error:", error.message);
-        return redirect("/forgot-password?error=" + encodeURIComponent("No se pudo procesar la solicitud. Intenta de nuevo."));
+        return redirect(
+            "/forgot-password?error=" + encodeURIComponent("No se pudo procesar la solicitud. Intenta de nuevo.")
+        );
     }
 
-    return redirect("/forgot-password?message=" + encodeURIComponent("Se ha enviado un correo para restablecer tu contraseña."));
+    return redirect(
+        "/forgot-password?message=" + encodeURIComponent("Se ha enviado un correo para restablecer tu contraseña.")
+    );
 }

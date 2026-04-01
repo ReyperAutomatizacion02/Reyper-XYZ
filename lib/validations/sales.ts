@@ -1,21 +1,23 @@
 import { z } from "zod";
 
 // Base item schema for quotes and production orders
-export const ItemSchema = z.object({
-    id: z.string().optional(),
-    part_code: z.string().min(1, "El código de partida es obligatorio"),
-    description: z.string().min(1, "La descripción es obligatoria"),
-    part_name: z.string().optional().nullable(),
-    quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
-    material: z.string().optional().nullable(),
-    treatment_id: z.string().optional().nullable(),
-    treatment_name: z.string().optional().nullable(),
-    general_status: z.string().min(1, "El estatus general es obligatorio"),
-    drawing_url: z.string().optional().nullable(),
-    is_sub_item: z.boolean().optional(),
-    design_no: z.string().optional().nullable(),
-    unit: z.string().optional().nullable(),
-}).passthrough();
+export const ItemSchema = z
+    .object({
+        id: z.string().optional(),
+        part_code: z.string().min(1, "El código de partida es obligatorio"),
+        description: z.string().min(1, "La descripción es obligatoria"),
+        part_name: z.string().optional().nullable(),
+        quantity: z.number().int().positive("La cantidad debe ser mayor a 0"),
+        material: z.string().optional().nullable(),
+        treatment_id: z.string().optional().nullable(),
+        treatment_name: z.string().optional().nullable(),
+        general_status: z.string().min(1, "El estatus general es obligatorio"),
+        drawing_url: z.string().optional().nullable(),
+        is_sub_item: z.boolean().optional(),
+        design_no: z.string().optional().nullable(),
+        unit: z.string().optional().nullable(),
+    })
+    .passthrough();
 
 // Used when creating a new quote from the sales dashboard
 export const CreateQuoteSchema = z.object({
@@ -39,10 +41,14 @@ export const ConvertQuoteToProjectSchema = z.object({
     quote_id: z.string().uuid("ID de cotización inválido"),
     client_prefix: z.string().min(1, "El prefijo del cliente es obligatorio"),
     company_name: z.string().min(1, "El nombre de la empresa es obligatorio"), // This might be dynamically matched, but good to validate
-    partNames: z.array(z.object({
-        quoteItemId: z.string(),
-        name: z.string()
-    })).optional(),
+    partNames: z
+        .array(
+            z.object({
+                quoteItemId: z.string(),
+                name: z.string(),
+            })
+        )
+        .optional(),
 });
 
 // Schema for updating a project's global info
@@ -111,13 +117,13 @@ export const IdSchema = z.object({
 });
 
 export const SaveQuoteSchema = z.object({
-    quoteData: CreateQuoteSchema.omit({ items: true }).passthrough(),
+    quoteData: CreateQuoteSchema.omit({ items: true }).strict(),
     items: z.array(ItemSchema).min(1, "Debe agregar al menos una partida"),
 });
 
 export const UpdateQuoteSchema = z.object({
     id: z.string().uuid("ID de cotización inválido"),
-    quoteData: CreateQuoteSchema.omit({ items: true }).partial().passthrough(),
+    quoteData: CreateQuoteSchema.omit({ items: true }).partial().strict(),
     items: z.array(ItemSchema).min(1, "Debe agregar al menos una partida"),
 });
 

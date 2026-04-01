@@ -27,7 +27,7 @@ export function useRealtime(
 
     useEffect(() => {
         const channel = supabase
-            .channel(`realtime_${table}_${event}_${Math.random().toString(36).substring(7)}`)
+            .channel(`realtime_${table}_${event}`)
             .on(
                 "postgres_changes" as any,
                 {

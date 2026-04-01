@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import {
@@ -31,10 +32,14 @@ const VALID_ROLES = [
 type ValidRole = (typeof VALID_ROLES)[number];
 
 // Helper to check if caller is admin
-async function verifyAdmin(supabase: any, userId: string) {
-    const { data: callerProfile } = await supabase.from("user_profiles").select("roles").eq("id", userId).single();
+async function verifyAdmin(supabase: SupabaseClient, userId: string) {
+    const { data: callerProfile, error } = await supabase
+        .from("user_profiles")
+        .select("roles")
+        .eq("id", userId)
+        .single();
 
-    if (!callerProfile?.roles?.includes("admin")) {
+    if (error || !callerProfile?.roles?.includes("admin")) {
         throw new Error("No autorizado");
     }
 }
@@ -145,6 +150,12 @@ export async function getPendingUsers() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
     const { data, error } = await supabase
         .from("user_profiles")
         .select("*")
@@ -161,6 +172,12 @@ export async function getPendingUsers() {
 export async function getApprovedUsers() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
 
     const { data, error } = await supabase
         .from("user_profiles")
@@ -190,6 +207,12 @@ export type Employee = {
 export async function getEmployees() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
 
     const { data: employees, error } = await supabase
         .from("employees")

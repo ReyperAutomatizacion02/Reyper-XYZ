@@ -37,10 +37,12 @@ export async function middleware(request: NextRequest) {
     // Rutas públicas que no requieren autenticación
     const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route) || pathname.startsWith("/auth/");
 
-    // Las rutas API manejan su propia seguridad (ej. webhooks con token secreto)
-    const isApiRoute = pathname.startsWith("/api/");
+    // Rutas API que permiten acceso sin sesión (webhooks con token secreto propio, etc.)
+    // Toda ruta /api/ NO listada aquí requiere usuario autenticado.
+    const API_PUBLIC_ROUTES: string[] = [];
+    const isApiPublicRoute = API_PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 
-    if (!user && !isPublicRoute && !isApiRoute) {
+    if (!user && !isPublicRoute && !isApiPublicRoute) {
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);

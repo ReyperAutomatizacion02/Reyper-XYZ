@@ -22,17 +22,16 @@ export async function deleteQuoteFilesInternal(quoteId: string) {
             logger.error(`[STORAGE] [!] Error al listar 'quotes/${quoteId}':`, listError.message);
         } else if (files && files.length > 0) {
             const filesToRemove = files.map((f) => `${quoteId}/${f.name}`);
-            logger.info(
-                `[STORAGE] Encontrados ${files.length} archivos en carpeta. Borrando uno a uno para mayor seguridad...`
-            );
+            logger.info(`[STORAGE] Encontrados ${files.length} archivos en carpeta. Borrando en batch...`);
 
-            for (const path of filesToRemove) {
-                const { error: removeError } = await supabaseAdmin.storage.from("quotes").remove([path]);
-                if (removeError) {
-                    logger.error(`[STORAGE] [FALLO] No se pudo borrar ${path} en 'quotes':`, removeError.message);
-                } else {
-                    logger.debug(`[STORAGE] [OK] Borrado exitoso: quotes/${path}`);
-                }
+            const { error: removeError } = await supabaseAdmin.storage.from("quotes").remove(filesToRemove);
+            if (removeError) {
+                logger.error(
+                    `[STORAGE] [FALLO] No se pudo borrar archivos en 'quotes/${quoteId}':`,
+                    removeError.message
+                );
+            } else {
+                logger.debug(`[STORAGE] [OK] Borrado exitoso: ${filesToRemove.length} archivos en quotes/${quoteId}`);
             }
         } else {
             logger.debug(`[STORAGE] No se encontraron archivos directos en la carpeta 'quotes/${quoteId}'.`);
