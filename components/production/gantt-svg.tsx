@@ -1513,9 +1513,9 @@ export function GanttSVG({
                                     !!task.check_in ||
                                     !!task.check_out ||
                                     isBefore(new Date(task.planned_date!), currentTime);
-                                // Treatment tasks are always non-draggable (informational only)
+                                // Saved treatment tasks are non-draggable; draft treatments (strategy) are editable
                                 const isLocked =
-                                    isTreatmentTask ||
+                                    (isTreatmentTask && !task.isDraft) ||
                                     (!task.isDraft &&
                                         (task.locked === true || (task.locked !== false && isFinishedOrRunning)));
 

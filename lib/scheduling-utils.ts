@@ -403,10 +403,11 @@ export function snapTreatmentToWeekday(date: Date): Date {
     let result = new Date(date);
     const h = result.getHours() + result.getMinutes() / 60;
 
-    // If after treatment hours on a weekday, advance to next weekday at 08:00
+    // If outside treatment hours on a weekday → advance to next day at 08:00
+    // (the machining end hour is not preserved when a day transition is required)
     if (getDay(result) !== 0 && getDay(result) !== 6 && h >= TREATMENT_HOUR_END) {
         result = addDays(result, 1);
-        // Fall through to weekend-skip + before-hours clamp below
+        result = set(result, { hours: TREATMENT_HOUR_START, minutes: 0, seconds: 0, milliseconds: 0 });
     }
 
     // Skip weekend days → always land at 08:00 (weekend has no treatment context)
@@ -417,7 +418,7 @@ export function snapTreatmentToWeekday(date: Date): Date {
         return set(result, { hours: TREATMENT_HOUR_START, minutes: 0, seconds: 0, milliseconds: 0 });
     }
 
-    // Weekday: clamp time to 08:00 if before treatment start
+    // Weekday within range: clamp to 08:00 if before treatment start
     if (result.getHours() + result.getMinutes() / 60 < TREATMENT_HOUR_START) {
         result = set(result, { hours: TREATMENT_HOUR_START, minutes: 0, seconds: 0, milliseconds: 0 });
     }
