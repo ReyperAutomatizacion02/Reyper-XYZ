@@ -386,38 +386,46 @@ export function GanttSVG({
         }
     }, [timeWindow, viewMode, UNIT_WIDTH]);
 
-    // Lane Allocation System - Detect overlaps PER DAY and assign lanes
+    // Resolve treatment type name from a task (works for both draft and saved tasks)
+    // Defined here (before taskLanes) so it can be used in lane allocation.
+    const getTreatmentTypeName = (task: PlanningTask): string | null => {
+        if ((task as any).treatment_type) return (task as any).treatment_type as string;
+        const reg = task.register;
+        if (!reg) return null;
+        const m = reg.match(/^(\d+)-T$/);
+        if (!m) return null;
+        const stepIdx = parseInt(m[1]) - 1;
+        const evaluation = (task.production_orders as any)?.evaluation as any[] | null;
+        if (!evaluation || stepIdx < 0 || stepIdx >= evaluation.length) return null;
+        return (evaluation[stepIdx]?.treatment as string) || null;
+    };
+
+    // Lane Allocation System
+    // - Non-treatment tasks: grouped by machine + day (existing behavior)
+    // - Treatment tasks: grouped by treatment TYPE so each type occupies its own dedicated lane band,
+    //   preventing visual overlap between different treatment types.
     const taskLanes = useMemo(() => {
         const lanes: Map<string, number> = new Map();
 
-        // Group tasks by machine AND day
+        // ── Non-treatment tasks: group by machine|day ──
         const machineDayTaskGroups: Map<string, PlanningTask[]> = new Map();
-
         filteredTasks.forEach((task) => {
-            const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
+            if ((task as any).is_treatment) return;
+            const machine = task.machine || "Sin Máquina";
             const day = format(new Date(task.planned_date!), "yyyy-MM-dd");
             const key = `${machine}|${day}`;
-
-            if (!machineDayTaskGroups.has(key)) {
-                machineDayTaskGroups.set(key, []);
-            }
+            if (!machineDayTaskGroups.has(key)) machineDayTaskGroups.set(key, []);
             machineDayTaskGroups.get(key)!.push(task);
         });
 
-        // For each machine-day group, allocate lanes
         machineDayTaskGroups.forEach((tasks) => {
-            // Sort by start time
             const sorted = [...tasks].sort(
                 (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
             );
-
-            const laneEnds: number[] = []; // Track when each lane ends
-
+            const laneEnds: number[] = [];
             sorted.forEach((task) => {
                 const taskStart = new Date(task.planned_date!).getTime();
                 const taskEnd = new Date(task.planned_end!).getTime();
-
-                // Find first available lane
                 let assignedLane = 0;
                 for (let i = 0; i < laneEnds.length; i++) {
                     if (laneEnds[i] <= taskStart) {
@@ -426,16 +434,48 @@ export function GanttSVG({
                     }
                     assignedLane = i + 1;
                 }
-
-                // If all lanes are busy, create new lane
-                if (assignedLane >= laneEnds.length) {
-                    laneEnds.push(taskEnd);
-                } else {
-                    laneEnds[assignedLane] = taskEnd;
-                }
-
+                if (assignedLane >= laneEnds.length) laneEnds.push(taskEnd);
+                else laneEnds[assignedLane] = taskEnd;
                 lanes.set(task.id, assignedLane);
             });
+        });
+
+        // ── Treatment tasks: each type gets its own dedicated lane band ──
+        const treatmentByType = new Map<string, PlanningTask[]>();
+        filteredTasks.forEach((task) => {
+            if (!(task as any).is_treatment || !task.planned_date || !task.planned_end) return;
+            const type = getTreatmentTypeName(task) || "__unknown__";
+            if (!treatmentByType.has(type)) treatmentByType.set(type, []);
+            treatmentByType.get(type)!.push(task);
+        });
+
+        // Sort types alphabetically so lane assignment is deterministic
+        const sortedTypes = Array.from(treatmentByType.keys()).sort();
+        let laneOffset = 0;
+        sortedTypes.forEach((type) => {
+            const tasks = treatmentByType.get(type)!;
+            const sorted = [...tasks].sort(
+                (a, b) => new Date(a.planned_date!).getTime() - new Date(b.planned_date!).getTime()
+            );
+            const laneEnds: number[] = [];
+            let maxLane = 0;
+            sorted.forEach((task) => {
+                const taskStart = new Date(task.planned_date!).getTime();
+                const taskEnd = new Date(task.planned_end!).getTime();
+                let assignedLane = 0;
+                for (let i = 0; i < laneEnds.length; i++) {
+                    if (laneEnds[i] <= taskStart) {
+                        assignedLane = i;
+                        break;
+                    }
+                    assignedLane = i + 1;
+                }
+                if (assignedLane >= laneEnds.length) laneEnds.push(taskEnd);
+                else laneEnds[assignedLane] = taskEnd;
+                lanes.set(task.id, laneOffset + assignedLane);
+                maxLane = Math.max(maxLane, assignedLane);
+            });
+            laneOffset += maxLane + 1;
         });
 
         return lanes;
@@ -535,20 +575,8 @@ export function GanttSVG({
         return counts;
     }, [filteredTasks, taskLanes]);
 
-    // Resolve treatment type name from a task (works for both draft and saved tasks)
-    const getTreatmentTypeName = (task: PlanningTask): string | null => {
-        if ((task as any).treatment_type) return (task as any).treatment_type as string;
-        const reg = task.register;
-        if (!reg) return null;
-        const m = reg.match(/^(\d+)-T$/);
-        if (!m) return null;
-        const stepIdx = parseInt(m[1]) - 1;
-        const evaluation = (task.production_orders as any)?.evaluation as any[] | null;
-        if (!evaluation || stepIdx < 0 || stepIdx >= evaluation.length) return null;
-        return (evaluation[stepIdx]?.treatment as string) || null;
-    };
-
-    // Group treatment tasks by type → used for batch indicator visual and extra row height
+    // Group treatment tasks by type → used for the per-type legend strip and extra row height.
+    // All treatment types are included (not just batches) so the legend always shows.
     const treatmentBatchGroups = useMemo(() => {
         const groups = new Map<string, PlanningTask[]>();
         filteredTasks.forEach((task) => {
@@ -559,29 +587,6 @@ export function GanttSVG({
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(task);
         });
-        // Only keep groups where ≥2 different orders overlap in time
-        for (const [key, tasks] of groups) {
-            const uniqueOrders = new Set(tasks.map((t) => t.order_id));
-            if (uniqueOrders.size < 2) {
-                groups.delete(key);
-                continue;
-            }
-            // At least two tasks must overlap or share the same window
-            let hasOverlap = false;
-            for (let i = 0; i < tasks.length && !hasOverlap; i++) {
-                const s1 = new Date(tasks[i].planned_date!).getTime();
-                const e1 = new Date(tasks[i].planned_end!).getTime();
-                for (let j = i + 1; j < tasks.length; j++) {
-                    const s2 = new Date(tasks[j].planned_date!).getTime();
-                    const e2 = new Date(tasks[j].planned_end!).getTime();
-                    if (s1 < e2 && e1 > s2) {
-                        hasOverlap = true;
-                        break;
-                    }
-                }
-            }
-            if (!hasOverlap) groups.delete(key);
-        }
         return groups;
     }, [filteredTasks]);
 
@@ -727,6 +732,11 @@ export function GanttSVG({
         const snappedTime = snapToNearest15Minutes(rawTime);
 
         if (foundMachine) {
+            // Block creating treatment tasks on weekends
+            if (foundMachine === "TRATAMIENTO") {
+                const day = getDay(snappedTime);
+                if (day === 0 || day === 6) return;
+            }
             setModalData({
                 machine: foundMachine,
                 time: snappedTime.valueOf(),
@@ -833,6 +843,12 @@ export function GanttSVG({
             // Snap to 15 mins
             newStartTime = snapToNearest15Minutes(newStartTime);
 
+            // Treatment tasks: no weekends
+            const isDraggingTreatment = optimisticTasks.some(
+                (t) => t.id === draggingTask.id && (t as any).is_treatment
+            );
+            if (isDraggingTreatment) newStartTime = snapTreatmentToWeekday(newStartTime);
+
             const originalStart = xToTime(draggingTask.initialX);
             const deltaMs = newStartTime.getTime() - originalStart.getTime();
 
@@ -867,6 +883,9 @@ export function GanttSVG({
             const direction = resizingTask.direction || "right";
             const limitStart = resizingTask.dayStart ? new Date(resizingTask.dayStart) : null;
             const limitEnd = resizingTask.dayEnd ? new Date(resizingTask.dayEnd) : null;
+            const isResizingTreatment = optimisticTasks.some(
+                (t) => t.id === resizingTask.id && (t as any).is_treatment
+            );
 
             setOptimisticTasks((prev) => {
                 const updated = prev.map((t) => {
@@ -875,6 +894,7 @@ export function GanttSVG({
                             const newWidth = Math.max(10, resizingTask.initialWidth + deltaX);
                             let newEndTime = xToTime(timeToX(t.planned_date!) + newWidth);
                             newEndTime = snapToNearest15Minutes(newEndTime);
+                            if (isResizingTreatment) newEndTime = snapTreatmentToWeekday(newEndTime);
 
                             if (limitEnd && isAfter(newEndTime, limitEnd)) {
                                 newEndTime = new Date(limitEnd);
@@ -891,6 +911,7 @@ export function GanttSVG({
                                 (resizingTask.initialStart || 0) + Math.min(deltaX, resizingTask.initialWidth - 10);
                             let newStartDate = xToTime(newX);
                             newStartDate = snapToNearest15Minutes(newStartDate);
+                            if (isResizingTreatment) newStartDate = snapTreatmentToWeekday(newStartDate);
 
                             if (limitStart && isBefore(newStartDate, limitStart)) {
                                 newStartDate = new Date(limitStart);
@@ -928,6 +949,33 @@ export function GanttSVG({
     };
 
     // 5. Grid Helpers - Generate columns based on view mode
+    /** Snap a treatment date to the next weekday (Mon-Fri) if it falls on Sat/Sun */
+    const snapTreatmentToWeekday = (date: Date): Date => {
+        const day = getDay(date); // 0=Sun, 6=Sat
+        if (day === 6) return addDays(date, 2); // Sat → Mon
+        if (day === 0) return addDays(date, 1); // Sun → Mon
+        return date;
+    };
+
+    /** Weekend shading rects for the TRATAMIENTO row (all view modes) */
+    const treatmentWeekendRects = useMemo(() => {
+        if (!machineYOffsets.has("TRATAMIENTO")) return [] as { x: number; width: number; y: number; height: number }[];
+        const rects: { x: number; width: number; y: number; height: number }[] = [];
+        const treatY = machineYOffsets.get("TRATAMIENTO")!;
+        const rowH = getMachineHeight("TRATAMIENTO");
+        let day = startOfDay(timeWindow.start);
+        while (isBefore(day, timeWindow.end)) {
+            const d = getDay(day);
+            if (d === 0 || d === 6) {
+                const x1 = timeToX(day);
+                const x2 = timeToX(addDays(day, 1));
+                if (x2 > x1) rects.push({ x: x1, width: x2 - x1, y: treatY, height: rowH });
+            }
+            day = addDays(day, 1);
+        }
+        return rects;
+    }, [machineYOffsets, timeWindow, timeToX, machineLaneCounts, treatmentBatchGroups]);
+
     /** Off-hours rectangles for hour view: 00:00-06:00 and 22:00-24:00 each day */
     const offHourRects = useMemo(() => {
         if (viewMode !== "hour") return [];
@@ -1368,6 +1416,20 @@ export function GanttSVG({
                                 />
                             ))}
 
+                            {/* Weekend shading for TRATAMIENTO row */}
+                            {treatmentWeekendRects.map((r, i) => (
+                                <rect
+                                    key={`treat-weekend-${i}`}
+                                    x={r.x}
+                                    y={r.y}
+                                    width={r.width}
+                                    height={r.height}
+                                    fill="#ef4444"
+                                    fillOpacity={0.07}
+                                    className="pointer-events-none"
+                                />
+                            ))}
+
                             {/* Tasks */}
 
                             {/* Treatment batch indicators – rendered behind everything else */}
@@ -1386,9 +1448,13 @@ export function GanttSVG({
                                     const stripY = treatY + rowH - BATCH_INDICATOR_HEIGHT + 2;
                                     const displayName = getTreatmentTypeName(batchTasks[0]) || typeKey;
                                     const orderCount = new Set(batchTasks.map((t) => t.order_id)).size;
+                                    const label =
+                                        orderCount > 1
+                                            ? `🧪 Lote: ${displayName} · ${orderCount} órdenes`
+                                            : `🧪 ${displayName}`;
                                     return (
                                         <g key={`batch-${typeKey}`} className="pointer-events-none">
-                                            {/* Faint window behind all bars for this batch */}
+                                            {/* Faint window behind all bars for this type */}
                                             <rect
                                                 x={bx}
                                                 y={treatY}
@@ -1418,7 +1484,7 @@ export function GanttSVG({
                                                 fill="#6366f1"
                                                 fillOpacity={0.9}
                                             >
-                                                {`🧪 Lote: ${displayName} · ${orderCount} órdenes`}
+                                                {label}
                                             </text>
                                         </g>
                                     );
