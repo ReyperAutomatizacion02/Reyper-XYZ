@@ -946,26 +946,63 @@ export function EvaluationSidebar({
                                                                     }))}
                                                                 />
                                                             </div>
-                                                            <div className="w-20 space-y-1.5">
+                                                            <div className="shrink-0 space-y-1.5">
                                                                 <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                                                                    Horas
+                                                                    Tiempo
                                                                 </Label>
-                                                                <div className="relative">
+                                                                <div className="flex items-center gap-1">
                                                                     <Input
                                                                         type="number"
-                                                                        min="0.5"
-                                                                        step="0.5"
-                                                                        value={step.hours || ""}
-                                                                        onChange={(e) =>
+                                                                        min="0"
+                                                                        step="1"
+                                                                        placeholder="0"
+                                                                        value={
+                                                                            Math.floor(step.hours) > 0
+                                                                                ? Math.floor(step.hours)
+                                                                                : ""
+                                                                        }
+                                                                        onChange={(e) => {
+                                                                            const h = parseInt(e.target.value) || 0;
+                                                                            const m = Math.round((step.hours % 1) * 60);
                                                                             updateMachineStep(
                                                                                 index,
                                                                                 "hours",
-                                                                                parseFloat(e.target.value) || 0
-                                                                            )
-                                                                        }
-                                                                        className="h-9 pr-6 text-xs"
+                                                                                h + m / 60
+                                                                            );
+                                                                        }}
+                                                                        className="h-9 w-14 px-2 text-center text-xs"
                                                                     />
-                                                                    <Clock className="absolute right-2 top-3 h-3 w-3 text-muted-foreground" />
+                                                                    <span className="text-[10px] font-bold text-muted-foreground">
+                                                                        h
+                                                                    </span>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="59"
+                                                                        step="5"
+                                                                        placeholder="0"
+                                                                        value={
+                                                                            Math.round((step.hours % 1) * 60) > 0
+                                                                                ? Math.round((step.hours % 1) * 60)
+                                                                                : ""
+                                                                        }
+                                                                        onChange={(e) => {
+                                                                            const m = Math.min(
+                                                                                59,
+                                                                                parseInt(e.target.value) || 0
+                                                                            );
+                                                                            const h = Math.floor(step.hours);
+                                                                            updateMachineStep(
+                                                                                index,
+                                                                                "hours",
+                                                                                h + m / 60
+                                                                            );
+                                                                        }}
+                                                                        className="h-9 w-14 px-2 text-center text-xs"
+                                                                    />
+                                                                    <span className="text-[10px] font-bold text-muted-foreground">
+                                                                        m
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         </>
