@@ -18,6 +18,17 @@ export interface UserPreferences {
         projectFilter?: string[];
         cascadeMode?: boolean;
     };
+    evaluation?: {
+        evalFilterType?: "request" | "delivery" | "none";
+        evalDateValue?: string;
+        evalDateOperator?: "before" | "after";
+        clientFilter?: string[];
+        treatmentFilter?: string;
+        evalSortDirection?: "asc" | "desc";
+        evalSortBy?: "auto" | "date" | "code" | "both";
+        showEvaluated?: boolean;
+        pinnedOrderIds?: string[];
+    };
 }
 
 const DEBOUNCE_MS = 1000;
@@ -134,6 +145,19 @@ export function useUserPreferences() {
         [updatePreference, getGanttPrefs]
     );
 
+    // Get evaluation preferences
+    const getEvalPrefs = useCallback(() => {
+        return preferences.evaluation || {};
+    }, [preferences.evaluation]);
+
+    // Update evaluation specific preference
+    const updateEvalPref = useCallback(
+        (updates: Partial<UserPreferences["evaluation"]>) => {
+            updatePreference("evaluation", { ...getEvalPrefs(), ...updates });
+        },
+        [updatePreference, getEvalPrefs]
+    );
+
     return {
         preferences,
         isLoading,
@@ -142,5 +166,7 @@ export function useUserPreferences() {
         getGanttPrefs,
         updateSidebarPref,
         updateGanttPref,
+        getEvalPrefs,
+        updateEvalPref,
     };
 }

@@ -67,7 +67,13 @@ export function ProductionView({
     const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
 
     // User preferences
-    const { getGanttPrefs, updateGanttPref, isLoading: prefsLoading } = useUserPreferences();
+    const {
+        getGanttPrefs,
+        updateGanttPref,
+        getEvalPrefs,
+        updateEvalPref,
+        isLoading: prefsLoading,
+    } = useUserPreferences();
     const ganttPrefs = getGanttPrefs();
 
     const [viewMode, setViewMode] = useState<"hour" | "day" | "week">("day");
@@ -99,7 +105,11 @@ export function ProductionView({
     const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
 
     // Evaluation filters hook
-    const evalFilters = useEvaluationFilters(orders as OrderWithRelations[]);
+    const evalFilters = useEvaluationFilters(orders as OrderWithRelations[], {
+        isLoading: prefsLoading,
+        getEvalPrefs,
+        updateEvalPref,
+    });
 
     const containerRef = useRef<HTMLDivElement>(null);
     const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

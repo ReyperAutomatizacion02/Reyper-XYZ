@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { isBefore, isAfter, startOfDay } from "date-fns";
 import { compareOrdersByPriority, OrderWithRelations } from "@/lib/scheduling-utils";
 import { Database } from "@/utils/supabase/types";
+import { type UserPreferences } from "@/hooks/use-user-preferences";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 
@@ -36,56 +37,61 @@ export interface EvaluationFiltersState {
     searchSuggestions: Order[];
 }
 
-const LS_KEY = "reyper_eval_filters";
-
-function readStoredFilters() {
-    if (typeof window === "undefined") return {} as Record<string, any>;
-    try {
-        const raw = localStorage.getItem(LS_KEY);
-        return raw ? JSON.parse(raw) : {};
-    } catch {
-        return {};
-    }
+interface EvalPrefsContext {
+    isLoading: boolean;
+    getEvalPrefs: () => NonNullable<UserPreferences["evaluation"]>;
+    updateEvalPref: (updates: Partial<UserPreferences["evaluation"]>) => void;
 }
 
-export function useEvaluationFilters(orders: OrderWithRelations[]): EvaluationFiltersState {
-    // Lazy-initialize from localStorage (runs only on first render)
-    const [stored] = useState(readStoredFilters);
+export function useEvaluationFilters(
+    orders: OrderWithRelations[],
+    prefsContext: EvalPrefsContext
+): EvaluationFiltersState {
+    const [prefsInitialized, setPrefsInitialized] = useState(false);
 
     const [evalSearchQuery, setEvalSearchQuery] = useState("");
-    const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">(
-        stored.evalFilterType ?? "none"
-    );
-    const [evalDateValue, setEvalDateValue] = useState<string>(stored.evalDateValue ?? "");
-    const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">(stored.evalDateOperator ?? "after");
-    const [clientFilter, setClientFilter] = useState<string[]>(stored.clientFilter ?? []);
-    const [treatmentFilter, setTreatmentFilter] = useState<string>(stored.treatmentFilter ?? "all");
-    const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">(stored.evalSortDirection ?? "asc");
-    const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">(stored.evalSortBy ?? "auto");
-    const [showEvaluated, setShowEvaluated] = useState<boolean>(stored.showEvaluated ?? false);
-    const [pinnedOrderIds, setPinnedOrderIds] = useState<Set<string>>(
-        new Set<string>(Array.isArray(stored.pinnedOrderIds) ? stored.pinnedOrderIds : [])
-    );
+    const [evalFilterType, setEvalFilterType] = useState<"request" | "delivery" | "none">("none");
+    const [evalDateValue, setEvalDateValue] = useState("");
+    const [evalDateOperator, setEvalDateOperator] = useState<"before" | "after">("after");
+    const [clientFilter, setClientFilter] = useState<string[]>([]);
+    const [treatmentFilter, setTreatmentFilter] = useState("all");
+    const [evalSortDirection, setEvalSortDirection] = useState<"asc" | "desc">("asc");
+    const [evalSortBy, setEvalSortBy] = useState<"auto" | "date" | "code" | "both">("auto");
+    const [showEvaluated, setShowEvaluated] = useState(false);
+    const [pinnedOrderIds, setPinnedOrderIds] = useState<Set<string>>(new Set());
 
-    // Persist filters to localStorage whenever they change (search query excluded — it's transient)
+    // Load from Supabase prefs once available
     useEffect(() => {
-        try {
-            localStorage.setItem(
-                LS_KEY,
-                JSON.stringify({
-                    evalFilterType,
-                    evalDateValue,
-                    evalDateOperator,
-                    clientFilter,
-                    treatmentFilter,
-                    evalSortDirection,
-                    evalSortBy,
-                    showEvaluated,
-                    pinnedOrderIds: Array.from(pinnedOrderIds),
-                })
-            );
-        } catch {}
+        if (prefsContext.isLoading || prefsInitialized) return;
+        const p = prefsContext.getEvalPrefs();
+        if (p.evalFilterType) setEvalFilterType(p.evalFilterType);
+        if (p.evalDateValue !== undefined) setEvalDateValue(p.evalDateValue);
+        if (p.evalDateOperator) setEvalDateOperator(p.evalDateOperator);
+        if (p.clientFilter) setClientFilter(p.clientFilter);
+        if (p.treatmentFilter !== undefined) setTreatmentFilter(p.treatmentFilter);
+        if (p.evalSortDirection) setEvalSortDirection(p.evalSortDirection);
+        if (p.evalSortBy) setEvalSortBy(p.evalSortBy);
+        if (p.showEvaluated !== undefined) setShowEvaluated(p.showEvaluated);
+        if (p.pinnedOrderIds) setPinnedOrderIds(new Set(p.pinnedOrderIds));
+        setPrefsInitialized(true);
+    }, [prefsContext.isLoading, prefsInitialized]);
+
+    // Save to Supabase on every filter change (search query excluded — it's transient)
+    useEffect(() => {
+        if (!prefsInitialized) return;
+        prefsContext.updateEvalPref({
+            evalFilterType,
+            evalDateValue,
+            evalDateOperator,
+            clientFilter,
+            treatmentFilter,
+            evalSortDirection,
+            evalSortBy,
+            showEvaluated,
+            pinnedOrderIds: Array.from(pinnedOrderIds),
+        });
     }, [
+        prefsInitialized,
         evalFilterType,
         evalDateValue,
         evalDateOperator,
