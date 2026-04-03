@@ -643,15 +643,14 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ### 🔴 Críticos
 
-- [ ] **[C1]** Refactoring `gantt-svg.tsx` — split en sub-componentes + custom hooks
-    - [ ] Crear `hooks/useGanttCoordinates.ts`
-    - [ ] Crear `hooks/useGanttDragDrop.ts`
-    - [ ] Crear `hooks/useGanttZoom.ts`
-    - [ ] Crear `components/production/gantt/GanttCanvas.tsx`
-    - [ ] Crear `components/production/gantt/GanttTimeline.tsx`
-    - [ ] Crear `components/production/gantt/GanttTaskBar.tsx`
-    - [ ] Crear `components/production/gantt/GanttMachineRow.tsx`
-    - [ ] Reducir `gantt-svg.tsx` a orquestador (~150 líneas)
+- [x] **[C1]** Refactoring `gantt-svg.tsx` — split en sub-componentes + custom hooks — 2026-04-03
+    - [x] Crear `hooks/use-gantt-coordinates.ts` (timeWindow, timeToX, xToTime, totalWidth, timeColumns, offHourRects, navigateDate)
+    - [x] Crear `hooks/use-gantt-drag-drop.ts` (draggingTask, resizingTask, conflictingTaskIds + handlers)
+    - [x] Crear `hooks/use-gantt-layout.ts` (filteredMachines, filteredTasks, taskLanes, machineYOffsets, utilization, sizing)
+    - [x] Crear `components/production/gantt/GanttTaskBar.tsx` (barra individual con motion, resize handles, tooltip events)
+    - [x] Crear `components/production/gantt/GanttTooltip.tsx` (tooltip flotante con imagen y metadatos)
+    - [x] Crear `components/production/gantt/GanttContextMenu.tsx` (menú contextual Ver Detalles / Bloquear)
+    - [x] Reducir `gantt-svg.tsx` a orquestador: de 1989 líneas → 674 líneas (66% reducción)
 - [x] **[C2]** Migrar `production-view.tsx` de 20 `useState` dispersos a 3 custom hooks — 2026-04-03
     - [x] Crear `components/production/hooks/use-production-tasks.ts` (tasks, history, undo/redo, save, lock, clear eval)
     - [x] Crear `components/production/hooks/use-gantt-settings.ts` (viewMode, zoom, filtros, prefs sync)
@@ -700,6 +699,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 1        | 5.5%       |
+| ✅ Resuelto    | 2        | 11.1%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 17       | 94.5%      |
+| ⏳ Pendiente   | 16       | 88.9%      |
