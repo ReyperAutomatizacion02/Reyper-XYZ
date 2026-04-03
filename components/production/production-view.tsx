@@ -4,35 +4,22 @@ import React, { useState, useRef, useMemo, useEffect } from "react";
 import { GanttSVG } from "./gantt-svg";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Database } from "@/utils/supabase/types";
-import { format, startOfDay, isBefore, isSameDay } from "date-fns";
-import {
-    updateTaskSchedule,
-    batchSavePlanning,
-    toggleTaskLocked,
-    clearOrderEvaluation,
-} from "@/app/dashboard/produccion/actions";
+import { startOfDay, isBefore, isSameDay } from "date-fns";
 import { useRouter } from "next/navigation";
-import { useUserPreferences } from "@/hooks/use-user-preferences";
 import { cn } from "@/lib/utils";
 import { ProductionViewSkeleton } from "@/components/ui/skeleton";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
-import {
-    generateAutomatedPlanning,
-    SchedulingResult,
-    SchedulingStrategy,
-    getNextValidWorkTime,
-    snapToNext15Minutes,
-    OrderWithRelations,
-    WorkShift,
-    DEFAULT_SHIFTS,
-} from "@/lib/scheduling-utils";
+import { SchedulingResult, OrderWithRelations, WorkShift, DEFAULT_SHIFTS } from "@/lib/scheduling-utils";
 import { StrategyToolbar } from "./strategy-toolbar";
 import { GanttControls, ProjectOption } from "./gantt-controls";
 import { EvaluationSidebar } from "./evaluation-sidebar";
 import { ConfirmationDialogs } from "./confirmation-dialogs";
 import { useEvaluationFilters } from "./hooks/use-evaluation-filters";
+import { useProductionTasks } from "./hooks/use-production-tasks";
+import { useGanttSettings } from "./hooks/use-gantt-settings";
+import { useStrategyDraft } from "./hooks/use-strategy-draft";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
@@ -61,251 +48,80 @@ export function ProductionView({
     shifts = DEFAULT_SHIFTS,
 }: ProductionViewProps) {
     const router = useRouter();
+
+    // --- Derive static lists from props ---
+    const allMachineNames = useMemo(() => {
+        const names = new Set([
+            ...machines.map((m) => m.name),
+            ...tasks.map((t) => t.machine).filter((n): n is string => !!n),
+        ]);
+        if (tasks.some((t) => !t.machine)) names.add("Sin Máquina");
+        return Array.from(names).sort();
+    }, [machines, tasks]);
+
+    const availableProjects = useMemo<ProjectOption[]>(() => {
+        const seen = new Map<string, ProjectOption>();
+        for (const order of orders) {
+            if (!order.project_id || seen.has(order.project_id)) continue;
+            seen.set(order.project_id, {
+                id: order.project_id,
+                code: order.projects?.code ?? order.project_id,
+                company: order.projects?.company ?? null,
+            });
+        }
+        return Array.from(seen.values()).sort((a, b) => a.code.localeCompare(b.code));
+    }, [orders]);
+
+    // --- Domain hooks ---
+    const taskState = useProductionTasks({ initialTasks: tasks, initialOrders: orders });
+
+    const settings = useGanttSettings({ allMachineNames });
+
+    const strategy = useStrategyDraft({
+        initialOrders: orders,
+        optimisticTasks: taskState.optimisticTasks,
+        draftTasks: taskState.draftTasks,
+        setDraftTasks: taskState.setDraftTasks,
+        machines,
+        shifts,
+    });
+
+    const evalFilters = useEvaluationFilters(orders as OrderWithRelations[], {
+        isLoading: settings.prefsLoading,
+        getEvalPrefs: settings.getEvalPrefs,
+        updateEvalPref: settings.updateEvalPref,
+    });
+
+    // --- Simple UI state (intentionally kept local — no domain logic) ---
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [projectFilter, setProjectFilter] = useState<string[]>([]);
     const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
-
-    // User preferences
-    const {
-        getGanttPrefs,
-        updateGanttPref,
-        getEvalPrefs,
-        updateEvalPref,
-        isLoading: prefsLoading,
-    } = useUserPreferences();
-    const ganttPrefs = getGanttPrefs();
-
-    const [viewMode, setViewMode] = useState<"hour" | "day" | "week">("day");
-    const [showDependencies, setShowDependencies] = useState(true);
-    const [zoomLevel, setZoomLevel] = useState(1);
-    const [hideEmptyMachines, setHideEmptyMachines] = useState(true);
-    const [cascadeMode, setCascadeMode] = useState(false);
-    const [prefsInitialized, setPrefsInitialized] = useState(false);
-
-    // Evaluation States
     const [isEvalListOpen, setIsEvalListOpen] = useState(false);
     const [selectedOrderForEval, setSelectedOrderForEval] = useState<Order | null>(null);
-
-    // Draft Tasks for Auto-Plan Preview
-    const [draftTasks, setDraftTasks] = useState<PlanningTask[]>([]);
-
-    // Live Strategy States
-    const [activeStrategy, setActiveStrategy] = useState<SchedulingStrategy | "NONE">("NONE");
-    const [localOrders, setLocalOrders] = useState<Order[]>(orders);
-    const [strategyFilters] = useState({
-        onlyWithCAD: false,
-        onlyWithBlueprint: false,
-        onlyWithMaterial: false,
-        requireTreatment: false,
-    });
-
-    // Confirmation states
     const [idToClearEval, setIdToClearEval] = useState<string | null>(null);
     const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
-
-    // Evaluation filters hook
-    const evalFilters = useEvaluationFilters(orders as OrderWithRelations[], {
-        isLoading: prefsLoading,
-        getEvalPrefs,
-        updateEvalPref,
-    });
+    const [modalData, setModalData] = useState<any>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Initialize from preferences once loaded
-    useEffect(() => {
-        if (!prefsLoading && !prefsInitialized) {
-            if (ganttPrefs.viewMode) setViewMode(ganttPrefs.viewMode);
-            if (ganttPrefs.showDependencies !== undefined) setShowDependencies(ganttPrefs.showDependencies);
-            if (ganttPrefs.zoomLevel) setZoomLevel(ganttPrefs.zoomLevel);
-            if (ganttPrefs.hideEmptyMachines !== undefined) setHideEmptyMachines(ganttPrefs.hideEmptyMachines);
-            if (ganttPrefs.projectFilter) setProjectFilter(ganttPrefs.projectFilter);
-            if (ganttPrefs.cascadeMode !== undefined) setCascadeMode(ganttPrefs.cascadeMode);
-            setPrefsInitialized(true);
-        }
-    }, [prefsLoading, prefsInitialized, ganttPrefs]);
-
-    // Save viewMode preference
-    const handleViewModeChange = (newMode: "hour" | "day" | "week") => {
-        setViewMode(newMode);
-        setZoomLevel(1);
-        updateGanttPref({ viewMode: newMode, zoomLevel: 1 });
-    };
-
-    const handleShowDependenciesChange = (value: boolean) => {
-        setShowDependencies(value);
-        updateGanttPref({ showDependencies: value });
-    };
-
-    const handleHideEmptyMachinesChange = (value: boolean) => {
-        setHideEmptyMachines(value);
-        updateGanttPref({ hideEmptyMachines: value });
-    };
-
-    const handleProjectFilterChange = (newFilter: string[]) => {
-        setProjectFilter(newFilter);
-        updateGanttPref({ projectFilter: newFilter });
-    };
-
-    const handleCascadeModeChange = (value: boolean) => {
-        setCascadeMode(value);
-        updateGanttPref({ cascadeMode: value });
-    };
-
-    const confirmClearEvaluation = async (orderId: string) => {
-        try {
-            await clearOrderEvaluation(orderId);
-            toast.success("Evaluación limpiada exitosamente");
-            router.refresh();
-            setIdToClearEval(null);
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al limpiar evaluación");
-        }
-    };
-
-    const handleDiscardDrafts = () => {
-        setDraftTasks([]);
-        toast.info("Planeación automática descartada");
-    };
-
-    const handleSaveAllPlanning = async () => {
-        if (draftTasks.length === 0 && changedTasks.length === 0) return;
-
-        toast.loading("Guardando planeación...", { id: "save-planning" });
-
-        try {
-            await batchSavePlanning(draftTasks, changedTasks);
-            toast.success("Planeación guardada con éxito", { id: "save-planning" });
-            setDraftTasks([]);
-            router.refresh();
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al guardar la planeación", { id: "save-planning" });
-        }
-    };
-
-    const handleZoomChange = (newZoom: number | ((prev: number) => number)) => {
-        setZoomLevel((prev) => {
-            const resolvedZoom = typeof newZoom === "function" ? newZoom(prev) : newZoom;
-            updateGanttPref({ zoomLevel: resolvedZoom });
-            return resolvedZoom;
-        });
-    };
-
-    // State lifted from GanttSVG
-    const [savedTasks, setSavedTasks] = useState<PlanningTask[]>(tasks);
-    const [optimisticTasks, setOptimisticTasks] = useState<PlanningTask[]>(tasks);
-    const [history, setHistory] = useState<PlanningTask[][]>([]);
-    const [future, setFuture] = useState<PlanningTask[][]>([]);
-    const [isSaving, setIsSaving] = useState(false);
-
-    // Lock/Unlock handler
-    const handleToggleLock = async (taskId: string, locked: boolean) => {
-        setOptimisticTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, locked } : t)));
-        try {
-            await toggleTaskLocked(taskId, locked);
-        } catch {
-            setOptimisticTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, locked: !locked } : t)));
-            toast.error("Error al cambiar bloqueo");
-        }
-    };
-
-    // Live Strategy Draft Computation — debounced to avoid recalculating on every keystroke
-    const [liveDraftResult, setLiveDraftResult] = useState<SchedulingResult | null>(null);
-    const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (activeStrategy === "NONE") {
-            setLiveDraftResult(null);
-            return;
-        }
-
-        if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
-
-        draftDebounceRef.current = setTimeout(() => {
-            // generateAutomatedPlanning already schedules tasks starting from
-            // the current time with proper shift-splitting and collision avoidance.
-            // Do NOT re-process through shiftTasksToCurrent — that function doesn't
-            // perform shift-splitting, so it can collapse post-treatment segments
-            // into single tasks that span overnight, ignoring active work schedules.
-            const result = generateAutomatedPlanning(
-                localOrders,
-                optimisticTasks,
-                machines.map((m) => m.name),
-                { mainStrategy: activeStrategy, ...strategyFilters },
-                shifts
-            );
-
-            setLiveDraftResult(result);
-        }, 400);
-
-        return () => {
-            if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
-        };
-    }, [activeStrategy, strategyFilters, localOrders, optimisticTasks, machines, shifts]);
-
-    // List of all tasks (real + draft) for the Gantt chart
-    const allTasks = useMemo(() => {
-        if (activeStrategy !== "NONE" && liveDraftResult) {
-            const generatedDrafts = liveDraftResult.tasks.map((t) => ({ ...t, isDraft: true }) as PlanningTask);
-            const manuallyTweakedPieceIds = new Set(draftTasks.map((d) => d.order_id));
-            const reconciledDrafts = [
-                ...draftTasks.filter((d) => d.isDraft),
-                ...generatedDrafts.filter((g) => !manuallyTweakedPieceIds.has(g.order_id)),
-            ];
-
-            const nowSnapped = snapToNext15Minutes(new Date());
-            const globalStart = getNextValidWorkTime(nowSnapped, shifts);
-
-            const fixedTasks = optimisticTasks.filter((t) => {
-                const isFuture = !isBefore(new Date(t.planned_date!), globalStart);
-                const isLocked = t.locked === true;
-                const hasStarted = !!t.check_in;
-                return isLocked || hasStarted || !isFuture;
-            });
-
-            const flexibleTasks = optimisticTasks.filter((t) => {
-                const isFuture = !isBefore(new Date(t.planned_date!), globalStart);
-                const isLocked = t.locked === true;
-                const hasStarted = !!t.check_in;
-                return !isLocked && !hasStarted && isFuture;
-            });
-
-            const activePieceIds = new Set(reconciledDrafts.map((t) => t.order_id));
-            const filteredFlexible = flexibleTasks.filter((t) => !activePieceIds.has(t.order_id));
-
-            return [...fixedTasks, ...filteredFlexible, ...reconciledDrafts];
-        }
-
-        const visibleReal = optimisticTasks.filter((t) => !new Set(draftTasks.map((d) => d.order_id)).has(t.order_id));
-        return [...visibleReal, ...draftTasks];
-    }, [optimisticTasks, draftTasks, activeStrategy, liveDraftResult]);
-
-    // Planning Alerts Computation
+    // --- Planning alerts ---
     const planningAlerts = useMemo(() => {
         const alerts: { type: "OVERLAP" | "MISSING_OPERATOR"; task: PlanningTask; details: string }[] = [];
         const now = new Date();
-        const today = startOfDay(new Date());
-        const flaggedTaskIds = new Set<string>();
-
+        const today = startOfDay(now);
+        const flaggedIds = new Set<string>();
         const machineGroups: Record<string, PlanningTask[]> = {};
-        allTasks.forEach((task) => {
-            const mName = task.machine;
-            if (!mName) return;
-            if (!task.planned_date || !task.planned_end) return;
+
+        strategy.allTasks.forEach((task) => {
+            if (!task.machine || !task.planned_date || !task.planned_end) return;
             if (isBefore(new Date(task.planned_end!), now)) return;
 
-            if (!machineGroups[mName]) machineGroups[mName] = [];
-            machineGroups[mName].push(task);
+            if (!machineGroups[task.machine]) machineGroups[task.machine] = [];
+            machineGroups[task.machine].push(task);
 
-            if (!task.operator || task.operator.trim() === "") {
-                const isToday = isSameDay(new Date(task.planned_date!), today);
-                if (isToday) {
-                    alerts.push({ type: "MISSING_OPERATOR", task, details: `Sin operador asignado para hoy` });
-                }
+            if (!task.operator?.trim() && isSameDay(new Date(task.planned_date!), today)) {
+                alerts.push({ type: "MISSING_OPERATOR", task, details: "Sin operador asignado para hoy" });
             }
         });
 
@@ -317,29 +133,19 @@ export function ProductionView({
                 for (let j = i + 1; j < sorted.length; j++) {
                     const t1 = sorted[i];
                     const t2 = sorted[j];
-                    if (!t1.planned_date || !t1.planned_end || !t2.planned_date || !t2.planned_end) continue;
-
-                    const start1 = new Date(t1.planned_date);
-                    const end1 = new Date(t1.planned_end);
-                    const start2 = new Date(t2.planned_date);
-                    const end2 = new Date(t2.planned_end);
-
-                    if (isBefore(start1, end2) && isBefore(start2, end1)) {
-                        if (!flaggedTaskIds.has(t2.id)) {
-                            alerts.push({
-                                type: "OVERLAP",
-                                task: t2,
-                                details: `Solapamiento detectado en ${t2.machine}`,
-                            });
-                            flaggedTaskIds.add(t2.id);
+                    if (!t1.planned_end || !t2.planned_date || !t2.planned_end) continue;
+                    const s1 = new Date(t1.planned_date!);
+                    const e1 = new Date(t1.planned_end);
+                    const s2 = new Date(t2.planned_date!);
+                    const e2 = new Date(t2.planned_end);
+                    if (isBefore(s1, e2) && isBefore(s2, e1)) {
+                        if (!flaggedIds.has(t1.id)) {
+                            alerts.push({ type: "OVERLAP", task: t1, details: `Solapamiento en ${t1.machine}` });
+                            flaggedIds.add(t1.id);
                         }
-                        if (!flaggedTaskIds.has(t1.id)) {
-                            alerts.push({
-                                type: "OVERLAP",
-                                task: t1,
-                                details: `Solapamiento detectado en ${t1.machine}`,
-                            });
-                            flaggedTaskIds.add(t1.id);
+                        if (!flaggedIds.has(t2.id)) {
+                            alerts.push({ type: "OVERLAP", task: t2, details: `Solapamiento en ${t2.machine}` });
+                            flaggedIds.add(t2.id);
                         }
                     }
                 }
@@ -347,166 +153,32 @@ export function ProductionView({
         });
 
         return alerts;
-    }, [allTasks]);
+    }, [strategy.allTasks]);
 
-    // Locate Task Logic
-    const locateTask = (taskId: string) => {
-        setFocusTaskId(taskId);
-        setTimeout(() => setFocusTaskId(null), 3000);
-    };
-
-    // Wrapper for setOptimisticTasks - Handles both real and draft tasks
-    const handleTasksChange = (newTasks: React.SetStateAction<PlanningTask[]>) => {
-        const resolvedTasks = typeof newTasks === "function" ? newTasks(allTasks) : newTasks;
-        const real = resolvedTasks.filter((t) => !t.isDraft);
-        const drafts = resolvedTasks.filter((t) => t.isDraft);
-        setOptimisticTasks(real);
-        setDraftTasks(drafts);
-    };
-
-    const handleHistorySnapshot = (previousState: PlanningTask[]) => {
-        setHistory((h) => [...h, previousState]);
-        setFuture([]);
-    };
-
-    const handleUndo = () => {
-        if (history.length === 0) return;
-        const previousState = history[history.length - 1];
-        const newHistory = history.slice(0, -1);
-        setFuture((f) => [...f, allTasks]);
-        setHistory(newHistory);
-        handleTasksChange(previousState);
-    };
-
-    const handleRedo = () => {
-        if (future.length === 0) return;
-        const nextState = future[future.length - 1];
-        const newFuture = future.slice(0, -1);
-        setHistory((h) => [...h, allTasks]);
-        setFuture(newFuture);
-        handleTasksChange(nextState);
-    };
-
-    // Detect Changes logic
-    const changedTasks = useMemo(() => {
-        return optimisticTasks.filter((current) => {
-            const original = savedTasks.find((s) => s.id === current.id);
-            if (!original) return false;
-            const fmt = "yyyy-MM-dd'T'HH:mm:ss";
-            const currentStart = format(new Date(current.planned_date!), fmt);
-            const originalStart = format(new Date(original.planned_date!), fmt);
-            const currentEnd = format(new Date(current.planned_end!), fmt);
-            const originalEnd = format(new Date(original.planned_end!), fmt);
-            return currentStart !== originalStart || currentEnd !== originalEnd;
-        }) as PlanningTask[];
-    }, [optimisticTasks, savedTasks]);
-
-    // Sync props to state
-    React.useEffect(() => {
-        setSavedTasks(tasks);
-        setLocalOrders(orders);
-        if (changedTasks.length === 0) {
-            setOptimisticTasks(tasks);
-        }
-    }, [tasks, orders, changedTasks.length]);
-
-    // Keyboard Shortcuts
+    // --- Keyboard shortcuts ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === "z") {
-                    e.preventDefault();
-                    handleUndo();
-                } else if (e.key === "y") {
-                    e.preventDefault();
-                    handleRedo();
-                } else if (e.key === "s") {
-                    e.preventDefault();
-                    if (changedTasks.length > 0) {
-                        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
-                        saveDebounceRef.current = setTimeout(() => handleSave(), 400);
-                    }
-                }
+            if (!(e.ctrlKey || e.metaKey)) return;
+            if (e.key === "z") {
+                e.preventDefault();
+                taskState.handleUndo(strategy.allTasks);
+            } else if (e.key === "y") {
+                e.preventDefault();
+                taskState.handleRedo(strategy.allTasks);
+            } else if (e.key === "s" && taskState.changedTasks.length > 0) {
+                e.preventDefault();
+                if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+                saveDebounceRef.current = setTimeout(() => taskState.handleSave(), 400);
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [history, future, optimisticTasks, isSaving, changedTasks]);
+    }, [taskState, strategy.allTasks]);
 
-    const handleSave = async () => {
-        if (changedTasks.length === 0) return;
-        setIsSaving(true);
-        try {
-            await Promise.all(
-                changedTasks.map((task) =>
-                    updateTaskSchedule(
-                        task.id,
-                        format(new Date(task.planned_date!), "yyyy-MM-dd'T'HH:mm:ss"),
-                        format(new Date(task.planned_end!), "yyyy-MM-dd'T'HH:mm:ss")
-                    )
-                )
-            );
-            router.refresh();
-        } catch (error) {
-            console.error("Failed to save", error);
-            alert("Error al guardar los cambios.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const confirmDiscard = () => {
-        handleDiscardDrafts();
-        setOptimisticTasks(savedTasks);
-        setHistory([]);
-        setIsDiscardConfirmOpen(false);
-    };
-
-    // Derive unique machine names
-    const allMachineNames = useMemo(() => {
-        const names = new Set([
-            ...machines.map((m) => m.name),
-            ...tasks.map((t) => t.machine).filter((n): n is string => !!n),
-        ]);
-        if (tasks.some((t) => !t.machine)) {
-            names.add("Sin Máquina");
-        }
-        return Array.from(names).sort();
-    }, [machines, tasks]);
-
-    // Build unique project list from orders for the project filter dropdown
-    const availableProjects = useMemo<ProjectOption[]>(() => {
-        const seen = new Map<string, ProjectOption>();
-        for (const order of orders) {
-            if (!order.project_id) continue;
-            if (!seen.has(order.project_id)) {
-                seen.set(order.project_id, {
-                    id: order.project_id,
-                    code: order.projects?.code ?? order.project_id,
-                    company: order.projects?.company ?? null,
-                });
-            }
-        }
-        return Array.from(seen.values()).sort((a, b) => a.code.localeCompare(b.code));
-    }, [orders]);
-
-    const [selectedMachines, setSelectedMachines] = useState<Set<string>>(new Set(allMachineNames));
-
-    // Initialize selectedMachines from preferences
-    useEffect(() => {
-        if (prefsInitialized && ganttPrefs.selectedMachines && ganttPrefs.selectedMachines.length > 0) {
-            const validMachines = ganttPrefs.selectedMachines.filter((m) => allMachineNames.includes(m));
-            if (validMachines.length > 0) {
-                setSelectedMachines(new Set(validMachines));
-            }
-        }
-    }, [prefsInitialized, ganttPrefs.selectedMachines, allMachineNames]);
-
+    // --- Fullscreen ---
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
-            containerRef.current?.requestFullscreen().catch((err) => {
-                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-            });
+            containerRef.current?.requestFullscreen().catch(console.error);
             setIsFullscreen(true);
         } else {
             document.exitFullscreen();
@@ -514,34 +186,23 @@ export function ProductionView({
         }
     };
 
-    const toggleMachine = (machineName: string) => {
-        setSelectedMachines((prev) => {
-            const newSet = new Set(prev);
-            if (newSet.has(machineName)) newSet.delete(machineName);
-            else newSet.add(machineName);
-            updateGanttPref({ selectedMachines: Array.from(newSet) });
-            return newSet;
-        });
+    useEffect(() => {
+        const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener("fullscreenchange", onFullscreenChange);
+        return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+    }, []);
+
+    // --- Focus task helper ---
+    const locateTask = (taskId: string) => {
+        setFocusTaskId(taskId);
+        setTimeout(() => setFocusTaskId(null), 3000);
     };
 
-    const selectAllMachines = () => {
-        setSelectedMachines(new Set(allMachineNames));
-        updateGanttPref({ selectedMachines: allMachineNames });
-    };
-
-    const clearAllMachines = () => {
-        setSelectedMachines(new Set());
-        updateGanttPref({ selectedMachines: [] });
-    };
-
-    // --- MODAL STATE (Lifted) ---
-    const [modalData, setModalData] = React.useState<any>(null);
-
-    // --- HELP TOUR HANDLER ---
+    // --- Help tour ---
     const { startTour } = useTour();
 
     const handleStartTour = () => {
-        const isDemo = optimisticTasks.length === 0;
+        const isDemo = taskState.optimisticTasks.length === 0;
 
         if (isDemo) {
             const demoTask: any = {
@@ -569,11 +230,11 @@ export function ProductionView({
                     notes: "",
                 } as any,
             };
-            setOptimisticTasks([demoTask]);
+            taskState.setOptimisticTasks([demoTask]);
         }
 
         const cleanup = () => {
-            if (isDemo) setOptimisticTasks([]);
+            if (isDemo) taskState.setOptimisticTasks([]);
             setModalData(null);
         };
 
@@ -592,8 +253,7 @@ export function ProductionView({
                 element: "#planning-view-modes",
                 popover: {
                     title: "Modos de Vista",
-                    description:
-                        "Cambia la escala de tiempo entre Hora, Día y Semana para ver mas detalle o el panorama general.",
+                    description: "Cambia la escala de tiempo entre Hora, Día y Semana.",
                     side: "bottom",
                     align: "start",
                 },
@@ -634,12 +294,10 @@ export function ProductionView({
                 element: "#planning-gantt-area",
                 popover: {
                     title: "Creación de Tareas",
-                    description: "Al hacer doble clic, se abrirá el formulario de tarea. ¡Vamos a verlo!",
+                    description: "Al hacer doble clic, se abrirá el formulario de tarea.",
                     side: "top",
                 },
-                onHighlightStarted: () => {
-                    setModalData(null);
-                },
+                onHighlightStarted: () => setModalData(null),
             },
             {
                 element: "#task-modal-content",
@@ -670,7 +328,7 @@ export function ProductionView({
                 element: "#task-modal-start",
                 popover: {
                     title: "Inicio Programado",
-                    description: "Define la fecha y hora de inicio. Puedes usar el calendario o escribir la hora.",
+                    description: "Define la fecha y hora de inicio.",
                     side: "right",
                 },
             },
@@ -678,7 +336,7 @@ export function ProductionView({
                 element: "#task-modal-end",
                 popover: {
                     title: "Fin Estimado",
-                    description: "El sistema calculará el fin automáticamente, pero puedes ajustarlo manualmente.",
+                    description: "El sistema calculará el fin automáticamente, pero puedes ajustarlo.",
                     side: "right",
                 },
             },
@@ -703,50 +361,33 @@ export function ProductionView({
         startTour(steps, cleanup);
     };
 
-    // Synchronize fullscreen state
-    React.useEffect(() => {
-        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-        document.addEventListener("fullscreenchange", handleFullscreenChange);
-        return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    }, []);
-
-    // Strategy change handler
-    const handleStrategyChange = (strategy: SchedulingStrategy | "NONE") => {
-        setActiveStrategy(strategy);
-        if (strategy !== "NONE") {
-            setDraftTasks([]);
-            setHistory([]);
-        }
-    };
-
-    // Gantt controls (renders start/end control elements)
+    // --- Gantt controls (renders start/end toolbar elements) ---
     const { startControls, endControls } = GanttControls({
-        viewMode,
-        onViewModeChange: handleViewModeChange,
+        viewMode: settings.viewMode,
+        onViewModeChange: settings.handleViewModeChange,
         searchQuery,
         onSearchChange: setSearchQuery,
         allMachineNames,
-        selectedMachines,
-        onToggleMachine: toggleMachine,
-        onSelectAllMachines: selectAllMachines,
-        onClearAllMachines: clearAllMachines,
-        showDependencies,
-        onShowDependenciesChange: handleShowDependenciesChange,
-        hideEmptyMachines,
-        onHideEmptyMachinesChange: handleHideEmptyMachinesChange,
-        cascadeMode,
-        onCascadeModeChange: handleCascadeModeChange,
+        selectedMachines: settings.selectedMachines,
+        onToggleMachine: settings.toggleMachine,
+        onSelectAllMachines: settings.selectAllMachines,
+        onClearAllMachines: settings.clearAllMachines,
+        showDependencies: settings.showDependencies,
+        onShowDependenciesChange: settings.handleShowDependenciesChange,
+        hideEmptyMachines: settings.hideEmptyMachines,
+        onHideEmptyMachinesChange: settings.handleHideEmptyMachinesChange,
+        cascadeMode: settings.cascadeMode,
+        onCascadeModeChange: settings.handleCascadeModeChange,
         availableProjects,
-        projectFilter,
-        onProjectFilterChange: handleProjectFilterChange,
-        zoomLevel,
-        onZoomChange: handleZoomChange,
+        projectFilter: settings.projectFilter,
+        onProjectFilterChange: settings.handleProjectFilterChange,
+        zoomLevel: settings.zoomLevel,
+        onZoomChange: settings.handleZoomChange,
         isFullscreen,
         onToggleFullscreen: toggleFullscreen,
     });
 
-    // Show skeleton while preferences are loading
-    if (!prefsInitialized) {
+    if (!settings.prefsInitialized) {
         return <ProductionViewSkeleton />;
     }
 
@@ -772,57 +413,54 @@ export function ProductionView({
                 </div>
             )}
 
-            {/* LIVE STRATEGY TOOLBAR */}
             <StrategyToolbar
-                activeStrategy={activeStrategy}
-                onStrategyChange={handleStrategyChange}
+                activeStrategy={strategy.activeStrategy}
+                onStrategyChange={strategy.handleStrategyChange}
                 planningAlerts={planningAlerts}
                 onLocateTask={locateTask}
-                liveDraftResult={liveDraftResult as SchedulingResult | null}
-                onSaveAllPlanning={handleSaveAllPlanning}
+                liveDraftResult={strategy.liveDraftResult as SchedulingResult | null}
+                onSaveAllPlanning={taskState.handleSaveAllPlanning}
                 isEvalListOpen={isEvalListOpen}
                 onToggleEvalList={() => setIsEvalListOpen(!isEvalListOpen)}
                 ordersPendingEvalCount={evalFilters.ordersPendingEvaluation.length}
                 showEvaluated={evalFilters.showEvaluated}
-                changedTasksCount={changedTasks.length}
-                draftTasksCount={draftTasks.length}
+                changedTasksCount={taskState.changedTasks.length}
+                draftTasksCount={taskState.draftTasks.length}
                 containerRef={containerRef}
             />
 
-            {/* GANTT AREA */}
             <div className="relative flex flex-1 flex-col overflow-hidden p-4" id="planning-gantt-area">
                 <div className="flex w-full flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
                     <GanttSVG
                         initialMachines={machines}
                         initialOrders={orders}
-                        optimisticTasks={allTasks}
-                        setOptimisticTasks={handleTasksChange}
-                        onHistorySnapshot={handleHistorySnapshot}
-                        hideEmptyMachines={hideEmptyMachines}
+                        optimisticTasks={strategy.allTasks}
+                        setOptimisticTasks={(newTasks) => taskState.handleTasksChange(newTasks, strategy.allTasks)}
+                        onHistorySnapshot={taskState.handleHistorySnapshot}
+                        hideEmptyMachines={settings.hideEmptyMachines}
                         searchQuery={searchQuery}
-                        viewMode={viewMode}
+                        viewMode={settings.viewMode}
                         isFullscreen={isFullscreen}
-                        selectedMachines={selectedMachines}
+                        selectedMachines={settings.selectedMachines}
                         operators={operators}
-                        showDependencies={showDependencies}
-                        zoomLevel={zoomLevel}
-                        setZoomLevel={handleZoomChange}
+                        showDependencies={settings.showDependencies}
+                        zoomLevel={settings.zoomLevel}
+                        setZoomLevel={settings.handleZoomChange}
                         onTaskDoubleClick={(task) => {
                             setSelectedOrderForEval(task.production_orders);
                             setIsEvalListOpen(true);
                         }}
                         focusTaskId={focusTaskId}
-                        projectFilter={projectFilter}
+                        projectFilter={settings.projectFilter}
                         startControls={startControls}
                         endControls={endControls}
-                        onToggleLock={handleToggleLock}
-                        cascadeMode={cascadeMode}
+                        onToggleLock={taskState.handleToggleLock}
+                        cascadeMode={settings.cascadeMode}
                         container={containerRef.current}
                     />
                 </div>
             </div>
 
-            {/* EVALUATION SIDEBAR */}
             <EvaluationSidebar
                 isOpen={isEvalListOpen}
                 onClose={() => {
@@ -837,26 +475,31 @@ export function ProductionView({
                 machines={machines}
                 treatments={treatments}
                 onEvalSuccess={(orderId, newSteps) => {
-                    setLocalOrders((prev) =>
+                    strategy.setLocalOrders((prev) =>
                         prev.map((o) =>
                             o.id === orderId ? { ...o, evaluation: newSteps as unknown as typeof o.evaluation } : o
                         )
                     );
-                    if (activeStrategy !== "NONE") {
-                        setDraftTasks((prev) => prev.filter((d) => d.order_id !== orderId));
+                    if (strategy.activeStrategy !== "NONE") {
+                        taskState.setDraftTasks((prev) => prev.filter((d) => d.order_id !== orderId));
                     }
                     router.refresh();
                 }}
             />
 
-            {/* CONFIRMATION DIALOGS */}
             <ConfirmationDialogs
                 idToClearEval={idToClearEval}
                 onClearEvalCancel={() => setIdToClearEval(null)}
-                onClearEvalConfirm={confirmClearEvaluation}
+                onClearEvalConfirm={async (id) => {
+                    await taskState.handleClearEvaluation(id);
+                    setIdToClearEval(null);
+                }}
                 isDiscardConfirmOpen={isDiscardConfirmOpen}
                 onDiscardCancel={setIsDiscardConfirmOpen}
-                onDiscardConfirm={confirmDiscard}
+                onDiscardConfirm={() => {
+                    taskState.confirmDiscard();
+                    setIsDiscardConfirmOpen(false);
+                }}
                 container={containerRef.current}
             />
         </div>

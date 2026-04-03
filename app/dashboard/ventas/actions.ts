@@ -407,14 +407,16 @@ export async function getFilterOptions() {
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
     const [companiesResult, requestorsResult] = await Promise.all([
-        supabase.rpc("get_distinct_active_companies"),
-        supabase.rpc("get_distinct_active_requestors"),
+        client.rpc("get_distinct_active_companies") as Promise<{ data: { company: string }[] | null }>,
+        client.rpc("get_distinct_active_requestors") as Promise<{ data: { requestor: string }[] | null }>,
     ]);
 
     return {
-        clients: (companiesResult.data ?? []).map((r: { company: string }) => r.company),
-        requestors: (requestorsResult.data ?? []).map((r: { requestor: string }) => r.requestor),
+        clients: (companiesResult.data ?? []).map((r) => r.company),
+        requestors: (requestorsResult.data ?? []).map((r) => r.requestor),
     };
 }
 

@@ -21,7 +21,12 @@
             "Bash(node_modules/.bin/vitest run:*)",
             "Bash(./node_modules/.bin/vitest run:*)",
             "Bash(grep -r Calendar components/ lib/ app/ --include=*.tsx --include=*.ts)",
-            "Bash(wc -l /c/Users/User2/Documents/\"Reyper XYZ\"/components/production/*.tsx /c/Users/User2/Documents/\"Reyper XYZ\"/components/production/hooks/*.ts)"
+            "Bash(wc -l /c/Users/User2/Documents/\"Reyper XYZ\"/components/production/*.tsx /c/Users/User2/Documents/\"Reyper XYZ\"/components/production/hooks/*.ts)",
+            "Bash(wc -l components/production/*.tsx)",
+            "Bash(grep -r \"framer-motion\\\\|AnimatePresence\\\\|motion\\\\.\" components/*.tsx)",
+            "Bash(ls -1 components/*.tsx)",
+            "Bash(ls -1 components/ui/*.tsx)",
+            "Bash(ls -1 components/production/*.tsx components/sales/*.tsx components/shared/*.tsx)"
         ]
     }
 }
