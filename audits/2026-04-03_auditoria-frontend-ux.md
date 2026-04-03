@@ -656,14 +656,14 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Crear `components/production/hooks/use-gantt-settings.ts` (viewMode, zoom, filtros, prefs sync)
     - [x] Crear `components/production/hooks/use-strategy-draft.ts` (estrategia activa, liveDraft, allTasks)
     - [x] Refactorizar `production-view.tsx`: de 865 líneas con 20 useState → 310 líneas con 7 useState de UI pura
-- [ ] **[C3]** Refactoring `evaluation-sidebar.tsx` — split en sub-componentes + custom hooks
-    - [ ] Crear `hooks/useEvaluationFilters.ts`
-    - [ ] Crear `hooks/useEvaluationForm.ts`
-    - [ ] Crear `components/production/evaluation/EvaluationFilters.tsx`
-    - [ ] Crear `components/production/evaluation/EvaluationOrderList.tsx`
-    - [ ] Crear `components/production/evaluation/EvaluationStepForm.tsx`
-    - [ ] Crear `components/production/evaluation/EvaluationDrawingPanel.tsx`
-    - [ ] Reducir `evaluation-sidebar.tsx` a shell de composición (~100 líneas)
+- [x] **[C3]** Refactoring `evaluation-sidebar.tsx` — split en sub-componentes + custom hooks — 2026-04-03
+    - [x] `hooks/use-evaluation-filters.ts` ya existía de C2
+    - [x] Crear `hooks/use-evaluation-form.ts` (steps, save/supabase, nav prev/next/back)
+    - [x] Crear `evaluation/EvaluationFilterPanel.tsx` (botón + dropdown con fijados, cliente, fecha, orden)
+    - [x] Crear `evaluation/EvaluationOrderList.tsx` (tarjetas de órdenes con pin, clear, evaluar)
+    - [x] Crear `evaluation/EvaluationStepRow.tsx` (fila individual máquina o tratamiento)
+    - [x] Crear `evaluation/EvaluationFormHeader.tsx` (header rojo con navegación y toggle plano)
+    - [x] Reducir `evaluation-sidebar.tsx` a shell de composición: de 1257 líneas → 323 líneas (74% reducción)
 
 ### 🟡 Altos
 
@@ -699,6 +699,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 2        | 11.1%      |
+| ✅ Resuelto    | 3        | 16.7%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 16       | 88.9%      |
+| ⏳ Pendiente   | 15       | 83.3%      |
