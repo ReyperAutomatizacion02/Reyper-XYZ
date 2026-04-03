@@ -7,14 +7,16 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { LoginSchema, SignupSchema, ForgotPasswordSchema } from "@/lib/validations/auth";
 
-export async function login(formData: FormData) {
+export type AuthActionState = { error?: string; success?: string } | null;
+
+export async function login(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const parsed = LoginSchema.safeParse({
         email: formData.get("email"),
         password: formData.get("password"),
     });
 
     if (!parsed.success) {
-        return redirect("/login?message=" + encodeURIComponent("Credenciales inválidas."));
+        return { error: "Credenciales inválidas." };
     }
 
     const cookieStore = await cookies();
@@ -27,14 +29,14 @@ export async function login(formData: FormData) {
 
     if (error) {
         console.error("[login] Auth error:", error.message);
-        return redirect("/login?message=" + encodeURIComponent("Credenciales inválidas. Intenta de nuevo."));
+        return { error: "Credenciales inválidas. Intenta de nuevo." };
     }
 
     revalidatePath("/", "layout");
     redirect("/dashboard");
 }
 
-export async function signup(formData: FormData) {
+export async function signup(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const parsed = SignupSchema.safeParse({
         email: formData.get("email"),
         password: formData.get("password"),
@@ -44,7 +46,7 @@ export async function signup(formData: FormData) {
 
     if (!parsed.success) {
         const firstError = parsed.error.issues[0]?.message || "Datos de registro inválidos.";
-        return redirect("/register?message=" + encodeURIComponent(firstError));
+        return { error: firstError };
     }
 
     const cookieStore = await cookies();
@@ -63,23 +65,19 @@ export async function signup(formData: FormData) {
 
     if (error) {
         console.error("[signup] Auth error:", error.message);
-        return redirect(
-            "/register?message=" +
-                encodeURIComponent("No se pudo crear la cuenta. Verifica tus datos e intenta de nuevo.")
-        );
+        return { error: "No se pudo crear la cuenta. Verifica tus datos e intenta de nuevo." };
     }
 
-    // revalidatePath("/", "layout"); // This redirect should only happen after email confirmation
-    return redirect("/login?message=" + encodeURIComponent("Revisa tu correo para confirmar tu cuenta."));
+    return { success: "Revisa tu correo para confirmar tu cuenta." };
 }
 
-export async function forgotPassword(formData: FormData) {
+export async function forgotPassword(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const parsed = ForgotPasswordSchema.safeParse({
         email: formData.get("email"),
     });
 
     if (!parsed.success) {
-        return redirect("/forgot-password?error=" + encodeURIComponent("Correo electrónico inválido."));
+        return { error: "Correo electrónico inválido." };
     }
 
     const cookieStore = await cookies();
@@ -91,12 +89,8 @@ export async function forgotPassword(formData: FormData) {
 
     if (error) {
         console.error("[forgotPassword] Auth error:", error.message);
-        return redirect(
-            "/forgot-password?error=" + encodeURIComponent("No se pudo procesar la solicitud. Intenta de nuevo.")
-        );
+        return { error: "No se pudo procesar la solicitud. Intenta de nuevo." };
     }
 
-    return redirect(
-        "/forgot-password?message=" + encodeURIComponent("Se ha enviado un correo para restablecer tu contraseña.")
-    );
+    return { success: "Se ha enviado un correo para restablecer tu contraseña." };
 }

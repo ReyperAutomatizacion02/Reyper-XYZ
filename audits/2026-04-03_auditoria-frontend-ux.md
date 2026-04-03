@@ -680,10 +680,10 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 - [ ] **[A3]** Progress feedback en Auto-planeación
     - [ ] Añadir callbacks de progreso en `scheduling-utils.ts`
     - [ ] Implementar indicador de pasos con `<Progress>` en `auto-plan-dialog.tsx`
-- [ ] **[A4]** Login con `useActionState` (React 19) — eliminar errores en URL
-    - [ ] Refactorizar `app/login/page.tsx`
-    - [ ] Refactorizar `app/register/page.tsx`
-    - [ ] Refactorizar `app/forgot-password/page.tsx`
+- [x] **[A4]** Login con `useActionState` (React 19) — eliminar errores en URL
+    - [x] Refactorizar `app/login/page.tsx`
+    - [x] Refactorizar `app/register/page.tsx`
+    - [x] Refactorizar `app/forgot-password/page.tsx`
 - [ ] **[A5]** Memoización de cálculos de coordenadas en el Gantt
     - [ ] Implementar `useMemo` en `useGanttCoordinates.ts` (depende de C1)
     - [ ] Envolver `GanttTaskBar` en `React.memo` (depende de C1)
@@ -699,6 +699,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 3        | 16.7%      |
+| ✅ Resuelto    | 4        | 22.2%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 15       | 83.3%      |
+| ⏳ Pendiente   | 14       | 77.8%      |
