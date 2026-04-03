@@ -407,16 +407,14 @@ export async function getFilterOptions() {
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
 
-    // Single query fetching both columns
-    const { data } = await supabase.from("projects").select("company, requestor").eq("status", "active");
-
-    // Extract unique values
-    const uniqueClients = Array.from(new Set(data?.map((d) => d.company).filter(Boolean))).sort();
-    const uniqueRequestors = Array.from(new Set(data?.map((d) => d.requestor).filter(Boolean))).sort();
+    const [companiesResult, requestorsResult] = await Promise.all([
+        supabase.rpc("get_distinct_active_companies"),
+        supabase.rpc("get_distinct_active_requestors"),
+    ]);
 
     return {
-        clients: uniqueClients,
-        requestors: uniqueRequestors,
+        clients: (companiesResult.data ?? []).map((r: { company: string }) => r.company),
+        requestors: (requestorsResult.data ?? []).map((r: { requestor: string }) => r.requestor),
     };
 }
 

@@ -1,16 +1,17 @@
 # REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ
 
 **Fecha:** 2026-03-31 | **Auditor:** Senior Full-Stack Architect & Lead Security Auditor | **Modelo:** Claude Sonnet 4.6
-**Última actualización:** 2026-03-31 — Aplicación de correcciones (sesión misma fecha)
+**Última actualización:** 2026-04-03 — Cierre de auditoría + decisiones de simplificación
 
 ---
 
 ## 1. RESUMEN DE SALUD
 
 **Calificación General al momento de la auditoría: 5.5 / 10**
-**Calificación tras correcciones aplicadas: 7.8 / 10**
+**Calificación tras correcciones (sesión 2026-03-31): 7.8 / 10**
+**Calificación final tras cierre completo (2026-04-03): 9.0 / 10**
 
-La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations, separación de concerns). El problema fue que había brechas de seguridad **activas y explotables** que contradecían el trabajo de hardening visible en otras partes del código. 11 de 16 hallazgos fueron corregidos en la misma sesión de auditoría.
+La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations, separación de concerns). Los 16 hallazgos han sido tratados: 13 resueltos en código/configuración, 1 diferido conscientemente (Sentry — sin usuarios en producción aún), 1 investigado sin acción requerida, y 1 pendiente de acción manual irrealizable desde código (rotación de credenciales).
 
 **Top 3 Riesgos Críticos (al momento de la auditoría):**
 
@@ -110,24 +111,15 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### 🚩 SIN RATE LIMITING EN ENDPOINTS DE AUTENTICACIÓN
+### ✅ ~~SIN RATE LIMITING EN ENDPOINTS DE AUTENTICACIÓN~~
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
-- **Estado:** ⚠️ PENDIENTE — requiere infraestructura externa
-- **Archivo:** `app/auth/actions.ts`
-- **Diagnóstico:** Las funciones `login()`, `signup()` y `forgotPassword()` no implementan ningún mecanismo de rate limiting. Un ataque de credential stuffing o enumeración de emails tiene ruta libre. Viola OWASP A07:2021.
-- **Impacto:** Brute force de contraseñas, enumeración de usuarios, abuso del sistema de correos.
-- **Pendiente:** Implementar con Upstash Redis + `@upstash/ratelimit` o configurar protección en Supabase Auth → Settings → Auth → Rate Limits.
-
-```typescript
-// middleware.ts — usando Upstash Rate Limit
-import { Ratelimit } from "@upstash/ratelimit";
-const ratelimit = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(5, "1 m"),
-});
-```
+- **Estado:** RESUELTO — 2026-04-03
+- **Archivo:** Supabase Dashboard → Authentication → Rate Limits
+- **Diagnóstico:** Las funciones `login()`, `signup()` y `forgotPassword()` no implementaban ningún mecanismo de rate limiting. Un ataque de credential stuffing o enumeración de emails tenía ruta libre. Viola OWASP A07:2021.
+- **Corrección aplicada:** Rate limiting configurado directamente en Supabase Auth (sin dependencias externas): **Sign-ups and sign-ins reducido de 30 → 5 requests/5 min por IP**. Cubre el riesgo de brute force para este sistema interno sin añadir infraestructura.
+- **Decisión:** Se evaluó implementar `@upstash/ratelimit` en `middleware.ts` pero se descartó — Supabase Auth nativo es suficiente para el caso de uso actual (sistema interno, usuarios conocidos). No se añaden dependencias externas.
 
 ---
 
@@ -165,26 +157,15 @@ const ratelimit = new Ratelimit({
 
 ---
 
-### 🚩 `getFilterOptions()` — FULL TABLE SCAN PARA VALORES ÚNICOS
+### ✅ ~~`getFilterOptions()` — FULL TABLE SCAN PARA VALORES ÚNICOS~~
 
 - **Categoría:** Performance
 - **Gravedad:** Media
-- **Estado:** ⚠️ PENDIENTE — requiere migración de BD
+- **Estado:** RESUELTO — 2026-04-03
 - **Archivo:** `app/dashboard/ventas/actions.ts`
-- **Diagnóstico:** Se traen todos los proyectos activos para deduplicar en memoria con `new Set()`. Con escala, esto carga cientos/miles de rows en RAM del servidor solo para producir listas de filtros.
-- **Pendiente:** Crear dos funciones RPC en Supabase:
-
-```sql
-CREATE OR REPLACE FUNCTION get_distinct_active_companies()
-RETURNS TABLE(company text) AS $$
-    SELECT DISTINCT company FROM projects WHERE status = 'active' AND company IS NOT NULL ORDER BY company;
-$$ LANGUAGE sql STABLE;
-
-CREATE OR REPLACE FUNCTION get_distinct_active_requestors()
-RETURNS TABLE(requestor text) AS $$
-    SELECT DISTINCT requestor FROM projects WHERE status = 'active' AND requestor IS NOT NULL ORDER BY requestor;
-$$ LANGUAGE sql STABLE;
-```
+- **Diagnóstico:** Se traían todos los proyectos activos para deduplicar en memoria con `new Set()`. Con escala, esto carga cientos/miles de rows en RAM del servidor solo para producir listas de filtros.
+- **Corrección aplicada:** Creadas dos funciones RPC en `supabase/migrations/20260403_filter_options_rpcs.sql` (`get_distinct_active_companies` y `get_distinct_active_requestors`). `getFilterOptions()` ahora invoca ambas RPCs con `Promise.all` en lugar de hacer full scan.
+- **Acción requerida:** Ejecutar el archivo SQL en Supabase Dashboard → SQL Editor.
 
 ---
 
@@ -210,21 +191,32 @@ $$ LANGUAGE sql STABLE;
 
 ---
 
-### 🚩 SIN INTEGRACIÓN DE MONITOREO EN PRODUCCIÓN
+### 🔵 SIN INTEGRACIÓN DE MONITOREO EN PRODUCCIÓN
 
 - **Categoría:** Mantenimiento
 - **Gravedad:** Baja
-- **Estado:** ⚠️ PENDIENTE — requiere cuenta externa
+- **Estado:** DIFERIDO — 2026-04-03
 - **Archivo:** `utils/logger.ts`
-- **Diagnóstico:** El logger tiene un TODO para Sentry que nunca fue implementado. En producción, los errores solo llegan a `console.error()`. No hay observabilidad real.
-- **Impacto:** Errores de producción silenciosos. Imposibilidad de detectar incidentes sin reporte manual del usuario.
-- **Pendiente:** Integrar `@sentry/nextjs` con cuenta en sentry.io.
+- **Diagnóstico:** El logger tiene un TODO para Sentry que no ha sido implementado. En producción, los errores solo llegan a `console.error()`. No hay observabilidad real.
+- **Decisión:** Se evaluó integrar `@sentry/nextjs` pero se difirió conscientemente. El sistema aún no tiene suficiente carga de usuarios en producción que justifique la infraestructura adicional. El TODO en `utils/logger.ts` documenta el punto de integración cuando sea necesario.
+- **Cuando retomar:** Al tener usuarios reales en producción y necesitar visibilidad de errores sin reporte manual.
+
+---
+
+### ✅ ~~AUDITORÍA DE PERMISOS RLS EN `user_profiles`~~
+
+- **Categoría:** Seguridad
+- **Gravedad:** Baja
+- **Estado:** VERIFICADO Y CERRADO — 2026-04-03
+- **Archivo:** `supabase/user_profiles.sql`
+- **Diagnóstico original:** Verificar que el anon key no pueda hacer `SELECT *` sin filtro de `id = auth.uid()`.
+- **Resultado de la verificación:** Las políticas SELECT están declaradas `TO authenticated`, lo que excluye al rol `anon` por completo. Usuarios autenticados solo pueden leer su propio perfil (`USING (auth.uid() = id)`). Admins leen todos los perfiles vía `is_admin()`. No se requiere acción adicional.
 
 ---
 
 ## 3. LISTA DE VERIFICACIÓN POST-AUDITORÍA
 
-### Completados en sesión de auditoría ✅
+### Completados en sesión 2026-03-31 ✅
 
 - [x] **[CRÍTICO]** Añadir `verifyAdmin` en `getPendingUsers()`, `getApprovedUsers()` y `getEmployees()`.
 - [x] **[CRÍTICO]** Corregir `updateProject()` y `updateProductionOrder()` para usar `parsedData.data` en el `.update()`.
@@ -237,14 +229,23 @@ $$ LANGUAGE sql STABLE;
 - [x] **[MEDIA]** Optimizar `deleteQuoteFilesInternal()` — borrado en batch único.
 - [x] **[BAJA]** Mover `dotenv` de `dependencies` a `devDependencies`.
 
-### Pendientes — requieren acción manual o infraestructura externa ⚠️
+### Completados en sesión 2026-04-03 ✅
 
-- [ ] **[INMEDIATO]** Revocar y regenerar: `SUPABASE_SERVICE_ROLE_KEY`, `NOTION_TOKEN`, `GOOGLE_API_KEY`.
-- [ ] **[INMEDIATO]** Cambiar `NEXT_PUBLIC_SITE_URL` de `localhost:3000` a la URL real de producción antes de desplegar.
-- [ ] **[ALTA]** Implementar rate limiting en rutas de auth (Upstash Rate Limit o configurar en Supabase Auth Settings).
-- [ ] **[MEDIA]** Crear RPCs en Supabase para `getFilterOptions()` y eliminar el full table scan.
-- [ ] **[BAJA]** Integrar Sentry u otro sistema de monitoreo (`@sentry/nextjs`).
-- [ ] **[BAJA]** Auditar los permisos RLS en Supabase para `user_profiles` — verificar que el anon key no pueda hacer `SELECT *` sin filtro de `id = auth.uid()`.
+- [x] **[ALTA]** Rate limiting configurado en Supabase Auth Dashboard → sign-ups/sign-ins reducido a 5 req/5min por IP. Sin dependencias externas.
+- [x] **[MEDIA]** Crear RPCs `get_distinct_active_companies` y `get_distinct_active_requestors` en `supabase/migrations/20260403_filter_options_rpcs.sql` y actualizar `getFilterOptions()` para usarlas.
+- [x] **[BAJA]** Verificar RLS en `user_profiles` — anon key bloqueado, SELECT restringido a `auth.uid() = id`. Sin acción requerida.
+
+### Diferidos conscientemente 🔵
+
+- **[BAJA] Sentry:** Diferido hasta tener usuarios reales en producción. El TODO en `utils/logger.ts` documenta el punto de integración.
+
+### Pendientes — requieren acción manual ⚠️
+
+- [ ] **[BAJA]** Revocar y regenerar: `SUPABASE_SERVICE_ROLE_KEY`, `NOTION_TOKEN`, `GOOGLE_API_KEY`. Las credenciales nunca fueron commiteadas a git, por lo que el riesgo es bajo. Se recomienda rotar periódicamente como buena práctica.
+- [x] **[ANTES DE DESPLEGAR]** Configurar `NEXT_PUBLIC_SITE_URL` para producción — 2026-04-03:
+    1. **Vercel** → proyecto → Settings → Environment Variables → `NEXT_PUBLIC_SITE_URL=https://tu-dominio.com` ✅
+    2. **Supabase** → Authentication → URL Configuration → Redirect URLs → `https://tu-dominio.com/auth/callback` ✅
+- [x] **[ANTES DE DESPLEGAR]** Ejecutar `supabase/migrations/20260403_filter_options_rpcs.sql` en Supabase Dashboard → SQL Editor — 2026-04-03 ✅
 
 ---
 
@@ -260,10 +261,14 @@ $$ LANGUAGE sql STABLE;
 
 **Total de hallazgos: 16**
 
-### Estado de resolución
+### Estado de resolución final (2026-04-03)
 
-| Estado                        | Cantidad | Porcentaje |
-| ----------------------------- | -------- | ---------- |
-| ✅ Resueltos en sesión        | 10       | 63%        |
-| ⚠️ Investigado / Sin acción   | 1        | 6%         |
-| 🚩 Pendiente (manual/externo) | 5        | 31%        |
+| Estado                                 | Cantidad | Porcentaje |
+| -------------------------------------- | -------- | ---------- |
+| ✅ Resueltos en código / configuración | 13       | 81.25%     |
+| 🔵 Diferido conscientemente            | 1        | 6.25%      |
+| ⚠️ Investigado / Sin acción requerida  | 1        | 6.25%      |
+| 🚩 Pendiente (solo acción manual)      | 1        | 6.25%      |
+
+**Diferido:** Sentry — sin usuarios reales en producción aún; el punto de integración está documentado en `utils/logger.ts`.
+**Único hallazgo irresoluble desde código:** Rotación de credenciales de producción expuestas en `.env.local` — requiere acceso a consolas externas (Supabase, Notion, Google Cloud).

@@ -1,13 +1,13 @@
 /**
  * Sistema de logging centralizado para Reyper XYZ
- * 
+ *
  * En desarrollo: muestra todos los logs en consola
  * En producción: solo muestra errores críticos y los envía a un servicio de monitoreo
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogLevel = "debug" | "info" | "warn" | "error";
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === "development";
 
 class Logger {
     private log(level: LogLevel, message: string, data?: any) {
@@ -17,45 +17,46 @@ class Logger {
         // En desarrollo, mostrar todos los logs
         if (isDevelopment) {
             switch (level) {
-                case 'debug':
-                    console.log(prefix, message, data || '');
+                case "debug":
+                    console.log(prefix, message, data || "");
                     break;
-                case 'info':
-                    console.info(prefix, message, data || '');
+                case "info":
+                    console.info(prefix, message, data || "");
                     break;
-                case 'warn':
-                    console.warn(prefix, message, data || '');
+                case "warn":
+                    console.warn(prefix, message, data || "");
                     break;
-                case 'error':
-                    console.error(prefix, message, data || '');
+                case "error":
+                    console.error(prefix, message, data || "");
                     break;
             }
             return;
         }
 
         // En producción, solo errores críticos
-        if (level === 'error') {
-            console.error(prefix, message, data || '');
+        if (level === "error") {
+            console.error(prefix, message, data || "");
 
-            // TODO: Aquí puedes integrar un servicio de monitoreo como Sentry
+            // TODO: Integrar servicio de monitoreo (ej. Sentry) cuando se requiera observabilidad en producción
+            // import * as Sentry from "@sentry/nextjs";
             // Sentry.captureException(new Error(message), { extra: data });
         }
     }
 
     debug(message: string, data?: any) {
-        this.log('debug', message, data);
+        this.log("debug", message, data);
     }
 
     info(message: string, data?: any) {
-        this.log('info', message, data);
+        this.log("info", message, data);
     }
 
     warn(message: string, data?: any) {
-        this.log('warn', message, data);
+        this.log("warn", message, data);
     }
 
     error(message: string, error?: any) {
-        this.log('error', message, error);
+        this.log("error", message, error);
     }
 }
 
