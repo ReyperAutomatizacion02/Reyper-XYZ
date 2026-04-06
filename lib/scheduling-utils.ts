@@ -465,7 +465,8 @@ export function generateAutomatedPlanning(
         onlyWithMaterial: false,
         requireTreatment: false,
     },
-    shifts: WorkShift[] = DEFAULT_SHIFTS
+    shifts: WorkShift[] = DEFAULT_SHIFTS,
+    onProgress?: (current: number, total: number) => void
 ): SchedulingResult {
     logger.info(`[AutoPlan] Starting with ${orders.length} orders, strategy: ${config.mainStrategy}`);
     const preparedOrders = prepareOrdersForScheduling(orders, config);
@@ -494,7 +495,8 @@ export function generateAutomatedPlanning(
             endMs: new Date(t.planned_end!).getTime(),
         }));
 
-    for (const order of preparedOrders) {
+    for (const [orderIndex, order] of preparedOrders.entries()) {
+        onProgress?.(orderIndex + 1, preparedOrders.length);
         const evaluation = order.evaluation as EvaluationStep[] | null;
         if (!evaluation || evaluation.length === 0) continue;
 

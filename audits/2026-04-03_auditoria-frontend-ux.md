@@ -677,9 +677,10 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Añadir `aria-live="polite"` en resultados de búsqueda/filtros del Gantt
     - [x] Implementar focus trap + `role="dialog"` + `aria-modal` en modales custom (`task-modal.tsx`, `create-task-modal.tsx`)
     - [x] Reemplazar `alt="Plano"` genérico con descripción real en `production-item-summary.tsx`
-- [ ] **[A3]** Progress feedback en Auto-planeación
-    - [ ] Añadir callbacks de progreso en `scheduling-utils.ts`
-    - [ ] Implementar indicador de pasos con `<Progress>` en `auto-plan-dialog.tsx`
+- [x] **[A3]** Progress feedback en Auto-planeación — 2026-04-06
+    - [x] Añadir `onProgress?: (current, total) => void` callback en `generateAutomatedPlanning` (`scheduling-utils.ts`)
+    - [x] Reemplazar `useMemo` con `useEffect`+`setTimeout(50ms)` en `auto-plan-dialog.tsx` para diferir cómputo
+    - [x] Mostrar spinner + barra `<Progress>` con "Calculando pieza X de Y…" durante el cálculo
 - [x] **[A4]** Login con `useActionState` (React 19) — eliminar errores en URL
     - [x] Refactorizar `app/login/page.tsx`
     - [x] Refactorizar `app/register/page.tsx`
@@ -699,6 +700,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 6        | 33.3%      |
+| ✅ Resuelto    | 7        | 38.9%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 12       | 66.7%      |
+| ⏳ Pendiente   | 11       | 61.1%      |

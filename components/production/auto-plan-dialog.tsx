@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
     Save,
     Loader2,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import {
     Order,
     PlanningTask,
@@ -107,21 +108,41 @@ export function AutoPlanDialog({
     const [scenarioName, setScenarioName] = useState("");
     const suggestedName = `Escenario #${scenarioCount + 1}: ${STRATEGY_LABEL}`;
 
-    const result = useMemo(() => {
-        if (!isOpen) return null;
-        return generateAutomatedPlanning(
-            orders,
-            tasks,
-            machines,
-            {
-                mainStrategy,
-                onlyWithCAD,
-                onlyWithBlueprint,
-                onlyWithMaterial,
-                requireTreatment,
-            },
-            shifts
-        );
+    const [result, setResult] = useState<ReturnType<typeof generateAutomatedPlanning> | null>(null);
+    const [isComputing, setIsComputing] = useState(false);
+    const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+    const computeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setResult(null);
+            setProgress(null);
+            return;
+        }
+
+        setResult(null);
+        setIsComputing(true);
+        setProgress(null);
+
+        if (computeTimeoutRef.current) clearTimeout(computeTimeoutRef.current);
+
+        computeTimeoutRef.current = setTimeout(() => {
+            const computed = generateAutomatedPlanning(
+                orders,
+                tasks,
+                machines,
+                { mainStrategy, onlyWithCAD, onlyWithBlueprint, onlyWithMaterial, requireTreatment },
+                shifts,
+                (current, total) => setProgress({ current, total })
+            );
+            setResult(computed);
+            setIsComputing(false);
+            setProgress(null);
+        }, 50);
+
+        return () => {
+            if (computeTimeoutRef.current) clearTimeout(computeTimeoutRef.current);
+        };
     }, [
         isOpen,
         mainStrategy,
@@ -279,7 +300,28 @@ export function AutoPlanDialog({
                                         Métricas del Escenario
                                     </h3>
 
-                                    {result ? (
+                                    {isComputing ? (
+                                        <div className="flex flex-col items-center justify-center gap-6 py-12 text-center">
+                                            <div className="rounded-full bg-primary/10 p-4">
+                                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                            </div>
+                                            <div className="w-full max-w-xs space-y-2">
+                                                <p className="text-sm font-bold uppercase tracking-tight text-muted-foreground">
+                                                    {progress
+                                                        ? `Calculando pieza ${progress.current} de ${progress.total}…`
+                                                        : "Preparando cálculo…"}
+                                                </p>
+                                                <Progress
+                                                    value={
+                                                        progress && progress.total > 0
+                                                            ? Math.round((progress.current / progress.total) * 100)
+                                                            : 0
+                                                    }
+                                                    className="h-1.5"
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : result ? (
                                         <div className="grid grid-cols-2 gap-4">
                                             {/* Capacity */}
                                             <div className="rounded-3xl border border-border/50 bg-muted/30 p-5">
@@ -386,7 +428,7 @@ export function AutoPlanDialog({
                                                 <LayoutDashboard className="h-8 w-8 text-muted-foreground/40" />
                                             </div>
                                             <p className="text-sm font-bold uppercase tracking-tight text-muted-foreground">
-                                                Cargando métricas...
+                                                Sin resultados disponibles.
                                             </p>
                                         </div>
                                     )}
@@ -419,7 +461,7 @@ export function AutoPlanDialog({
                                     <div className="flex gap-3">
                                         <Button
                                             onClick={handleSave}
-                                            disabled={isSaving || !result || result.tasks.length === 0}
+                                            disabled={isSaving || isComputing || !result || result.tasks.length === 0}
                                             className="h-12 flex-1 gap-2 rounded-2xl bg-primary font-black uppercase tracking-tight text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50"
                                         >
                                             {isSaving ? (
