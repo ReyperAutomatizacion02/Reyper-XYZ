@@ -146,6 +146,43 @@ export async function updateUserRoles(
     return { success: true };
 }
 
+/** Migrate a legacy user (permissions === null) to the new permissions system
+ *  by assigning the default permissions for their current roles. */
+export async function migrateUserToPermissions(userId: string) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    const { data: profile, error: fetchError } = await supabase
+        .from("user_profiles")
+        .select("roles, permissions")
+        .eq("id", userId)
+        .single();
+
+    if (fetchError || !profile) throw new Error("Usuario no encontrado");
+    if (profile.permissions !== null) return { success: true, alreadyMigrated: true };
+
+    const { ROLE_DEFAULT_PERMISSIONS } = await import("@/lib/config/permissions");
+    const defaultPermissions = Array.from(
+        new Set((profile.roles || []).flatMap((r: string) => ROLE_DEFAULT_PERMISSIONS[r] || []))
+    );
+
+    const { error } = await supabase
+        .from("user_profiles")
+        .update({ permissions: defaultPermissions, updated_at: new Date().toISOString() })
+        .eq("id", userId);
+
+    if (error) throw new Error("Error al migrar permisos");
+
+    revalidatePath("/dashboard/admin-panel");
+    return { success: true, alreadyMigrated: false };
+}
+
 export async function getPendingUsers() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);

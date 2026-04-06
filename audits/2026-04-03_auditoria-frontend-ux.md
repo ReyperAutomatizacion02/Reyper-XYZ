@@ -699,13 +699,16 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Menú hamburguesa eliminado — mobile ahora tiene header compacto (ThemeToggle + "Iniciar Sesión" link + "Registrarse" pill oculto en mobile)
     - [x] CTA hero simplificado a "Iniciar Sesión" (primario) + "Crear Cuenta" (secundario)
     - [x] Feature cards extraídas a array `FEATURES` con iconos específicos por módulo
-- [ ] **[M3]** Admin panel — badge "Legacy / Permisos" por usuario + botón "Migrar"
+- [x] **[M3]** Admin panel — badge "Legacy / Permisos" por usuario + botón "Migrar" — 2026-04-06
+    - [x] Badge "Legacy" (ámbar) si `permissions === null`; badge "Permisos" (verde) si tiene permisos explícitos
+    - [x] Botón "Migrar" visible solo en usuarios Legacy — llama a `migrateUserToPermissions()` server action
+    - [x] `migrateUserToPermissions` en `actions.ts`: deriva `defaultPermissions` desde `ROLE_DEFAULT_PERMISSIONS[roles]` y hace upsert; no sobreescribe si ya tiene permisos
 - [ ] **[M4]** Completar migración del sistema dual roles → permisos
 
 ### Estado de resolución
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 10       | 55.6%      |
+| ✅ Resuelto    | 11       | 61.1%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 8        | 44.4%      |
+| ⏳ Pendiente   | 7        | 38.9%      |

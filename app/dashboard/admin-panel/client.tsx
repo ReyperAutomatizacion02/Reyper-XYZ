@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useCallback } from "react";
+import { toast } from "sonner";
 import {
     Users,
     UserCheck,
@@ -20,12 +21,14 @@ import {
     Activity,
     HardHat,
     X,
+    GitMerge,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import {
     approveUser,
     rejectUser,
     updateUserRoles,
+    migrateUserToPermissions,
     upsertEmployee,
     deleteEmployee,
     type Employee,
@@ -678,6 +681,24 @@ export function AdminPanelClient({
         });
     };
 
+    const handleMigrate = useCallback(
+        (userId: string) => {
+            startTransition(async () => {
+                try {
+                    const result = await migrateUserToPermissions(userId);
+                    if (result.alreadyMigrated) {
+                        toast.info("Este usuario ya usa el sistema de permisos.");
+                    } else {
+                        toast.success("Usuario migrado al sistema de permisos.");
+                    }
+                } catch (error: any) {
+                    toast.error(error.message || "Error al migrar permisos.");
+                }
+            });
+        },
+        [startTransition]
+    );
+
     const getRoleBadges = (roles: string[]) => {
         return (
             roles?.slice(0, 3).map((r) => {
@@ -1010,43 +1031,69 @@ export function AdminPanelClient({
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="flex flex-wrap gap-1">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex flex-wrap items-center gap-1.5">
                                                 {getRoleBadges(user.roles || [])}
                                                 {(user.roles?.length ?? 0) > 3 && (
                                                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                                                         +{(user.roles?.length ?? 0) - 3} más
                                                     </span>
                                                 )}
+                                                {/* Auth system badge */}
+                                                {user.permissions === null ? (
+                                                    <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                                                        Legacy
+                                                    </span>
+                                                ) : (
+                                                    <span className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">
+                                                        Permisos
+                                                    </span>
+                                                )}
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedRoles((prev) => ({
-                                                        ...prev,
-                                                        [user.id]: user.roles || [],
-                                                    }));
-                                                    setSelectedPermissions((prev) => ({
-                                                        ...prev,
-                                                        [user.id]:
-                                                            user.permissions ??
-                                                            Array.from(
-                                                                new Set(
-                                                                    (user.roles || []).flatMap(
-                                                                        (r) => ROLE_DEFAULT_PERMISSIONS[r] || []
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedRoles((prev) => ({
+                                                            ...prev,
+                                                            [user.id]: user.roles || [],
+                                                        }));
+                                                        setSelectedPermissions((prev) => ({
+                                                            ...prev,
+                                                            [user.id]:
+                                                                user.permissions ??
+                                                                Array.from(
+                                                                    new Set(
+                                                                        (user.roles || []).flatMap(
+                                                                            (r) => ROLE_DEFAULT_PERMISSIONS[r] || []
+                                                                        )
                                                                     )
-                                                                )
-                                                            ),
-                                                    }));
-                                                    setOperatorNames((prev) => ({
-                                                        ...prev,
-                                                        [user.id]: user.operator_name || "",
-                                                    }));
-                                                    setEditingUser(user.id);
-                                                }}
-                                                className="text-sm font-medium text-primary hover:underline"
-                                            >
-                                                Editar Roles y Permisos
-                                            </button>
+                                                                ),
+                                                        }));
+                                                        setOperatorNames((prev) => ({
+                                                            ...prev,
+                                                            [user.id]: user.operator_name || "",
+                                                        }));
+                                                        setEditingUser(user.id);
+                                                    }}
+                                                    className="text-sm font-medium text-primary hover:underline"
+                                                >
+                                                    Editar Roles y Permisos
+                                                </button>
+                                                {user.permissions === null && (
+                                                    <button
+                                                        onClick={() => handleMigrate(user.id)}
+                                                        disabled={isPending}
+                                                        className="flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-400/20 disabled:opacity-50 dark:text-amber-400"
+                                                    >
+                                                        {isPending ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <GitMerge className="h-3 w-3" />
+                                                        )}
+                                                        Migrar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
