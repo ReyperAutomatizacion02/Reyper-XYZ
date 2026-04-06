@@ -694,7 +694,11 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 - [x] **[M1]** `useUserPreferences` — retry logic + toast de error — 2026-04-06
     - [x] Load: retry hasta 3× con backoff lineal (1s, 2s), `toast.error` si todos los intentos fallan, cleanup de `cancelled` para evitar setState tras unmount
     - [x] Save: `toast.error` en fallo de upsert
-- [ ] **[M2]** Landing page — jerarquía visual (hero → CTA → features)
+- [x] **[M2]** Landing page — jerarquía visual (hero → CTA → features) — 2026-04-06
+    - [x] Hero en `<section min-h-[70vh]>` propio; features en `<section border-t py-24>` separado
+    - [x] Menú hamburguesa eliminado — mobile ahora tiene header compacto (ThemeToggle + "Iniciar Sesión" link + "Registrarse" pill oculto en mobile)
+    - [x] CTA hero simplificado a "Iniciar Sesión" (primario) + "Crear Cuenta" (secundario)
+    - [x] Feature cards extraídas a array `FEATURES` con iconos específicos por módulo
 - [ ] **[M3]** Admin panel — badge "Legacy / Permisos" por usuario + botón "Migrar"
 - [ ] **[M4]** Completar migración del sistema dual roles → permisos
 
@@ -702,6 +706,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 9        | 50.0%      |
+| ✅ Resuelto    | 10       | 55.6%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 9        | 50.0%      |
+| ⏳ Pendiente   | 8        | 44.4%      |
