@@ -100,6 +100,8 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
     const [startDate, setStartDate] = useState<Date | undefined>(undefined);
     const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
+    const dialogRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (isOpen && initialData) {
             const start = new Date(initialData.time);
@@ -111,6 +113,47 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
             setOperator("");
         }
     }, [isOpen, initialData]);
+
+    // ESC to close
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        if (isOpen) window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isOpen, onClose]);
+
+    // Focus trap
+    useEffect(() => {
+        if (!isOpen) return;
+        const el = dialogRef.current;
+        if (!el) return;
+        el.focus();
+
+        const focusable = el.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        const trap = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            if (e.shiftKey) {
+                if (document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+        el.addEventListener("keydown", trap);
+        return () => el.removeEventListener("keydown", trap);
+    }, [isOpen]);
 
     if (!isOpen || !initialData) return null;
 
@@ -141,14 +184,31 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
     };
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
-            <div className="w-full max-w-lg overflow-visible rounded-xl border border-border bg-card shadow-2xl duration-200 animate-in zoom-in-95">
-                {" "}
+        <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200 animate-in fade-in"
+            aria-hidden="true"
+            onClick={onClose}
+        >
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-task-modal-title"
+                tabIndex={-1}
+                className="w-full max-w-lg overflow-visible rounded-xl border border-border bg-card shadow-2xl duration-200 animate-in zoom-in-95 focus:outline-none"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Changed overflow-hidden to visible for DateSelector popover */}
                 <div className="flex items-center justify-between rounded-t-xl border-b border-border bg-muted/30 px-6 py-4">
                     <div className="flex items-center gap-2">
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
-                            <span className="text-primary">✨</span> Nuevo Registro
+                        <h3
+                            id="create-task-modal-title"
+                            className="flex items-center gap-2 text-lg font-bold text-foreground"
+                        >
+                            <span className="text-primary" aria-hidden="true">
+                                ✨
+                            </span>{" "}
+                            Nuevo Registro
                         </h3>
                         {initialData && (
                             <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
@@ -156,8 +216,12 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
                             </span>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-muted-foreground transition-colors hover:text-foreground">
-                        <X className="h-5 w-5" />
+                    <button
+                        onClick={onClose}
+                        aria-label="Cerrar"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        <X className="h-5 w-5" aria-hidden="true" />
                     </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-6 p-6">

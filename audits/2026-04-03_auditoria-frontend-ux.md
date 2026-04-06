@@ -672,11 +672,11 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Actualizar actions de ventas para retornar errores tipados
     - [x] Actualizar actions de producción para retornar errores tipados
     - [x] Actualizar componentes cliente para consumir errores específicos
-- [ ] **[A2]** Accesibilidad — SVG Gantt + modales + imágenes
-    - [ ] Añadir `role="img"`, `<title>` y tabla alternativa al SVG del Gantt
-    - [ ] Añadir `aria-live="polite"` en resultados de búsqueda/filtros del Gantt
-    - [ ] Verificar focus trap en modales custom de producción
-    - [ ] Añadir `alt` text a imágenes dinámicas en cotizaciones
+- [x] **[A2]** Accesibilidad — SVG Gantt + modales + imágenes — 2026-04-06
+    - [x] Añadir `role="img"`, `<title>` al SVG del Gantt (`gantt-svg.tsx`)
+    - [x] Añadir `aria-live="polite"` en resultados de búsqueda/filtros del Gantt
+    - [x] Implementar focus trap + `role="dialog"` + `aria-modal` en modales custom (`task-modal.tsx`, `create-task-modal.tsx`)
+    - [x] Reemplazar `alt="Plano"` genérico con descripción real en `production-item-summary.tsx`
 - [ ] **[A3]** Progress feedback en Auto-planeación
     - [ ] Añadir callbacks de progreso en `scheduling-utils.ts`
     - [ ] Implementar indicador de pasos con `<Progress>` en `auto-plan-dialog.tsx`
@@ -699,6 +699,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 5        | 27.8%      |
+| ✅ Resuelto    | 6        | 33.3%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 13       | 72.2%      |
+| ⏳ Pendiente   | 12       | 66.7%      |

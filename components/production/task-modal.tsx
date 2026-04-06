@@ -174,6 +174,41 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
     const [error, setError] = useState("");
 
     const isEditMode = !!initialData?.id;
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    // Focus trap — keeps keyboard focus inside the modal while it is open
+    useEffect(() => {
+        if (!isOpen) return;
+        const el = dialogRef.current;
+        if (!el) return;
+
+        // Focus the dialog container itself so screen readers announce it
+        el.focus();
+
+        const focusable = el.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        const trap = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            if (e.shiftKey) {
+                if (document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+        el.addEventListener("keydown", trap);
+        return () => el.removeEventListener("keydown", trap);
+    }, [isOpen]);
 
     // Prepare options for selects
     const orderOptions = React.useMemo(() => {
@@ -381,23 +416,29 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                 !initialData?.isDemo && "duration-200 animate-in fade-in"
             )}
             onClick={onClose}
+            aria-hidden="true"
         >
             <div className="flex min-h-full items-center justify-center p-4 text-center">
                 <div
+                    ref={dialogRef}
                     id="task-modal-content"
-                    className="w-full max-w-lg rounded-xl border border-border/50 bg-card shadow-2xl duration-200 animate-in zoom-in-95"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="task-modal-title"
+                    tabIndex={-1}
+                    className="w-full max-w-lg rounded-xl border border-border/50 bg-card shadow-2xl duration-200 animate-in zoom-in-95 focus:outline-none"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between rounded-t-xl border-b border-border bg-muted/30 p-4">
-                        <h3 className="flex items-center gap-2 text-lg font-bold">
+                        <h3 id="task-modal-title" className="flex items-center gap-2 text-lg font-bold">
                             {isEditMode ? (
                                 <>
-                                    <Edit className="h-5 w-5 text-[#EC1C21]" />
+                                    <Edit className="h-5 w-5 text-[#EC1C21]" aria-hidden="true" />
                                     Editar Registro
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="h-5 w-5 text-[#EC1C21]" />
+                                    <Sparkles className="h-5 w-5 text-[#EC1C21]" aria-hidden="true" />
                                     Nuevo Registro
                                 </>
                             )}
@@ -405,8 +446,12 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                                 {initialData.machine}
                             </span>
                         </h3>
-                        <button onClick={onClose} className="rounded-full p-1 transition-colors hover:bg-muted">
-                            <X className="h-5 w-5 text-muted-foreground" />
+                        <button
+                            onClick={onClose}
+                            aria-label="Cerrar"
+                            className="rounded-full p-1 transition-colors hover:bg-muted"
+                        >
+                            <X className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
                         </button>
                     </div>
 

@@ -536,7 +536,23 @@ export function GanttSVG({
                         onMouseUp={onMouseUp}
                         onMouseLeave={onMouseUp}
                     >
-                        <svg width={totalWidth} height={totalHeight} style={{ display: "block" }}>
+                        {/* Screen reader live region — announces filter results without visual change */}
+                        <div aria-live="polite" aria-atomic="true" className="sr-only">
+                            {searchQuery
+                                ? `${filteredTasks.length} tarea${filteredTasks.length !== 1 ? "s" : ""} encontrada${filteredTasks.length !== 1 ? "s" : ""} para "${searchQuery}"`
+                                : `${filteredTasks.length} tarea${filteredTasks.length !== 1 ? "s" : ""}, ${filteredMachines.length} máquina${filteredMachines.length !== 1 ? "s" : ""}`}
+                        </div>
+
+                        <svg
+                            width={totalWidth}
+                            height={totalHeight}
+                            style={{ display: "block" }}
+                            role="img"
+                            aria-labelledby="gantt-svg-title"
+                        >
+                            <title id="gantt-svg-title">
+                                {`Planificador de producción — vista ${viewMode}. ${filteredMachines.length} máquina${filteredMachines.length !== 1 ? "s" : ""}, ${filteredTasks.length} tarea${filteredTasks.length !== 1 ? "s" : ""} programada${filteredTasks.length !== 1 ? "s" : ""}.`}
+                            </title>
                             <defs>
                                 <pattern
                                     id="draftPattern"
