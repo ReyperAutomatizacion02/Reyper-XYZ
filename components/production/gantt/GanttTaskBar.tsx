@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { format, isBefore } from "date-fns";
@@ -43,7 +43,7 @@ export interface GanttTaskBarProps {
 const TOOLTIP_WIDTH = 320;
 const TOOLTIP_THRESHOLD = 400;
 
-export function GanttTaskBar({
+function GanttTaskBarInner({
     task,
     x,
     y,
@@ -307,3 +307,30 @@ export function GanttTaskBar({
         </motion.g>
     );
 }
+
+function areTaskBarsEqual(prev: GanttTaskBarProps, next: GanttTaskBarProps): boolean {
+    return (
+        prev.task.id === next.task.id &&
+        prev.task.planned_date === next.task.planned_date &&
+        prev.task.planned_end === next.task.planned_end &&
+        prev.task.locked === next.task.locked &&
+        prev.task.isDraft === next.task.isDraft &&
+        prev.x === next.x &&
+        prev.y === next.y &&
+        prev.width === next.width &&
+        prev.height === next.height &&
+        prev.color === next.color &&
+        prev.isDragging === next.isDragging &&
+        prev.isResizing === next.isResizing &&
+        prev.isLocked === next.isLocked &&
+        prev.isCascadeGhost === next.isCascadeGhost &&
+        prev.isConflicting === next.isConflicting &&
+        prev.isFocused === next.isFocused &&
+        prev.readOnly === next.readOnly &&
+        prev.hoveredTask?.id === next.hoveredTask?.id &&
+        prev.draggingTask?.id === next.draggingTask?.id &&
+        prev.resizingTask?.id === next.resizingTask?.id
+    );
+}
+
+export const GanttTaskBar = memo(GanttTaskBarInner, areTaskBarsEqual);

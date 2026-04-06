@@ -38,7 +38,7 @@ interface UseGanttCoordinatesProps {
 }
 
 export function useGanttCoordinates({ viewMode, zoomLevel, scrollContainerRef }: UseGanttCoordinatesProps) {
-    const UNIT_WIDTH = VIEW_MODE_CONFIG[viewMode].width * zoomLevel;
+    const UNIT_WIDTH = useMemo(() => VIEW_MODE_CONFIG[viewMode].width * zoomLevel, [viewMode, zoomLevel]);
 
     const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
     const [dateRangeStart, setDateRangeStart] = useState(() => subDays(startOfDay(new Date()), 7));

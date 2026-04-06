@@ -685,9 +685,9 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Refactorizar `app/login/page.tsx`
     - [x] Refactorizar `app/register/page.tsx`
     - [x] Refactorizar `app/forgot-password/page.tsx`
-- [ ] **[A5]** Memoización de cálculos de coordenadas en el Gantt
-    - [ ] Implementar `useMemo` en `useGanttCoordinates.ts` (depende de C1)
-    - [ ] Envolver `GanttTaskBar` en `React.memo` (depende de C1)
+- [x] **[A5]** Memoización de cálculos de coordenadas en el Gantt — 2026-04-06
+    - [x] Memoizar `UNIT_WIDTH` con `useMemo` en `useGanttCoordinates.ts` para estabilizar deps downstream
+    - [x] Envolver `GanttTaskBar` en `React.memo` con `areTaskBarsEqual` personalizado — evita re-renders de barras no activas durante drag/resize
 
 ### 🟢 Medios / Bajos
 
@@ -700,6 +700,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 7        | 38.9%      |
+| ✅ Resuelto    | 8        | 44.4%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 11       | 61.1%      |
+| ⏳ Pendiente   | 10       | 55.6%      |
