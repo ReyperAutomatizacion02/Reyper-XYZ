@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { upsertMachine, deleteMachine, setMachineCoverImage } from "@/app/dashboard/produccion/actions";
+import { getErrorMessage } from "@/lib/action-result";
 import { uploadMachineImage, listMachineImages, deleteMachineImageFromStorage } from "./upload-client";
 
 type Machine = {
@@ -276,24 +277,22 @@ function MachineFormModal({
     function handleSave() {
         if (!form.name.trim()) return;
         startTransition(async () => {
-            try {
-                const result = await upsertMachine({
-                    id: editing?.id,
-                    name: form.name.trim(),
-                    brand: form.brand.trim() || null,
-                    model: form.model.trim() || null,
-                    serial_number: form.serial_number.trim() || null,
-                    location: form.location.trim() || null,
-                    is_active: form.is_active,
-                    cover_image_url: coverUrl,
-                });
-                if (result.success && result.data) {
-                    onSaved(result.data as Machine);
-                    toast.success(editing ? "Máquina actualizada" : "Máquina creada");
-                }
+            const result = await upsertMachine({
+                id: editing?.id,
+                name: form.name.trim(),
+                brand: form.brand.trim() || null,
+                model: form.model.trim() || null,
+                serial_number: form.serial_number.trim() || null,
+                location: form.location.trim() || null,
+                is_active: form.is_active,
+                cover_image_url: coverUrl,
+            });
+            if (result.success) {
+                onSaved(result.data as Machine);
+                toast.success(editing ? "Máquina actualizada" : "Máquina creada");
                 onClose();
-            } catch (err: unknown) {
-                toast.error(err instanceof Error ? err.message : "Error al guardar");
+            } else {
+                toast.error(getErrorMessage(result.error));
             }
         });
     }
@@ -477,15 +476,14 @@ export function MaquinasClient({ machines: initial }: Props) {
     function handleDelete() {
         if (!deleteTarget) return;
         startTransition(async () => {
-            try {
-                await deleteMachine(deleteTarget.id);
+            const result = await deleteMachine(deleteTarget.id);
+            if (result.success) {
                 setMachines((prev) => prev.filter((m) => m.id !== deleteTarget.id));
                 toast.success("Máquina eliminada");
-                setDeleteTarget(null);
-            } catch (err: unknown) {
-                toast.error(err instanceof Error ? err.message : "Error al eliminar");
-                setDeleteTarget(null);
+            } else {
+                toast.error(getErrorMessage(result.error));
             }
+            setDeleteTarget(null);
         });
     }
 

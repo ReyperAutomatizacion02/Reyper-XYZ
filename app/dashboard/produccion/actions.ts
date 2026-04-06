@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/utils/logger";
 import { requireRole } from "@/lib/auth-guard";
+import type { ActionResult } from "@/lib/action-result";
 import {
     UpdateTaskScheduleSchema,
     ScheduleNewTaskSchema,
@@ -223,11 +224,27 @@ export async function recordCheckOut(taskId: string) {
 export async function batchSavePlanning(
     draftTasks: Record<string, unknown>[],
     changedTasks: Record<string, unknown>[]
-) {
-    const parsed = BatchSavePlanningSchema.parse({ draftTasks, changedTasks });
+): Promise<ActionResult> {
+    const parseResult = BatchSavePlanningSchema.safeParse({ draftTasks, changedTasks });
+    if (!parseResult.success) {
+        return {
+            success: false,
+            error: {
+                code: "VALIDATION_ERROR",
+                fields: parseResult.error.flatten().fieldErrors as Record<string, string>,
+            },
+        };
+    }
+    const parsed = parseResult.data;
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const { user } = await requireRole(supabase, PRODUCCION_ROLES);
+    let user: { id: string } | undefined;
+    try {
+        const auth = await requireRole(supabase, PRODUCCION_ROLES);
+        user = auth.user;
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     // 1. Insert Draft Tasks
     if (parsed.draftTasks.length > 0) {
@@ -246,7 +263,7 @@ export async function batchSavePlanning(
             .select("id, order_id, machine, planned_date, planned_end");
         if (insError) {
             logger.error("Error batch inserting tasks", insError);
-            throw new Error("Failed to insert draft tasks");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
 
         // Audit: log each inserted task
@@ -289,7 +306,7 @@ export async function batchSavePlanning(
         const { error: updError } = await supabase.from("planning").upsert(toUpdate);
         if (updError) {
             logger.error("Error batch updating tasks", updError);
-            throw new Error("Failed to update changed tasks");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
 
         // Audit: log each updated task
@@ -318,6 +335,7 @@ export async function batchSavePlanning(
 
     revalidatePath("/dashboard/produccion");
     revalidatePath("/dashboard/produccion/planeacion");
+    return { success: true, data: undefined };
 }
 
 // ===== SCENARIO MANAGEMENT =====
@@ -415,27 +433,36 @@ export async function markScenarioApplied(scenarioId: string) {
 
 // ===== TASK LOCKING =====
 
-export async function toggleTaskLocked(taskId: string, locked: boolean) {
+export async function toggleTaskLocked(taskId: string, locked: boolean): Promise<ActionResult> {
     const parsed = ToggleTaskLockedSchema.parse({ taskId, locked });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, PRODUCCION_ROLES);
+    try {
+        await requireRole(supabase, PRODUCCION_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     const { error } = await supabase.from("planning").update({ locked: parsed.locked }).eq("id", parsed.taskId);
 
     if (error) {
         logger.error("Error toggling task lock", error);
-        throw new Error("Failed to toggle task lock");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
     revalidatePath("/dashboard/produccion");
+    return { success: true, data: undefined };
 }
 
-export async function clearOrderEvaluation(orderId: string) {
+export async function clearOrderEvaluation(orderId: string): Promise<ActionResult> {
     const parsed = OrderIdSchema.parse({ orderId });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, PRODUCCION_ROLES);
+    try {
+        await requireRole(supabase, PRODUCCION_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     const { error } = await supabase
         .from("production_orders")
@@ -448,10 +475,11 @@ export async function clearOrderEvaluation(orderId: string) {
     if (error) {
         logger.error("Error clearing order evaluation", error);
         console.error(`[produccion] clearOrderEvaluation: ${error.message} (${error.details || "No details"})`);
-        throw new Error("Error al limpiar la evaluación de la orden.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
     revalidatePath("/dashboard/produccion");
+    return { success: true, data: undefined };
 }
 
 // ===== MACHINE MANAGEMENT =====
@@ -467,11 +495,15 @@ export async function upsertMachine(data: {
     location?: string | null;
     is_active?: boolean;
     cover_image_url?: string | null;
-}) {
+}): Promise<ActionResult<Record<string, unknown>>> {
     const parsed = UpsertMachineSchema.parse(data);
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, MAQUINAS_ROLES);
+    try {
+        await requireRole(supabase, MAQUINAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     const payload = {
         name: parsed.name,
@@ -488,7 +520,7 @@ export async function upsertMachine(data: {
 
     if (error) {
         logger.error("Error upserting machine", error);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
     revalidatePath("/dashboard/produccion/maquinas");
@@ -496,15 +528,19 @@ export async function upsertMachine(data: {
     return { success: true, data: result };
 }
 
-export async function deleteMachine(id: string) {
+export async function deleteMachine(id: string): Promise<ActionResult> {
     const parsed = MachineIdSchema.parse({ id });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, MAQUINAS_ROLES);
+    try {
+        await requireRole(supabase, MAQUINAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     // Get machine name to check planning references (planning uses name, not id)
     const { data: machine } = await supabase.from("machines").select("name").eq("id", parsed.id).single();
-    if (!machine) throw new Error("Máquina no encontrada.");
+    if (!machine) return { success: false, error: { code: "NOT_FOUND", resource: "Máquina" } };
 
     const { count } = await supabase
         .from("planning")
@@ -512,26 +548,36 @@ export async function deleteMachine(id: string) {
         .eq("machine", machine.name);
 
     if (count && count > 0) {
-        throw new Error("No se puede eliminar: la máquina tiene tareas de planeación asignadas.");
+        return {
+            success: false,
+            error: {
+                code: "CONFLICT",
+                message: "No se puede eliminar: la máquina tiene tareas de planeación asignadas.",
+            },
+        };
     }
 
     const { error } = await supabase.from("machines").delete().eq("id", parsed.id);
 
     if (error) {
         logger.error("Error deleting machine", error);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
     revalidatePath("/dashboard/produccion/maquinas");
     revalidatePath("/dashboard/produccion/planeacion");
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
-export async function setMachineCoverImage(machineId: string, imageUrl: string | null) {
+export async function setMachineCoverImage(machineId: string, imageUrl: string | null): Promise<ActionResult> {
     const parsed = SetMachineCoverImageSchema.parse({ machineId, imageUrl });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, MAQUINAS_ROLES);
+    try {
+        await requireRole(supabase, MAQUINAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     const { error } = await supabase
         .from("machines")
@@ -540,9 +586,9 @@ export async function setMachineCoverImage(machineId: string, imageUrl: string |
 
     if (error) {
         logger.error("Error setting machine cover image", error);
-        throw new Error("Error al actualizar la imagen principal.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
     revalidatePath("/dashboard/produccion/maquinas");
-    return { success: true };
+    return { success: true, data: undefined };
 }

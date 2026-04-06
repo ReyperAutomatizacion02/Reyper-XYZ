@@ -70,6 +70,7 @@ import {
     getQuoteById,
     updateQuote,
 } from "../actions";
+import { getErrorMessage } from "@/lib/action-result";
 
 import { QuotePDF } from "@/components/sales/quote-pdf";
 import { DrawingViewer } from "@/components/sales/drawing-viewer";
@@ -731,7 +732,12 @@ function QuoteGeneratorContent() {
                     return item;
                 });
 
-                await updateQuote(currentId, dbQuote, finalItems);
+                const updateResult = await updateQuote(currentId, dbQuote, finalItems);
+                if (!updateResult.success) {
+                    toast.error(getErrorMessage(updateResult.error));
+                    setSaving(false);
+                    return;
+                }
 
                 // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
                 setItems((prev) =>
@@ -754,7 +760,13 @@ function QuoteGeneratorContent() {
             } else {
                 // For NEW quotes, we need an ID first to upload files
                 // 1. Save initial quote to get ID
-                const result = await saveQuote(dbQuote, []); // Insert with NO items first to avoid RLS/Dup issues
+                const saveResult = await saveQuote(dbQuote, []); // Insert with NO items first to avoid RLS/Dup issues
+                if (!saveResult.success) {
+                    toast.error(getErrorMessage(saveResult.error));
+                    setSaving(false);
+                    return;
+                }
+                const result = saveResult.data;
 
                 // 2. Upload files for this new ID
                 let drawingUrls: Record<string, string> = {};
@@ -778,7 +790,12 @@ function QuoteGeneratorContent() {
                     return item;
                 });
 
-                await updateQuote(result.id, dbQuote, finalItems);
+                const updateResult2 = await updateQuote(result.id, dbQuote, finalItems);
+                if (!updateResult2.success) {
+                    toast.error(getErrorMessage(updateResult2.error));
+                    setSaving(false);
+                    return;
+                }
 
                 // CRITICAL: Update items state with real URLs so subsequent saves don't use stale blob: URLs
                 setItems((prev) =>
@@ -815,42 +832,40 @@ function QuoteGeneratorContent() {
     if (loading) return <div className="p-8 text-center text-muted-foreground">Cargando catálogos...</div>;
 
     const handleCreateClient = async (name: string) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const newId = await createClientEntry(name);
-            if (newId) {
-                const newClientOption = { value: newId, label: name };
+            const result = await createClientEntry(name);
+            if (result.success) {
+                const newClientOption = { value: result.data, label: name };
                 setClients((prev) => [...prev, newClientOption].sort((a, b) => a.label.localeCompare(b.label)));
                 toast.success(`Cliente "${name}" creado exitosamente.`);
-                return newId;
+                return result.data;
+            } else {
+                toast.error(getErrorMessage(result.error));
+                return null;
             }
-            return null;
-        } catch (error: any) {
-            toast.error("Error al crear cliente: " + error.message);
-            return null;
         } finally {
             setLoading(false);
         }
     };
 
     const handleCreateContact = async (name: string) => {
+        if (!formData.client_id) {
+            toast.error("Selecciona un cliente primero para asociar el usuario.");
+            return null;
+        }
+        setLoading(true);
         try {
-            if (!formData.client_id) {
-                toast.error("Selecciona un cliente primero para asociar el usuario.");
-                return null;
-            }
-            setLoading(true);
-            const newId = await createContactEntry(name, formData.client_id);
-            if (newId) {
-                const newContact = { id: newId, name: name, client_id: formData.client_id };
+            const result = await createContactEntry(name, formData.client_id);
+            if (result.success) {
+                const newContact = { id: result.data, name: name, client_id: formData.client_id };
                 setAllContacts((prev) => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
                 toast.success(`Usuario "${name}" creado exitosamente.`);
-                return newId;
+                return result.data;
+            } else {
+                toast.error(getErrorMessage(result.error));
+                return null;
             }
-            return null;
-        } catch (error: any) {
-            toast.error("Error al crear usuario: " + error.message);
-            return null;
         } finally {
             setLoading(false);
         }

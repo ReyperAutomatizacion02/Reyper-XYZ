@@ -667,11 +667,11 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ### 🟡 Altos
 
-- [ ] **[A1]** Error handling tipado en Server Actions
-    - [ ] Crear `lib/action-result.ts` con tipos `ActionResult` y `ActionError`
-    - [ ] Actualizar actions de ventas para retornar errores tipados
-    - [ ] Actualizar actions de producción para retornar errores tipados
-    - [ ] Actualizar componentes cliente para consumir errores específicos
+- [x] **[A1]** Error handling tipado en Server Actions
+    - [x] Crear `lib/action-result.ts` con tipos `ActionResult` y `ActionError`
+    - [x] Actualizar actions de ventas para retornar errores tipados
+    - [x] Actualizar actions de producción para retornar errores tipados
+    - [x] Actualizar componentes cliente para consumir errores específicos
 - [ ] **[A2]** Accesibilidad — SVG Gantt + modales + imágenes
     - [ ] Añadir `role="img"`, `<title>` y tabla alternativa al SVG del Gantt
     - [ ] Añadir `aria-live="polite"` en resultados de búsqueda/filtros del Gantt
@@ -699,6 +699,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 4        | 22.2%      |
+| ✅ Resuelto    | 5        | 27.8%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 14       | 77.8%      |
+| ⏳ Pendiente   | 13       | 72.2%      |

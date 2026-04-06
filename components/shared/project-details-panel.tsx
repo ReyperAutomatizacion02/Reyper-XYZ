@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { getProjectDetails, updateProject } from "@/app/dashboard/ventas/actions";
+import { getErrorMessage } from "@/lib/action-result";
 import { parseLocalDate } from "@/lib/date-utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -160,7 +161,7 @@ export function ProjectDetailsPanel({
                     onProjectUpdated();
                 }
             } else {
-                toast.error(result.error || "Error al actualizar proyecto");
+                toast.error(getErrorMessage(result.error));
             }
         } catch (error) {
             console.error("Error saving project:", error);

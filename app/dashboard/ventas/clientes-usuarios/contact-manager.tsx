@@ -7,14 +7,7 @@ import { Plus, Pencil, Trash2, Search, User, Briefcase, ArrowUpDown, CheckCircle
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog,
     DialogContent,
@@ -28,7 +21,7 @@ import { Label } from "@/components/ui/label";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { createContactEntry, updateContactEntry, deleteContactEntry, createContactBatch } from "../actions";
-
+import { getErrorMessage } from "@/lib/action-result";
 
 interface Contact {
     id: string;
@@ -42,7 +35,7 @@ interface Client {
     name: string;
 }
 
-export function ContactManager({ initialContacts, clients }: { initialContacts: Contact[], clients: Client[] }) {
+export function ContactManager({ initialContacts, clients }: { initialContacts: Contact[]; clients: Client[] }) {
     const router = useRouter();
     const [contacts, setContacts] = useState(initialContacts);
     const [searchTerm, setSearchTerm] = useState("");
@@ -55,27 +48,28 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
     const [clientId, setClientId] = useState<string>("no_client");
     const [isActive, setIsActive] = useState(true);
 
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Contact | "client_name"; direction: "asc" | "desc" } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{
+        key: keyof Contact | "client_name";
+        direction: "asc" | "desc";
+    } | null>(null);
 
     // Sync state with props
     useEffect(() => {
         setContacts(initialContacts);
     }, [initialContacts]);
 
-    const filteredContacts = contacts.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredContacts = contacts.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const sortedContacts = useMemo(() => {
-        let sortableItems = [...filteredContacts];
+        const sortableItems = [...filteredContacts];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 let aValue = "";
                 let bValue = "";
 
                 if (sortConfig.key === "client_name") {
-                    aValue = (clients.find(c => c.id === a.client_id)?.name || "").toLowerCase();
-                    bValue = (clients.find(c => c.id === b.client_id)?.name || "").toLowerCase();
+                    aValue = (clients.find((c) => c.id === a.client_id)?.name || "").toLowerCase();
+                    bValue = (clients.find((c) => c.id === b.client_id)?.name || "").toLowerCase();
                 } else {
                     // @ts-ignore - Dynamic key access safely handled by logic, but TS might complain about optional properties vs keyof
                     aValue = (a[sortConfig.key as keyof Contact] || "").toLowerCase();
@@ -134,7 +128,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
     };
 
     const handleSave = async () => {
-        const validNames = names.filter(n => n.trim() !== "");
+        const validNames = names.filter((n) => n.trim() !== "");
         if (validNames.length === 0) return toast.warning("Debes ingresar al menos un nombre");
 
         const clientToSave = clientId === "no_client" ? undefined : clientId;
@@ -142,22 +136,31 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
         setIsLoading(true);
         try {
             if (currentContact) {
-                // Update Single
-                await updateContactEntry(currentContact.id, validNames[0], clientToSave, isActive);
-                setContacts(prev => prev.map(c => c.id === currentContact.id ? { ...c, name: validNames[0], client_id: clientToSave, is_active: isActive } : c));
-                toast.success("Usuario actualizado");
+                const result = await updateContactEntry(currentContact.id, validNames[0], clientToSave, isActive);
+                if (result.success) {
+                    setContacts((prev) =>
+                        prev.map((c) =>
+                            c.id === currentContact.id
+                                ? { ...c, name: validNames[0], client_id: clientToSave, is_active: isActive }
+                                : c
+                        )
+                    );
+                    toast.success("Usuario actualizado");
+                    router.refresh();
+                    setIsModalOpen(false);
+                } else {
+                    toast.error(getErrorMessage(result.error));
+                }
             } else {
-                // Create Batch
-                await createContactBatch(validNames, clientToSave, isActive);
-                // We can't easily append to local state because we don't have the IDs returned from batch insert (supabase limitation or simple implementation)
-                // However, router.refresh() will help, but for immediate feedback we might need to rely on the refresh solely or fetch.
-                // For better UX, we'll force a reload via router.refresh immediately.
-                toast.success(`${validNames.length} usuario(s) creado(s)`);
+                const result = await createContactBatch(validNames, clientToSave, isActive);
+                if (result.success) {
+                    toast.success(`${validNames.length} usuario(s) creado(s)`);
+                    router.refresh();
+                    setIsModalOpen(false);
+                } else {
+                    toast.error(getErrorMessage(result.error));
+                }
             }
-            router.refresh();
-            setIsModalOpen(false);
-        } catch (error: any) {
-            toast.error(error.message);
         } finally {
             setIsLoading(false);
         }
@@ -166,19 +169,19 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
     const handleDelete = async (id: string) => {
         if (!confirm("¿Estás seguro de eliminar este usuario?")) return;
 
-        try {
-            await deleteContactEntry(id);
-            setContacts(prev => prev.filter(c => c.id !== id));
+        const result = await deleteContactEntry(id);
+        if (result.success) {
+            setContacts((prev) => prev.filter((c) => c.id !== id));
             router.refresh();
             toast.success("Usuario eliminado");
-        } catch (error: any) {
-            toast.error("Error al eliminar: " + error.message);
+        } else {
+            toast.error(getErrorMessage(result.error));
         }
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row">
                 <div className="relative w-full sm:w-72">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -189,32 +192,46 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border">
-                        <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Total: <strong className="text-foreground">{contacts.length}</strong></span>
-                        <div className="w-px h-4 bg-border" />
-                        <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Activos: <strong className="text-green-600 dark:text-green-400">{contacts.filter(c => c.is_active !== false).length}</strong></span>
+                    <div className="flex gap-4 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5" /> Total:{" "}
+                            <strong className="text-foreground">{contacts.length}</strong>
+                        </span>
+                        <div className="h-4 w-px bg-border" />
+                        <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> Activos:{" "}
+                            <strong className="text-green-600 dark:text-green-400">
+                                {contacts.filter((c) => c.is_active !== false).length}
+                            </strong>
+                        </span>
                     </div>
-                    <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full">
-                        <Plus className="w-4 h-4 mr-2" />
+                    <Button onClick={openCreateModal} className="rounded-full bg-blue-600 text-white hover:bg-blue-700">
+                        <Plus className="mr-2 h-4 w-4" />
                         Nuevo Usuario
                     </Button>
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("name")}>
+                            <TableHead
+                                className="cursor-pointer transition-colors hover:bg-muted/50"
+                                onClick={() => requestSort("name")}
+                            >
                                 <div className="flex items-center gap-1">
                                     Nombre Completo
-                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("client_name")}>
+                            <TableHead
+                                className="cursor-pointer transition-colors hover:bg-muted/50"
+                                onClick={() => requestSort("client_name")}
+                            >
                                 <div className="flex items-center gap-1">
                                     Cliente Asociado
-                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
                             <TableHead className="w-[100px] text-center">Estatus</TableHead>
@@ -231,27 +248,37 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                         ) : (
                             sortedContacts.map((contact) => (
                                 <TableRow key={contact.id} className="hover:bg-muted/50">
-                                    <TableCell className="font-medium flex items-center gap-2">
-                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg text-blue-600">
-                                            <User className="w-4 h-4" />
+                                    <TableCell className="flex items-center gap-2 font-medium">
+                                        <div className="rounded-lg bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/20">
+                                            <User className="h-4 w-4" />
                                         </div>
                                         {contact.name}
                                     </TableCell>
-                                    <TableCell className="text-zinc-500 text-sm">
-                                        {contact.client_id ? clients.find(cl => cl.id === contact.client_id)?.name : <span className="text-muted-foreground italic">Sin asignar</span>}
+                                    <TableCell className="text-sm text-zinc-500">
+                                        {contact.client_id ? (
+                                            clients.find((cl) => cl.id === contact.client_id)?.name
+                                        ) : (
+                                            <span className="italic text-muted-foreground">Sin asignar</span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${contact.is_active !== false ? 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400' : 'bg-muted text-muted-foreground border-border'}`}>
+                                        <div
+                                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${contact.is_active !== false ? "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400" : "border-border bg-muted text-muted-foreground"}`}
+                                        >
                                             {contact.is_active !== false ? "Activo" : "Inactivo"}
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
                                             <Button variant="ghost" size="icon" onClick={() => openEditModal(contact)}>
-                                                <Pencil className="w-4 h-4 text-zinc-500 hover:text-blue-500" />
+                                                <Pencil className="h-4 w-4 text-zinc-500 hover:text-blue-500" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleDelete(contact.id)}>
-                                                <Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-500" />
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDelete(contact.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-zinc-500 hover:text-red-500" />
                                             </Button>
                                         </div>
                                     </TableCell>
@@ -263,16 +290,18 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
             </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="sm:max-w-[550px] max-h-[95vh] flex flex-col p-0 overflow-hidden">
+                <DialogContent className="flex max-h-[95vh] flex-col overflow-hidden p-0 sm:max-w-[550px]">
                     <div className="p-6 pb-2">
                         <DialogHeader>
                             <DialogTitle>{currentContact ? "Editar Usuario" : "Nuevo Usuario"}</DialogTitle>
                             <DialogDescription>
-                                {currentContact ? "Modifica nombre del usuario/solicitante." : "Registra un nuevo usuario o solicitante de proyectos."}
+                                {currentContact
+                                    ? "Modifica nombre del usuario/solicitante."
+                                    : "Registra un nuevo usuario o solicitante de proyectos."}
                             </DialogDescription>
                         </DialogHeader>
                     </div>
-                    <div className="flex-1 overflow-y-auto px-6 py-2 custom-scrollbar">
+                    <div className="custom-scrollbar flex-1 overflow-y-auto px-6 py-2">
                         <div className="space-y-4">
                             <div className="space-y-3">
                                 <Label>Nombre(s) de Usuario</Label>
@@ -287,8 +316,13 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                                                 autoFocus={index === names.length - 1 && index > 0}
                                             />
                                             {!currentContact && names.length > 1 && (
-                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveName(index)} className="text-muted-foreground hover:text-red-500">
-                                                    <XCircle className="w-5 h-5" />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleRemoveName(index)}
+                                                    className="text-muted-foreground hover:text-red-500"
+                                                >
+                                                    <XCircle className="h-5 w-5" />
                                                 </Button>
                                             )}
                                         </div>
@@ -300,9 +334,9 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                                         variant="outline"
                                         size="sm"
                                         onClick={handleAddName}
-                                        className="w-full border-dashed border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        className="w-full border-dashed border-border bg-muted/30 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     >
-                                        <Plus className="w-4 h-4 mr-2" />
+                                        <Plus className="mr-2 h-4 w-4" />
                                         Agregar otro usuario
                                     </Button>
                                 )}
@@ -312,14 +346,14 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                                 <SearchableSelect
                                     options={[
                                         { label: "-- Ninguno --", value: "no_client" },
-                                        ...clients.map(c => ({ label: c.name, value: c.id }))
+                                        ...clients.map((c) => ({ label: c.name, value: c.id })),
                                     ]}
                                     value={clientId}
                                     onChange={setClientId}
                                     placeholder="Seleccionar cliente..."
                                 />
                             </div>
-                            <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                            <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
                                 <div className="space-y-0.5">
                                     <Label>Estatus Activo</Label>
                                     <p className="text-xs text-muted-foreground">Desactivar para ocultar en listas.</p>
@@ -329,9 +363,15 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                         </div>
                     </div>
                     <div className="p-6 pt-2">
-                        <DialogFooter className="sm:justify-end gap-2">
-                            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                            <Button onClick={handleSave} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <DialogFooter className="gap-2 sm:justify-end">
+                            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSave}
+                                disabled={isLoading}
+                                className="bg-blue-600 text-white hover:bg-blue-700"
+                            >
                                 {isLoading ? "Guardando..." : "Guardar"}
                             </Button>
                         </DialogFooter>

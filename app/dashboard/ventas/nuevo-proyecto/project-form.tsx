@@ -45,6 +45,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getNextProjectCode, createProjectAndItems } from "@/app/dashboard/ventas/project-actions";
 import { scanDriveFolder } from "@/app/dashboard/ventas/drive-actions";
 import { createClientEntry, createContactEntry } from "@/app/dashboard/ventas/actions";
+import { getErrorMessage } from "@/lib/action-result";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dropzone } from "@/components/sales/dropzone";
 import { createClient } from "@/utils/supabase/client";
@@ -898,19 +899,18 @@ export function ProjectForm({
 
     // Client Creation
     const handleCreateClient = async (name: string) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const newId = await createClientEntry(name); // Assuming createClientEntry returns the ID
-            if (newId) {
-                const newClient = { id: newId, name: name, prefix: null }; // Default prefix null
+            const result = await createClientEntry(name);
+            if (result.success) {
+                const newClient = { id: result.data, name: name, prefix: null };
                 setClientList((prev) => [...prev, newClient].sort((a, b) => a.name.localeCompare(b.name)));
-                setSelectedClient(newId);
-                // Also trigger logic for code update if needed (will be empty prefix)
+                setSelectedClient(result.data);
                 setClientCode("");
                 toast.success(`Cliente "${name}" creado exitosamente.`);
+            } else {
+                toast.error(getErrorMessage(result.error));
             }
-        } catch (error: any) {
-            toast.error("Error al crear cliente: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -918,21 +918,21 @@ export function ProjectForm({
 
     // User Creation
     const handleCreateContact = async (name: string) => {
+        if (!selectedClient) {
+            toast.error("Selecciona un cliente primero.");
+            return;
+        }
+        setLoading(true);
         try {
-            if (!selectedClient) {
-                toast.error("Selecciona un cliente primero.");
-                return;
-            }
-            setLoading(true);
-            const newId = await createContactEntry(name, selectedClient);
-            if (newId) {
-                const newContact = { id: newId, name: name, client_id: selectedClient };
+            const result = await createContactEntry(name, selectedClient);
+            if (result.success) {
+                const newContact = { id: result.data, name: name, client_id: selectedClient };
                 setAllContacts((prev) => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
-                setSelectedUser(newId);
+                setSelectedUser(result.data);
                 toast.success(`Usuario "${name}" creado exitosamente.`);
+            } else {
+                toast.error(getErrorMessage(result.error));
             }
-        } catch (error: any) {
-            toast.error("Error al crear usuario: " + error.message);
         } finally {
             setLoading(false);
         }

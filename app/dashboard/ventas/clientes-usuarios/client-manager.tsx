@@ -7,14 +7,7 @@ import { Plus, Pencil, Trash2, Search, Building2, ArrowUpDown, CheckCircle2, XCi
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     Dialog,
     DialogContent,
@@ -26,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { createClientEntry, updateClientEntry, deleteClientEntry } from "../actions";
+import { getErrorMessage } from "@/lib/action-result";
 
 interface Client {
     id: string;
@@ -56,13 +50,14 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
         setClients(initialClients);
     }, [initialClients]);
 
-    const filteredClients = clients.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.business_name && c.business_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    const filteredClients = clients.filter(
+        (c) =>
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.business_name && c.business_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     const sortedClients = useMemo(() => {
-        let sortableItems = [...filteredClients];
+        const sortableItems = [...filteredClients];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
                 // Handle boolean sorting for is_active separately or convert to string
@@ -72,8 +67,16 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     // @ts-ignore
                     const bBool = !!b[sortConfig.key];
                     return sortConfig.direction === "asc"
-                        ? (aBool === bBool ? 0 : aBool ? -1 : 1)
-                        : (aBool === bBool ? 0 : aBool ? 1 : -1);
+                        ? aBool === bBool
+                            ? 0
+                            : aBool
+                              ? -1
+                              : 1
+                        : aBool === bBool
+                          ? 0
+                          : aBool
+                            ? 1
+                            : -1;
                 }
 
                 // @ts-ignore
@@ -125,44 +128,56 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
         setIsLoading(true);
         try {
             if (currentClient) {
-                // Update
-                await updateClientEntry(currentClient.id, name, prefix, businessName, isActive);
-                setClients(prev => prev.map(c => c.id === currentClient.id ? { ...c, name, prefix, business_name: businessName, is_active: isActive } : c));
-                toast.success("Cliente actualizado");
+                const result = await updateClientEntry(currentClient.id, name, prefix, businessName, isActive);
+                if (result.success) {
+                    setClients((prev) =>
+                        prev.map((c) =>
+                            c.id === currentClient.id
+                                ? { ...c, name, prefix, business_name: businessName, is_active: isActive }
+                                : c
+                        )
+                    );
+                    toast.success("Cliente actualizado");
+                    router.refresh();
+                    setIsModalOpen(false);
+                } else {
+                    toast.error(getErrorMessage(result.error));
+                }
             } else {
-                // Create
-                const id = await createClientEntry(name, prefix, businessName, isActive);
-                if (id) {
-                    setClients(prev => [...prev, { id, name, prefix, business_name: businessName, is_active: isActive }]);
+                const result = await createClientEntry(name, prefix, businessName, isActive);
+                if (result.success) {
+                    setClients((prev) => [
+                        ...prev,
+                        { id: result.data, name, prefix, business_name: businessName, is_active: isActive },
+                    ]);
                     toast.success("Cliente creado");
+                    router.refresh();
+                    setIsModalOpen(false);
+                } else {
+                    toast.error(getErrorMessage(result.error));
                 }
             }
-            router.refresh(); // REFRESH DATA FOR TABS
-            setIsModalOpen(false);
-        } catch (error: any) {
-            toast.error(error.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleDelete = async (id: string) => {
-        // Simple confirm for now. Ideally a custom Alert Dialog
         if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
 
-        try {
-            await deleteClientEntry(id);
-            setClients(prev => prev.filter(c => c.id !== id));
-            router.refresh(); // REFRESH DATA FOR TABS
+        const result = await deleteClientEntry(id);
+        if (result.success) {
+            setClients((prev) => prev.filter((c) => c.id !== id));
+            router.refresh();
             toast.success("Cliente eliminado");
-        } catch (error: any) {
-            toast.error("Error al eliminar: " + error.message);
+        } else {
+            toast.error(getErrorMessage(result.error));
         }
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row">
                 <div className="relative w-full sm:w-72">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -174,38 +189,62 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex gap-4 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md border border-border" id="clients-stats">
-                        <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Total: <strong className="text-foreground">{clients.length}</strong></span>
-                        <div className="w-px h-4 bg-border" />
-                        <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Activos: <strong className="text-green-600 dark:text-green-400">{clients.filter(c => c.is_active !== false).length}</strong></span>
+                    <div
+                        className="flex gap-4 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground"
+                        id="clients-stats"
+                    >
+                        <span className="flex items-center gap-1.5">
+                            <Building2 className="h-3.5 w-3.5" /> Total:{" "}
+                            <strong className="text-foreground">{clients.length}</strong>
+                        </span>
+                        <div className="h-4 w-px bg-border" />
+                        <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> Activos:{" "}
+                            <strong className="text-green-600 dark:text-green-400">
+                                {clients.filter((c) => c.is_active !== false).length}
+                            </strong>
+                        </span>
                     </div>
-                    <Button onClick={openCreateModal} className="bg-red-600 hover:bg-red-700 text-white rounded-full" id="clients-new-btn">
-                        <Plus className="w-4 h-4 mr-2" />
+                    <Button
+                        onClick={openCreateModal}
+                        className="rounded-full bg-red-600 text-white hover:bg-red-700"
+                        id="clients-new-btn"
+                    >
+                        <Plus className="mr-2 h-4 w-4" />
                         Nuevo Cliente
                     </Button>
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden" id="clients-table">
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm" id="clients-table">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("name")}>
+                            <TableHead
+                                className="cursor-pointer transition-colors hover:bg-muted/50"
+                                onClick={() => requestSort("name")}
+                            >
                                 <div className="flex items-center gap-1">
                                     Nombre
-                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("business_name")}>
+                            <TableHead
+                                className="cursor-pointer transition-colors hover:bg-muted/50"
+                                onClick={() => requestSort("business_name")}
+                            >
                                 <div className="flex items-center gap-1">
                                     Razón Social
-                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
-                            <TableHead className="w-[150px] cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("prefix")}>
+                            <TableHead
+                                className="w-[150px] cursor-pointer transition-colors hover:bg-muted/50"
+                                onClick={() => requestSort("prefix")}
+                            >
                                 <div className="flex items-center gap-1">
                                     Prefijo
-                                    <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                                    <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                 </div>
                             </TableHead>
                             <TableHead className="w-[100px] text-center">Estatus</TableHead>
@@ -222,24 +261,28 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                         ) : (
                             sortedClients.map((client) => (
                                 <TableRow key={client.id} className="hover:bg-muted/50">
-                                    <TableCell className="font-medium flex items-center gap-2">
-                                        <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg text-red-600">
-                                            <Building2 className="w-4 h-4" />
+                                    <TableCell className="flex items-center gap-2 font-medium">
+                                        <div className="rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-900/20">
+                                            <Building2 className="h-4 w-4" />
                                         </div>
                                         {client.name}
                                     </TableCell>
-                                    <TableCell className="text-zinc-500 text-sm">{client.business_name || "-"}</TableCell>
+                                    <TableCell className="text-sm text-zinc-500">
+                                        {client.business_name || "-"}
+                                    </TableCell>
                                     <TableCell className="font-mono text-zinc-500">{client.prefix || "-"}</TableCell>
                                     <TableCell className="text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${client.is_active !== false ? 'bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400' : 'bg-muted text-muted-foreground border-border'}`}>
+                                        <div
+                                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${client.is_active !== false ? "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400" : "border-border bg-muted text-muted-foreground"}`}
+                                        >
                                             {client.is_active !== false ? (
                                                 <>
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
                                                     Activo
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
                                                     Inactivo
                                                 </>
                                             )}
@@ -248,10 +291,10 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
                                             <Button variant="ghost" size="icon" onClick={() => openEditModal(client)}>
-                                                <Pencil className="w-4 h-4 text-zinc-500 hover:text-blue-500" />
+                                                <Pencil className="h-4 w-4 text-zinc-500 hover:text-blue-500" />
                                             </Button>
                                             <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id)}>
-                                                <Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-500" />
+                                                <Trash2 className="h-4 w-4 text-zinc-500 hover:text-red-500" />
                                             </Button>
                                         </div>
                                     </TableCell>
@@ -267,19 +310,29 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     <DialogHeader>
                         <DialogTitle>{currentClient ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
                         <DialogDescription>
-                            {currentClient ? "Modifica los datos del cliente." : "Ingresa los datos para el nuevo cliente."}
+                            {currentClient
+                                ? "Modifica los datos del cliente."
+                                : "Ingresa los datos para el nuevo cliente."}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label>Nombre de la Empresa (Corto)</Label>
-                            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Reyper CNC" />
+                            <Input
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Ej. Reyper CNC"
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Razón Social (Facturación)</Label>
-                            <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Ej. Reyper CNC S.A. de C.V." />
+                            <Input
+                                value={businessName}
+                                onChange={(e) => setBusinessName(e.target.value)}
+                                placeholder="Ej. Reyper CNC S.A. de C.V."
+                            />
                         </div>
-                        <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                        <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
                             <div className="space-y-0.5">
                                 <Label>Estatus Activo</Label>
                                 <p className="text-xs text-muted-foreground">Desactivar para ocultar en listas.</p>
@@ -288,12 +341,21 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                         </div>
                         <div className="space-y-2">
                             <Label>Prefijo (para proyectos)</Label>
-                            <Input value={prefix} onChange={(e) => setPrefix(e.target.value.toUpperCase())} placeholder="Ej. RYP" maxLength={5} />
-                            <p className="text-xs text-muted-foreground">Opcional. Se usa para generar códigos de proyecto automáticos.</p>
+                            <Input
+                                value={prefix}
+                                onChange={(e) => setPrefix(e.target.value.toUpperCase())}
+                                placeholder="Ej. RYP"
+                                maxLength={5}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Opcional. Se usa para generar códigos de proyecto automáticos.
+                            </p>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                            Cancelar
+                        </Button>
                         <Button onClick={handleSave} disabled={isLoading} className="bg-red-600 hover:bg-red-700">
                             {isLoading ? "Guardando..." : "Guardar"}
                         </Button>

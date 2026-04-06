@@ -11,6 +11,7 @@ import {
     toggleTaskLocked,
     clearOrderEvaluation,
 } from "@/app/dashboard/produccion/actions";
+import { getErrorMessage } from "@/lib/action-result";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
 type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
@@ -117,14 +118,13 @@ export function useProductionTasks({ initialTasks, initialOrders }: UseProductio
     const handleSaveAllPlanning = async () => {
         if (draftTasks.length === 0 && changedTasks.length === 0) return;
         toast.loading("Guardando planeación...", { id: "save-planning" });
-        try {
-            await batchSavePlanning(draftTasks, changedTasks);
+        const result = await batchSavePlanning(draftTasks, changedTasks);
+        if (result.success) {
             toast.success("Planeación guardada con éxito", { id: "save-planning" });
             setDraftTasks([]);
             router.refresh();
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al guardar la planeación", { id: "save-planning" });
+        } else {
+            toast.error(getErrorMessage(result.error), { id: "save-planning" });
         }
     };
 
@@ -141,22 +141,20 @@ export function useProductionTasks({ initialTasks, initialOrders }: UseProductio
 
     const handleToggleLock = async (taskId: string, locked: boolean) => {
         setOptimisticTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, locked } : t)));
-        try {
-            await toggleTaskLocked(taskId, locked);
-        } catch {
+        const result = await toggleTaskLocked(taskId, locked);
+        if (!result.success) {
             setOptimisticTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, locked: !locked } : t)));
-            toast.error("Error al cambiar bloqueo");
+            toast.error(getErrorMessage(result.error));
         }
     };
 
     const handleClearEvaluation = async (orderId: string) => {
-        try {
-            await clearOrderEvaluation(orderId);
+        const result = await clearOrderEvaluation(orderId);
+        if (result.success) {
             toast.success("Evaluación limpiada exitosamente");
             router.refresh();
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al limpiar evaluación");
+        } else {
+            toast.error(getErrorMessage(result.error));
         }
     };
 

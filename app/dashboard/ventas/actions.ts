@@ -1,5 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import {
@@ -21,6 +24,7 @@ import {
 import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
 import { requireAuth, requireRole } from "@/lib/auth-guard";
 import { deleteQuoteFilesInternal } from "@/lib/storage-utils";
+import type { ActionResult } from "@/lib/action-result";
 
 const VENTAS_ROLES = ["admin", "ventas"];
 
@@ -31,50 +35,88 @@ export async function createClientEntry(
     prefix?: string,
     business_name?: string,
     is_active: boolean = true
-) {
-    const parsed = ClientEntrySchema.parse({ name, prefix, business_name, is_active });
+): Promise<ActionResult<string>> {
+    const parsed = ClientEntrySchema.safeParse({ name, prefix, business_name, is_active });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_clients").insert(parsed).select("id").single();
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+    const { data, error } = await supabase.from("sales_clients").insert(parsed.data).select("id").single();
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return data?.id;
+    return { success: true, data: data.id };
 }
 
-export async function createContactEntry(name: string, client_id?: string, is_active: boolean = true) {
-    const parsed = ContactEntrySchema.parse({ name, client_id, is_active });
+export async function createContactEntry(
+    name: string,
+    client_id?: string,
+    is_active: boolean = true
+): Promise<ActionResult<string>> {
+    const parsed = ContactEntrySchema.safeParse({ name, client_id, is_active });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
-    const { data, error } = await supabase.from("sales_contacts").insert(parsed).select("id").single();
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+    const { data, error } = await supabase.from("sales_contacts").insert(parsed.data).select("id").single();
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return data?.id;
+    return { success: true, data: data.id };
 }
 
-export async function createContactBatch(names: string[], client_id?: string, is_active: boolean = true) {
-    const parsed = ContactBatchSchema.parse({ names, client_id, is_active });
+export async function createContactBatch(
+    names: string[],
+    client_id?: string,
+    is_active: boolean = true
+): Promise<ActionResult> {
+    const parsed = ContactBatchSchema.safeParse({ names, client_id, is_active });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
-    const records = parsed.names.map((name) => ({
+    const records = parsed.data.names.map((name) => ({
         name,
-        client_id: parsed.client_id,
-        is_active: parsed.is_active,
+        client_id: parsed.data.client_id,
+        is_active: parsed.data.is_active,
     }));
 
     const { error } = await supabase.from("sales_contacts").insert(records);
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
 export async function updateClientEntry(
@@ -83,38 +125,58 @@ export async function updateClientEntry(
     prefix?: string | null,
     business_name?: string | null,
     is_active: boolean = true
-) {
-    const parsed = UpdateClientSchema.parse({ id, name, prefix, business_name, is_active });
+): Promise<ActionResult> {
+    const parsed = UpdateClientSchema.safeParse({ id, name, prefix, business_name, is_active });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
     const { error } = await supabase
         .from("sales_clients")
         .update({
-            name: parsed.name,
-            prefix: parsed.prefix,
-            business_name: parsed.business_name,
-            is_active: parsed.is_active,
+            name: parsed.data.name,
+            prefix: parsed.data.prefix,
+            business_name: parsed.data.business_name,
+            is_active: parsed.data.is_active,
         })
-        .eq("id", parsed.id);
+        .eq("id", parsed.data.id);
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
-export async function deleteClientEntry(id: string) {
-    const { id: validId } = IdSchema.parse({ id });
+export async function deleteClientEntry(id: string): Promise<ActionResult> {
+    const parsed = IdSchema.safeParse({ id });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_clients").delete().eq("id", validId);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+    const { error } = await supabase.from("sales_clients").delete().eq("id", parsed.data.id);
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
 export async function updateContactEntry(
@@ -122,36 +184,56 @@ export async function updateContactEntry(
     name: string,
     client_id?: string | null,
     is_active: boolean = true
-) {
-    const parsed = UpdateContactSchema.parse({ id, name, client_id, is_active });
+): Promise<ActionResult> {
+    const parsed = UpdateContactSchema.safeParse({ id, name, client_id, is_active });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
     const { error } = await supabase
         .from("sales_contacts")
-        .update({ name: parsed.name, client_id: parsed.client_id, is_active: parsed.is_active })
-        .eq("id", parsed.id);
+        .update({ name: parsed.data.name, client_id: parsed.data.client_id, is_active: parsed.data.is_active })
+        .eq("id", parsed.data.id);
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
-export async function deleteContactEntry(id: string) {
-    const { id: validId } = IdSchema.parse({ id });
+export async function deleteContactEntry(id: string): Promise<ActionResult> {
+    const parsed = IdSchema.safeParse({ id });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
-    const { error } = await supabase.from("sales_contacts").delete().eq("id", validId);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+    const { error } = await supabase.from("sales_contacts").delete().eq("id", parsed.data.id);
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
-export async function createPositionEntry(name: string) {
+export async function createPositionEntry(name: string): Promise<string> {
     const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -161,10 +243,10 @@ export async function createPositionEntry(name: string) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data?.id;
+    return data.id;
 }
 
-export async function createAreaEntry(name: string) {
+export async function createAreaEntry(name: string): Promise<string> {
     const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -174,10 +256,10 @@ export async function createAreaEntry(name: string) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data?.id;
+    return data.id;
 }
 
-export async function createUnitEntry(name: string) {
+export async function createUnitEntry(name: string): Promise<string> {
     const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -187,10 +269,10 @@ export async function createUnitEntry(name: string) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data?.id;
+    return data.id;
 }
 
-export async function createMaterialEntry(name: string) {
+export async function createMaterialEntry(name: string): Promise<string> {
     const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -200,10 +282,10 @@ export async function createMaterialEntry(name: string) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data?.id;
+    return data.id;
 }
 
-export async function createTreatmentEntry(name: string) {
+export async function createTreatmentEntry(name: string): Promise<string> {
     const parsed = CatalogEntrySchema.parse({ name });
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -217,31 +299,40 @@ export async function createTreatmentEntry(name: string) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data?.id;
+    return data.id;
 }
 
-export async function saveQuote(quoteData: Record<string, unknown>, items: Record<string, unknown>[]) {
-    const parsed = SaveQuoteSchema.parse({ quoteData, items });
+export async function saveQuote(
+    quoteData: Record<string, unknown>,
+    items: Record<string, unknown>[]
+): Promise<ActionResult<{ id: string; quote_number: number }>> {
+    const parsed = SaveQuoteSchema.safeParse({ quoteData, items });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
-    // 1. Insert Quote
     const { data: quote, error: quoteError } = await supabase
         .from("sales_quotes")
-        .insert({
-            ...parsed.quoteData,
-        })
+        .insert({ ...parsed.data.quoteData })
         .select("id, quote_number")
         .single();
 
     if (quoteError) {
         console.error("[ventas] saveQuote:", quoteError.message);
-        throw new Error("Error al guardar la cotización.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
-    // 2. Insert Items
-    const itemsWithQuoteId = parsed.items.map((item, index) => ({
+    const itemsWithQuoteId = parsed.data.items.map((item, index) => ({
         ...item,
         quote_id: quote.id,
         sort_order: index,
@@ -250,14 +341,13 @@ export async function saveQuote(quoteData: Record<string, unknown>, items: Recor
     if (itemsWithQuoteId.length > 0) {
         const { error: itemsError } = await supabase.from("sales_quote_items").insert(itemsWithQuoteId);
         if (itemsError) {
-            // Optional: Delete quote if items fail
             await supabase.from("sales_quotes").delete().eq("id", quote.id);
             console.error("[ventas] saveQuote items:", itemsError.message);
-            throw new Error("Error al guardar las partidas de la cotización.");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
     }
 
-    return { id: quote.id, quote_number: quote.quote_number };
+    return { success: true, data: { id: quote.id, quote_number: quote.quote_number } };
 }
 
 // --- FETCH ACTIONS ---
@@ -329,13 +419,13 @@ export async function getActiveProjects() {
         .from("projects")
         .select(
             `
-            id, 
-            code, 
-            name, 
-            company, 
-            requestor, 
-            start_date, 
-            delivery_date, 
+            id,
+            code,
+            name,
+            company,
+            requestor,
+            start_date,
+            delivery_date,
             status,
             requestor_id,
             company_id,
@@ -365,13 +455,13 @@ export async function getAuditData() {
         .from("projects")
         .select(
             `
-            id, 
-            code, 
-            name, 
-            company, 
-            requestor, 
-            start_date, 
-            delivery_date, 
+            id,
+            code,
+            name,
+            company,
+            requestor,
+            start_date,
+            delivery_date,
             status,
             requestor_id,
             company_id,
@@ -461,11 +551,25 @@ export async function getQuoteById(id: string) {
     return { ...rest, items };
 }
 
-export async function updateQuote(id: string, quoteData: Record<string, unknown>, items: Record<string, unknown>[]) {
-    const parsed = UpdateQuoteValidation.parse({ id, quoteData, items });
+export async function updateQuote(
+    id: string,
+    quoteData: Record<string, unknown>,
+    items: Record<string, unknown>[]
+): Promise<ActionResult<{ id: string }>> {
+    const parsed = UpdateQuoteValidation.safeParse({ id, quoteData, items });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
     // 1. Get old items to check for orphaned drawings
     const { data: oldItems } = await supabase.from("sales_quote_items").select("drawing_url").eq("quote_id", id);
@@ -473,22 +577,20 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
     // 2. Update Quote Info
     const { error: quoteError } = await supabase
         .from("sales_quotes")
-        .update({
-            ...parsed.quoteData,
-        })
-        .eq("id", parsed.id);
+        .update({ ...parsed.data.quoteData })
+        .eq("id", parsed.data.id);
 
     if (quoteError) {
         console.error("[ventas] updateQuote:", quoteError.message);
-        throw new Error("Error al actualizar la cotización.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 
-    // 3. Delete old items and insert fresh ones (Simplest way to sync)
-    await supabase.from("sales_quote_items").delete().eq("quote_id", parsed.id);
+    // 3. Delete old items and insert fresh ones
+    await supabase.from("sales_quote_items").delete().eq("quote_id", parsed.data.id);
 
-    const itemsWithQuoteId = parsed.items.map((item, index) => ({
+    const itemsWithQuoteId = parsed.data.items.map((item, index) => ({
         ...item,
-        quote_id: parsed.id,
+        quote_id: parsed.data.id,
         sort_order: index,
     }));
 
@@ -496,17 +598,15 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
         const { error: itemsError } = await supabase.from("sales_quote_items").insert(itemsWithQuoteId);
         if (itemsError) {
             console.error("[ventas] updateQuote items:", itemsError.message);
-            throw new Error("Error al actualizar las partidas.");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
     }
 
     // 4. Cleanup orphaned storage files
     if (oldItems && oldItems.length > 0) {
-        // Function to extract the actual storage path from various Supabase URL formats
         const getFilename = (url: any): string | null => {
             if (!url || typeof url !== "string") return null;
             try {
-                // Remove everything before the last slash and strip query/fragments
                 const clean = decodeURIComponent(url).split(/[?#]/)[0];
                 return clean.split("/").pop() || null;
             } catch (e) {
@@ -515,17 +615,15 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
         };
 
         const oldFiles = oldItems.map((i) => getFilename(i.drawing_url)).filter(Boolean) as string[];
-        const newFiles = parsed.items.map((i) => getFilename(i.drawing_url)).filter(Boolean) as string[];
+        const newFiles = parsed.data.items.map((i) => getFilename(i.drawing_url)).filter(Boolean) as string[];
 
-        // SAFETY CHECK: If the UI has items with drawings, but we couldn't parse ANY of them,
-        // or if our extraction count doesn't match the items with drawings, abort to be safe.
-        const itemsWithRemoteDrawings = parsed.items.filter(
+        const itemsWithRemoteDrawings = parsed.data.items.filter(
             (i) => i.drawing_url && !i.drawing_url.startsWith("blob:") && !i.drawing_url.startsWith("data:")
         );
 
         if (itemsWithRemoteDrawings.length > 0 && newFiles.length < itemsWithRemoteDrawings.length) {
             console.error("Storage cleanup aborted: Could not parse all referenced drawing filenames correctly.");
-            return { id };
+            return { success: true, data: { id: parsed.data.id } };
         }
 
         const filesToDelete = oldFiles.filter((f) => !newFiles.includes(f));
@@ -540,31 +638,39 @@ export async function updateQuote(id: string, quoteData: Record<string, unknown>
         }
     }
 
-    return { id: parsed.id };
+    return { success: true, data: { id: parsed.data.id } };
 }
 
-export async function deleteQuote(id: string, reason: string) {
-    const parsed = DeleteQuoteSchema.parse({ id, reason });
+export async function deleteQuote(id: string, reason: string): Promise<ActionResult> {
+    const parsed = DeleteQuoteSchema.safeParse({ id, reason });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
-    // Solo hacemos el soft delete (cambio de estado).
-    // La eliminación física de archivos será manejada por un Webhook de DB (Hard Delete).
     const { error } = await supabase
         .from("sales_quotes")
         .update({
             status: "deleted",
             deleted_at: new Date().toISOString(),
-            deleted_reason: parsed.reason,
+            deleted_reason: parsed.data.reason,
         })
-        .eq("id", parsed.id);
+        .eq("id", parsed.data.id);
 
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
 
 /**
@@ -620,31 +726,51 @@ export async function getNextProjectCode(clientPrefix: string) {
 export async function convertQuoteToProject(
     quoteId: string,
     projectName?: string,
-    partNames?: { quoteItemId: string; name: string }[] // NEW PARAM
-) {
+    partNames?: { quoteItemId: string; name: string }[]
+): Promise<ActionResult<{ projectCode: string; projectId: string }>> {
+    const parsedData = ConvertQuoteToProjectSchema.safeParse({
+        quote_id: quoteId,
+        client_prefix: "TEMP",
+        company_name: "TEMP",
+    });
+
+    if (!parsedData.success) {
+        return {
+            success: false,
+            error: {
+                code: "VALIDATION_ERROR",
+                fields: parsedData.error.flatten().fieldErrors as Record<string, string>,
+            },
+        };
+    }
+
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     try {
-        // Zod validation
-        const parsedData = ConvertQuoteToProjectSchema.safeParse({
-            quote_id: quoteId,
-            client_prefix: "TEMP",
-            company_name: "TEMP",
-        });
-
-        if (!parsedData.success) {
-            console.error("Validation error converting quote:", parsedData.error);
-            return { success: false, error: "Datos de entrada inválidos." };
-        }
-
-        const cookieStore = await cookies();
-        const supabase = createClient(cookieStore);
         await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
+    try {
         // 1. Get Quote and Items
         const quote = await getQuoteById(quoteId);
-        if (!quote) throw new Error("Cotización no encontrada.");
-        if (quote.status === QUOTE_STATUS.APPROVED) throw new Error("La cotización ya fue aprobada.");
-        if (!quote.client_id) throw new Error("La cotización no tiene un cliente asignado.");
-        if (!quote.contact_id) throw new Error("La cotización no tiene un contacto asignado.");
+        if (!quote) return { success: false, error: { code: "NOT_FOUND", resource: "Cotización" } };
+        if (quote.status === QUOTE_STATUS.APPROVED) {
+            return { success: false, error: { code: "CONFLICT", message: "La cotización ya fue aprobada." } };
+        }
+        if (!quote.client_id) {
+            return {
+                success: false,
+                error: { code: "CONFLICT", message: "La cotización no tiene un cliente asignado." },
+            };
+        }
+        if (!quote.contact_id) {
+            return {
+                success: false,
+                error: { code: "CONFLICT", message: "La cotización no tiene un contacto asignado." },
+            };
+        }
 
         // 2. Get Client Prefix
         const { data: client, error: clientError } = await supabase
@@ -653,7 +779,9 @@ export async function convertQuoteToProject(
             .eq("id", quote.client_id)
             .single();
 
-        if (clientError || !client || !client.prefix) throw new Error("Prefijo de cliente no encontrado.");
+        if (clientError || !client || !client.prefix) {
+            return { success: false, error: { code: "NOT_FOUND", resource: "Prefijo de cliente" } };
+        }
 
         const projectCode = await getNextProjectCode(client.prefix);
         const finalProjectName = projectName || `COT-${quote.quote_number}`;
@@ -667,7 +795,7 @@ export async function convertQuoteToProject(
 
         if (contactError) {
             console.error("[ventas] convertQuote contact:", contactError.message);
-            throw new Error("Nombre de contacto no encontrado.");
+            return { success: false, error: { code: "NOT_FOUND", resource: "Contacto" } };
         }
 
         // 4. Create Project
@@ -678,8 +806,8 @@ export async function convertQuoteToProject(
                 name: finalProjectName,
                 company: client.name,
                 company_id: quote.client_id,
-                requestor: contact.name, // Store Name in requestor
-                requestor_id: quote.contact_id, // Store ID in new column
+                requestor: contact.name,
+                requestor_id: quote.contact_id,
                 start_date: new Date().toISOString().split("T")[0],
                 delivery_date: quote.delivery_date,
                 status: "active",
@@ -689,7 +817,7 @@ export async function convertQuoteToProject(
 
         if (projectError) {
             console.error("[ventas] convertQuote project:", projectError.message);
-            throw new Error("Error al crear el proyecto.");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
 
         // 5. Transform Quote Items to Production Orders
@@ -708,7 +836,6 @@ export async function convertQuoteToProject(
             const subPart = String(childCounter).padStart(2, "0");
             const partCode = `${projectCode}-${lotPart}.${subPart}`;
 
-            // Find custom name if provided, else use description
             const customPartNameObj = partNames?.find((pn) => pn.quoteItemId === item.id);
             const finalPartName =
                 customPartNameObj?.name && customPartNameObj.name.trim() !== ""
@@ -718,10 +845,10 @@ export async function convertQuoteToProject(
             return {
                 project_id: project.id,
                 part_code: partCode,
-                part_name: finalPartName, // USE CUSTOM OR FALLBACK
+                part_name: finalPartName,
                 quantity: item.quantity,
-                material: "POR DEFINIR", // Default
-                general_status: ITEM_STATUS.RE_ORDER_POINT, // Default start status uses constant
+                material: "POR DEFINIR",
+                general_status: ITEM_STATUS.RE_ORDER_POINT,
                 design_no: item.design_no,
                 drawing_url: item.drawing_url,
                 unit: item.unit,
@@ -732,7 +859,7 @@ export async function convertQuoteToProject(
             const { error: itemsError } = await supabase.from("production_orders").insert(productionOrders);
             if (itemsError) {
                 console.error("[ventas] convertQuote items:", itemsError.message);
-                throw new Error("Error al crear las partidas del proyecto.");
+                return { success: false, error: { code: "NETWORK_ERROR" } };
             }
         }
 
@@ -743,39 +870,44 @@ export async function convertQuoteToProject(
             .eq("id", quoteId);
         if (updateError) {
             console.error("[ventas] convertQuote status:", updateError.message);
-            throw new Error("Error al actualizar el estatus de la cotización.");
+            return { success: false, error: { code: "NETWORK_ERROR" } };
         }
 
-        return { success: true, projectCode, projectId: project.id };
+        return { success: true, data: { projectCode, projectId: project.id } };
     } catch (e: any) {
         console.error("[ventas] convertQuoteToProject:", e.message);
-        return {
-            success: false,
-            error:
-                e.message?.startsWith("Error") ||
-                e.message?.includes("cotización") ||
-                e.message?.includes("cliente") ||
-                e.message?.includes("contacto")
-                    ? e.message
-                    : "Error al convertir la cotización a proyecto.",
-        };
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
 }
 
-export async function updateQuoteStatus(id: string, status: string) {
-    const parsed = QuoteStatusSchema.parse({ id, status });
+export async function updateQuoteStatus(id: string, status: string): Promise<ActionResult> {
+    const parsed = QuoteStatusSchema.safeParse({ id, status });
+    if (!parsed.success) {
+        return {
+            success: false,
+            error: { code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string> },
+        };
+    }
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    await requireRole(supabase, VENTAS_ROLES);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
 
-    const { error } = await supabase.from("sales_quotes").update({ status: parsed.status }).eq("id", parsed.id);
+    const { error } = await supabase
+        .from("sales_quotes")
+        .update({ status: parsed.data.status })
+        .eq("id", parsed.data.id);
 
     if (error) {
         console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
+        return { success: false, error: { code: "NETWORK_ERROR" } };
     }
-    return { success: true };
+    return { success: true, data: undefined };
 }
+
 export async function updateProject(
     id: string,
     data: {
@@ -788,30 +920,34 @@ export async function updateProject(
         requestor?: string;
         requestor_id?: string;
     }
-) {
-    try {
-        const parsedData = UpdateProjectSchema.safeParse({ id, ...data });
-        if (!parsedData.success) {
-            console.error("Validation error in updateProject:", parsedData.error);
-            return { success: false, error: "Datos del proyecto requeridos o inválidos." };
-        }
-
-        const cookieStore = await cookies();
-        const supabase = createClient(cookieStore);
-        await requireRole(supabase, VENTAS_ROLES);
-
-        const { id: validId, ...safeFields } = parsedData.data;
-        const { error } = await supabase.from("projects").update(safeFields).eq("id", validId);
-
-        if (error) {
-            console.error("[ventas]", error.message);
-            throw new Error("Error en la operación. Intenta de nuevo.");
-        }
-        return { success: true };
-    } catch (e: any) {
-        console.error("[ventas] updateProject:", e.message);
-        return { success: false, error: "Error al actualizar el proyecto." };
+): Promise<ActionResult> {
+    const parsedData = UpdateProjectSchema.safeParse({ id, ...data });
+    if (!parsedData.success) {
+        return {
+            success: false,
+            error: {
+                code: "VALIDATION_ERROR",
+                fields: parsedData.error.flatten().fieldErrors as Record<string, string>,
+            },
+        };
     }
+
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+
+    const { id: validId, ...safeFields } = parsedData.data;
+    const { error } = await supabase.from("projects").update(safeFields).eq("id", validId);
+
+    if (error) {
+        console.error("[ventas]", error.message);
+        return { success: false, error: { code: "NETWORK_ERROR" } };
+    }
+    return { success: true, data: undefined };
 }
 
 export async function updateProductionOrder(
@@ -830,28 +966,32 @@ export async function updateProductionOrder(
         render_url?: string | null;
         material_confirmation?: string | null;
     }
-) {
-    try {
-        const parsedData = UpdateProductionOrderSchema.safeParse({ id, ...data });
-        if (!parsedData.success) {
-            console.error("Validation error in updateProductionOrder:", parsedData.error);
-            return { success: false, error: "Datos de la partida requeridos o inválidos." };
-        }
-
-        const cookieStore = await cookies();
-        const supabase = createClient(cookieStore);
-        await requireRole(supabase, VENTAS_ROLES);
-
-        const { id: validId, ...safeFields } = parsedData.data;
-        const { error } = await supabase.from("production_orders").update(safeFields).eq("id", validId);
-
-        if (error) {
-            console.error("[ventas]", error.message);
-            throw new Error("Error en la operación. Intenta de nuevo.");
-        }
-        return { success: true };
-    } catch (e: any) {
-        console.error("[ventas] updateProductionOrder:", e.message);
-        return { success: false, error: "Error al actualizar la partida." };
+): Promise<ActionResult> {
+    const parsedData = UpdateProductionOrderSchema.safeParse({ id, ...data });
+    if (!parsedData.success) {
+        return {
+            success: false,
+            error: {
+                code: "VALIDATION_ERROR",
+                fields: parsedData.error.flatten().fieldErrors as Record<string, string>,
+            },
+        };
     }
+
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    try {
+        await requireRole(supabase, VENTAS_ROLES);
+    } catch {
+        return { success: false, error: { code: "PERMISSION_DENIED" } };
+    }
+
+    const { id: validId, ...safeFields } = parsedData.data;
+    const { error } = await supabase.from("production_orders").update(safeFields).eq("id", validId);
+
+    if (error) {
+        console.error("[ventas]", error.message);
+        return { success: false, error: { code: "NETWORK_ERROR" } };
+    }
+    return { success: true, data: undefined };
 }
