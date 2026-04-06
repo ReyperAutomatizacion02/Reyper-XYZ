@@ -29,6 +29,7 @@ import {
     rejectUser,
     updateUserRoles,
     migrateUserToPermissions,
+    migrateAllLegacyUsers,
     upsertEmployee,
     deleteEmployee,
     type Employee,
@@ -681,6 +682,23 @@ export function AdminPanelClient({
         });
     };
 
+    const handleMigrateAll = useCallback(() => {
+        startTransition(async () => {
+            try {
+                const { migrated } = await migrateAllLegacyUsers();
+                if (migrated === 0) {
+                    toast.info("No hay usuarios legacy pendientes de migrar.");
+                } else {
+                    toast.success(
+                        `${migrated} usuario${migrated === 1 ? "" : "s"} migrado${migrated === 1 ? "" : "s"} al sistema de permisos.`
+                    );
+                }
+            } catch (error: any) {
+                toast.error(error.message || "Error en la migración masiva.");
+            }
+        });
+    }, [startTransition]);
+
     const handleMigrate = useCallback(
         (userId: string) => {
             startTransition(async () => {
@@ -895,12 +913,33 @@ export function AdminPanelClient({
 
                     {/* Approved Users Section */}
                     <section className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Users className="h-5 w-5 text-primary" />
-                            <h2 className="text-lg font-semibold">Usuarios Activos</h2>
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                                {approvedUsers.length}
-                            </span>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-primary" />
+                                <h2 className="text-lg font-semibold">Usuarios Activos</h2>
+                                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                                    {approvedUsers.length}
+                                </span>
+                                {approvedUsers.some((u) => u.permissions === null) && (
+                                    <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                        {approvedUsers.filter((u) => u.permissions === null).length} Legacy
+                                    </span>
+                                )}
+                            </div>
+                            {approvedUsers.some((u) => u.permissions === null) && (
+                                <button
+                                    onClick={handleMigrateAll}
+                                    disabled={isPending}
+                                    className="flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-400/20 disabled:opacity-50 dark:text-amber-400"
+                                >
+                                    {isPending ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                        <GitMerge className="h-3 w-3" />
+                                    )}
+                                    Migrar Todos
+                                </button>
+                            )}
                         </div>
 
                         <div className="grid gap-4">

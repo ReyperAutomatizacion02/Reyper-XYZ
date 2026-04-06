@@ -13,6 +13,13 @@ import {
     UpsertWorkShiftSchema,
     DeleteWorkShiftSchema,
 } from "@/lib/validations/admin";
+import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/config/permissions";
+
+/** Derive default permissions from roles. Used as a safety net so permissions
+ *  is never saved as an empty array when roles are present. */
+function deriveDefaultPermissions(roles: string[]): string[] {
+    return Array.from(new Set(roles.flatMap((r) => ROLE_DEFAULT_PERMISSIONS[r] || [])));
+}
 
 const VALID_ROLES = [
     "admin",
@@ -57,12 +64,17 @@ export async function approveUser(userId: string, roles: string[], permissions: 
 
     await verifyAdmin(supabase, user.id);
 
+    // If no explicit permissions were provided, derive from roles so the new
+    // permissions system always has something to work with (never saves []).
+    const effectivePermissions =
+        parsed.permissions.length > 0 ? parsed.permissions : deriveDefaultPermissions(parsed.roles);
+
     const { error } = await supabase
         .from("user_profiles")
         .update({
             is_approved: true,
             roles: parsed.roles,
-            permissions: parsed.permissions,
+            permissions: effectivePermissions,
             operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
@@ -127,11 +139,15 @@ export async function updateUserRoles(
         }
     }
 
+    // Guard: never save empty permissions — derive from roles if needed.
+    const effectivePermissions =
+        parsed.permissions.length > 0 ? parsed.permissions : deriveDefaultPermissions(parsed.newRoles);
+
     const { error } = await supabase
         .from("user_profiles")
         .update({
             roles: [...parsed.newRoles],
-            permissions: parsed.permissions,
+            permissions: effectivePermissions,
             operator_name: parsed.operatorName || null,
             updated_at: new Date().toISOString(),
         })
@@ -181,6 +197,41 @@ export async function migrateUserToPermissions(userId: string) {
 
     revalidatePath("/dashboard/admin-panel");
     return { success: true, alreadyMigrated: false };
+}
+
+/** Bulk-migrate all approved users that still have permissions === null.
+ *  Returns the count of users migrated. */
+export async function migrateAllLegacyUsers(): Promise<{ migrated: number }> {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+    await verifyAdmin(supabase, user.id);
+
+    const { data: legacyUsers, error: fetchError } = await supabase
+        .from("user_profiles")
+        .select("id, roles")
+        .eq("is_approved", true)
+        .is("permissions", null);
+
+    if (fetchError) throw new Error("Error al obtener usuarios legacy");
+    if (!legacyUsers || legacyUsers.length === 0) return { migrated: 0 };
+
+    let migrated = 0;
+    for (const profile of legacyUsers) {
+        const defaultPermissions = deriveDefaultPermissions(profile.roles || []);
+        const { error } = await supabase
+            .from("user_profiles")
+            .update({ permissions: defaultPermissions, updated_at: new Date().toISOString() })
+            .eq("id", profile.id);
+        if (!error) migrated++;
+    }
+
+    revalidatePath("/dashboard/admin-panel");
+    return { migrated };
 }
 
 export async function getPendingUsers() {

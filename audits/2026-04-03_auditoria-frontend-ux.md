@@ -703,12 +703,50 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Badge "Legacy" (ámbar) si `permissions === null`; badge "Permisos" (verde) si tiene permisos explícitos
     - [x] Botón "Migrar" visible solo en usuarios Legacy — llama a `migrateUserToPermissions()` server action
     - [x] `migrateUserToPermissions` en `actions.ts`: deriva `defaultPermissions` desde `ROLE_DEFAULT_PERMISSIONS[roles]` y hace upsert; no sobreescribe si ya tiene permisos
-- [ ] **[M4]** Completar migración del sistema dual roles → permisos
+- [x] **[M4]** Completar migración del sistema dual roles → permisos — 2026-04-06
+    - [x] `approveUser`: si `permissions[]` vacío, deriva defaults de roles — nuevos usuarios nunca entran en legacy
+    - [x] `updateUserRoles`: mismo guard — editar roles nunca vacía permisos accidentalmente
+    - [x] `migrateAllLegacyUsers()` bulk action — itera usuarios con `permissions IS NULL` y asigna defaults
+    - [x] Botón "Migrar Todos" en header de Usuarios Activos (visible solo si hay legacy); contador "X Legacy" en el header
+    - **Nota:** Los fallbacks en `middleware.ts` y `auth-guard.ts` se mantienen hasta confirmar que todos los usuarios tienen permisos (ejecutar "Migrar Todos" desde admin)
+
+### 🟡 Medios pendientes
+
+- [ ] **[B1]** Inline field errors en formularios — UX/Flujo Medio
+    - [ ] Reemplazar `toast.error` genérico en formularios con errores inline por campo cuando `ActionError.code === "VALIDATION_ERROR"`
+    - [ ] Implementar en formularios clave: cotizador (`cotizador/page.tsx`), nuevo proyecto (`project-form.tsx`), modales de cliente/contacto
+    - [ ] Usar `aria-describedby` en los inputs asociados al mensaje de error (propuesta de A1)
+
+- [ ] **[B2]** "Guardado / Error" status indicator en preferencias — Rendimiento visual Medio
+    - [ ] Añadir estado `savingState: "idle" | "saving" | "saved" | "error"` en `useUserPreferences`
+    - [ ] Mostrar indicador sutil junto al toggle del sidebar: "Guardado ✓" por 2s tras éxito, "Error al guardar ⚠" si falla (propuesta de M1)
+
+### 🔵 Bajos pendientes
+
+- [ ] **[B3]** `role="alert"` en mensajes de error de auth — Accesibilidad Bajo
+    - [ ] Añadir `role="alert"` al `<p>` de error en `app/login/page.tsx`, `app/register/page.tsx`, `app/forgot-password/page.tsx` (propuesta de A4)
+    - [ ] Añadir `aria-describedby` en los inputs vinculados al mensaje de error
+
+- [ ] **[B4]** Tabla alternativa para screen readers en Gantt SVG — Accesibilidad Bajo
+    - [ ] Añadir `<foreignObject width="1" height="1">` con `<table aria-hidden="false">` dentro del SVG listando las tareas visibles (propuesta de A2)
+    - [ ] Solo renderizar las tareas en el viewport actual para no penalizar performance
+
+- [ ] **[B5]** Progress indicator en wizard de evaluación — UX/Flujo Bajo
+    - [ ] Añadir indicador de pasos visibles en `EvaluationFormHeader.tsx`: "Paso 2 de 5 — Máquina CNC-02" (propuesta de C3)
+    - [ ] Mostrar barra de progreso horizontal sobre los steps del formulario
+
+- [ ] **[B6]** Eliminar fallbacks legacy de middleware.ts + auth-guard.ts — Mantenibilidad Bajo
+    - [ ] Prerequisito: ejecutar "Migrar Todos" y confirmar que ningún usuario tiene `permissions === null`
+    - [ ] Eliminar bloque `else { // Legacy: verificación por roles }` en `middleware.ts` (líneas 84–102)
+    - [ ] Eliminar bloque `else { // Fallback: derivar permisos desde los roles }` en `lib/auth-guard.ts` (líneas 104–108)
+    - [ ] Eliminar `ROLE_ROUTE_ACCESS` import de `middleware.ts` si queda sin uso
 
 ### Estado de resolución
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 11       | 61.1%      |
+| ✅ Resuelto    | 12       | 66.7%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 7        | 38.9%      |
+| ⏳ Pendiente   | 6        | 33.3%      |
+
+**Desglose de pendientes:** B1 (Medio), B2 (Medio), B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)
