@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { type Json } from "@/utils/supabase/types";
+
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
 
 // Default preferences structure
 export interface UserPreferences {
@@ -40,39 +44,59 @@ export function useUserPreferences() {
     const supabase = createClient();
     const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-    // Load preferences on mount
+    // Load preferences on mount (with retry)
     useEffect(() => {
+        let cancelled = false;
+
         const loadPreferences = async () => {
-            try {
-                const {
-                    data: { user },
-                } = await supabase.auth.getUser();
-                if (!user) {
-                    setIsLoading(false);
-                    return;
-                }
+            const {
+                data: { user },
+            } = await supabase.auth.getUser();
+            if (cancelled) return;
+            if (!user) {
+                setIsLoading(false);
+                return;
+            }
 
-                setUserId(user.id);
+            setUserId(user.id);
 
+            let lastError: unknown = null;
+            for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
                 const { data, error } = await supabase
                     .from("user_profiles")
                     .select("preferences")
                     .eq("id", user.id)
                     .single();
 
-                if (error) {
-                    console.error("Error loading preferences:", error);
-                } else {
+                if (cancelled) return;
+
+                if (!error) {
                     setPreferences((data?.preferences as UserPreferences) || {});
+                    setIsLoading(false);
+                    return;
                 }
-            } catch (err) {
-                console.error("Failed to load user preferences:", err);
-            } finally {
-                setIsLoading(false);
+
+                lastError = error;
+                if (attempt < RETRY_ATTEMPTS) {
+                    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+                }
             }
+
+            console.error("Failed to load user preferences after retries:", lastError);
+            toast.error("No se pudieron cargar las preferencias. Algunas configuraciones pueden no estar disponibles.");
+            setIsLoading(false);
         };
 
-        loadPreferences();
+        loadPreferences().catch((err) => {
+            if (!cancelled) {
+                console.error("Unexpected error loading preferences:", err);
+                setIsLoading(false);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [supabase]);
 
     // Save preferences to database (debounced)
@@ -95,9 +119,11 @@ export function useUserPreferences() {
 
                     if (error) {
                         console.error("Error saving preferences:", error);
+                        toast.error("No se pudieron guardar las preferencias.");
                     }
                 } catch (err) {
                     console.error("Failed to save preferences:", err);
+                    toast.error("No se pudieron guardar las preferencias.");
                 }
             }, DEBOUNCE_MS);
         },

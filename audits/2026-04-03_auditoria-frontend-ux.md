@@ -691,7 +691,9 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ### 🟢 Medios / Bajos
 
-- [ ] **[M1]** `useUserPreferences` — retry logic + toast de error
+- [x] **[M1]** `useUserPreferences` — retry logic + toast de error — 2026-04-06
+    - [x] Load: retry hasta 3× con backoff lineal (1s, 2s), `toast.error` si todos los intentos fallan, cleanup de `cancelled` para evitar setState tras unmount
+    - [x] Save: `toast.error` en fallo de upsert
 - [ ] **[M2]** Landing page — jerarquía visual (hero → CTA → features)
 - [ ] **[M3]** Admin panel — badge "Legacy / Permisos" por usuario + botón "Migrar"
 - [ ] **[M4]** Completar migración del sistema dual roles → permisos
@@ -700,6 +702,6 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 8        | 44.4%      |
+| ✅ Resuelto    | 9        | 50.0%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 10       | 55.6%      |
+| ⏳ Pendiente   | 9        | 50.0%      |
