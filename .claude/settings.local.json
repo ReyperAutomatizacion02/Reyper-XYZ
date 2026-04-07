@@ -27,7 +27,9 @@
             "Bash(ls -1 components/*.tsx)",
             "Bash(ls -1 components/ui/*.tsx)",
             "Bash(ls -1 components/production/*.tsx components/sales/*.tsx components/shared/*.tsx)",
-            "Bash(ls instrumentation*)"
+            "Bash(ls instrumentation*)",
+            "Bash(xargs grep:*)",
+            "Bash(xargs cat:*)"
         ]
     }
 }

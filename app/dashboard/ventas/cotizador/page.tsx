@@ -670,7 +670,7 @@ function QuoteGeneratorContent() {
 
     const handleSave = async () => {
         if (validationErrors.length > 0) {
-            toast.error("Por favor completa todos los campos requeridos antes de guardar.");
+            document.getElementById("quote-totals-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return;
         }
 

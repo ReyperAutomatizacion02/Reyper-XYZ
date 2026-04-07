@@ -273,6 +273,7 @@ export function ProjectForm({
     const [showPreview, setShowPreview] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<Map<string, File>>(new Map());
     const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     // Viewer State
     const [viewerUrl, setViewerUrl] = useState<string | null>(null);
@@ -784,18 +785,15 @@ export function ProjectForm({
         }
 
         // Validation
-        if (!deliveryDate) {
-            toast.error("La fecha de entrega es obligatoria.");
+        const errors: Record<string, string> = {};
+        if (!deliveryDate) errors.deliveryDate = "La fecha de entrega es obligatoria.";
+        if (!selectedClient) errors.selectedClient = "Debe seleccionar un cliente.";
+        if (!projectName) errors.projectName = "El nombre del proyecto es obligatorio.";
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
-        if (!selectedClient) {
-            toast.error("Debe seleccionar un cliente.");
-            return;
-        }
-        if (!projectName) {
-            toast.error("El nombre del proyecto es obligatorio.");
-            return;
-        }
+        setFieldErrors({});
 
         setLoading(true);
         try {
@@ -1004,11 +1002,19 @@ export function ProjectForm({
                                     <SearchableSelect
                                         options={clientList.map((c) => ({ label: c.name, value: c.id }))}
                                         value={selectedClient}
-                                        onChange={handleClientChange}
+                                        onChange={(v) => {
+                                            handleClientChange(v);
+                                            setFieldErrors((prev) => ({ ...prev, selectedClient: "" }));
+                                        }}
                                         onCreate={handleCreateClient}
                                         placeholder="Seleccionar o crear..."
-                                        className="w-full"
+                                        className={`w-full ${fieldErrors.selectedClient ? "ring-1 ring-destructive" : ""}`}
                                     />
+                                    {fieldErrors.selectedClient && (
+                                        <p role="alert" className="text-xs text-destructive">
+                                            {fieldErrors.selectedClient}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* User / Requestor */}
@@ -1039,12 +1045,20 @@ export function ProjectForm({
                                 </div>
 
                                 {/* Date Delivery - Always visible, not part of first ghost highlight */}
-                                <div id="project-date-delivery" className="z-10">
+                                <div id="project-date-delivery" className="z-10 space-y-1">
                                     <DateSelector
                                         label="Fecha de Entrega"
                                         date={deliveryDate}
-                                        onSelect={setDeliveryDate}
+                                        onSelect={(d) => {
+                                            setDeliveryDate(d);
+                                            setFieldErrors((prev) => ({ ...prev, deliveryDate: "" }));
+                                        }}
                                     />
+                                    {fieldErrors.deliveryDate && (
+                                        <p role="alert" className="text-xs text-destructive">
+                                            {fieldErrors.deliveryDate}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1055,15 +1069,29 @@ export function ProjectForm({
                             id="project-identity-input"
                         >
                             <div className="space-y-2.5 md:col-span-3" id="project-info-section">
-                                <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                <Label
+                                    htmlFor="project-name-input"
+                                    className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
                                     Nombre del Proyecto
                                 </Label>
                                 <Input
+                                    id="project-name-input"
                                     placeholder="Ej. Fabricación de Estructura Principal..."
                                     value={projectName}
-                                    onChange={(e) => setProjectName(e.target.value)}
-                                    className="h-10 border-border bg-muted/50 shadow-sm transition-all hover:bg-card focus:border-primary/50"
+                                    onChange={(e) => {
+                                        setProjectName(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, projectName: "" }));
+                                    }}
+                                    className={`h-10 border-border bg-muted/50 shadow-sm transition-all hover:bg-card focus:border-primary/50 ${fieldErrors.projectName ? "border-destructive" : ""}`}
+                                    aria-describedby={fieldErrors.projectName ? "project-name-error" : undefined}
+                                    aria-invalid={!!fieldErrors.projectName}
                                 />
+                                {fieldErrors.projectName && (
+                                    <p id="project-name-error" role="alert" className="text-xs text-destructive">
+                                        {fieldErrors.projectName}
+                                    </p>
+                                )}
                             </div>
                             <div className="space-y-2.5 md:col-span-1" id="project-items-count">
                                 <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

@@ -36,6 +36,7 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentClient, setCurrentClient] = useState<Client | null>(null); // null = new
     const [isLoading, setIsLoading] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     // Form inputs
     const [name, setName] = useState("");
@@ -110,6 +111,7 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
         setPrefix("");
         setBusinessName("");
         setIsActive(true);
+        setFieldErrors({});
         setIsModalOpen(true);
     };
 
@@ -119,13 +121,18 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
         setPrefix(client.prefix || "");
         setBusinessName(client.business_name || "");
         setIsActive(client.is_active !== false); // Default to true if undefined
+        setFieldErrors({});
         setIsModalOpen(true);
     };
 
     const handleSave = async () => {
-        if (!name.trim()) return toast.warning("El nombre es requerido");
+        if (!name.trim()) {
+            setFieldErrors({ name: "El nombre es requerido" });
+            return;
+        }
 
         setIsLoading(true);
+        setFieldErrors({});
         try {
             if (currentClient) {
                 const result = await updateClientEntry(currentClient.id, name, prefix, businessName, isActive);
@@ -140,6 +147,12 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     toast.success("Cliente actualizado");
                     router.refresh();
                     setIsModalOpen(false);
+                } else if (result.error.code === "VALIDATION_ERROR") {
+                    const mapped: Record<string, string> = {};
+                    for (const [field, msgs] of Object.entries(result.error.fields)) {
+                        mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+                    }
+                    setFieldErrors(mapped);
                 } else {
                     toast.error(getErrorMessage(result.error));
                 }
@@ -153,6 +166,12 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     toast.success("Cliente creado");
                     router.refresh();
                     setIsModalOpen(false);
+                } else if (result.error.code === "VALIDATION_ERROR") {
+                    const mapped: Record<string, string> = {};
+                    for (const [field, msgs] of Object.entries(result.error.fields)) {
+                        mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+                    }
+                    setFieldErrors(mapped);
                 } else {
                     toast.error(getErrorMessage(result.error));
                 }
@@ -317,20 +336,44 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Nombre de la Empresa (Corto)</Label>
+                            <Label htmlFor="client-name">Nombre de la Empresa (Corto)</Label>
                             <Input
+                                id="client-name"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => {
+                                    setName(e.target.value);
+                                    setFieldErrors((prev) => ({ ...prev, name: "" }));
+                                }}
                                 placeholder="Ej. Reyper CNC"
+                                aria-describedby={fieldErrors.name ? "client-name-error" : undefined}
+                                aria-invalid={!!fieldErrors.name}
+                                className={fieldErrors.name ? "border-destructive" : undefined}
                             />
+                            {fieldErrors.name && (
+                                <p id="client-name-error" role="alert" className="text-xs text-destructive">
+                                    {fieldErrors.name}
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <Label>Razón Social (Facturación)</Label>
+                            <Label htmlFor="client-business-name">Razón Social (Facturación)</Label>
                             <Input
+                                id="client-business-name"
                                 value={businessName}
-                                onChange={(e) => setBusinessName(e.target.value)}
+                                onChange={(e) => {
+                                    setBusinessName(e.target.value);
+                                    setFieldErrors((prev) => ({ ...prev, business_name: "" }));
+                                }}
                                 placeholder="Ej. Reyper CNC S.A. de C.V."
+                                aria-describedby={fieldErrors.business_name ? "client-business-name-error" : undefined}
+                                aria-invalid={!!fieldErrors.business_name}
+                                className={fieldErrors.business_name ? "border-destructive" : undefined}
                             />
+                            {fieldErrors.business_name && (
+                                <p id="client-business-name-error" role="alert" className="text-xs text-destructive">
+                                    {fieldErrors.business_name}
+                                </p>
+                            )}
                         </div>
                         <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
                             <div className="space-y-0.5">
@@ -340,16 +383,29 @@ export function ClientManager({ initialClients }: { initialClients: Client[] }) 
                             <Switch checked={isActive} onCheckedChange={setIsActive} />
                         </div>
                         <div className="space-y-2">
-                            <Label>Prefijo (para proyectos)</Label>
+                            <Label htmlFor="client-prefix">Prefijo (para proyectos)</Label>
                             <Input
+                                id="client-prefix"
                                 value={prefix}
-                                onChange={(e) => setPrefix(e.target.value.toUpperCase())}
+                                onChange={(e) => {
+                                    setPrefix(e.target.value.toUpperCase());
+                                    setFieldErrors((prev) => ({ ...prev, prefix: "" }));
+                                }}
                                 placeholder="Ej. RYP"
                                 maxLength={5}
+                                aria-describedby={fieldErrors.prefix ? "client-prefix-error" : "client-prefix-hint"}
+                                aria-invalid={!!fieldErrors.prefix}
+                                className={fieldErrors.prefix ? "border-destructive" : undefined}
                             />
-                            <p className="text-xs text-muted-foreground">
-                                Opcional. Se usa para generar códigos de proyecto automáticos.
-                            </p>
+                            {fieldErrors.prefix ? (
+                                <p id="client-prefix-error" role="alert" className="text-xs text-destructive">
+                                    {fieldErrors.prefix}
+                                </p>
+                            ) : (
+                                <p id="client-prefix-hint" className="text-xs text-muted-foreground">
+                                    Opcional. Se usa para generar códigos de proyecto automáticos.
+                                </p>
+                            )}
                         </div>
                     </div>
                     <DialogFooter>

@@ -712,10 +712,10 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ### 🟡 Medios pendientes
 
-- [ ] **[B1]** Inline field errors en formularios — UX/Flujo Medio
-    - [ ] Reemplazar `toast.error` genérico en formularios con errores inline por campo cuando `ActionError.code === "VALIDATION_ERROR"`
-    - [ ] Implementar en formularios clave: cotizador (`cotizador/page.tsx`), nuevo proyecto (`project-form.tsx`), modales de cliente/contacto
-    - [ ] Usar `aria-describedby` en los inputs asociados al mensaje de error (propuesta de A1)
+- [x] **[B1]** Inline field errors en formularios — UX/Flujo Medio — 2026-04-07
+    - [x] Reemplazar `toast.error` genérico en formularios con errores inline por campo cuando `ActionError.code === "VALIDATION_ERROR"`
+    - [x] Implementar en formularios clave: cotizador (`cotizador/page.tsx`), nuevo proyecto (`project-form.tsx`), modales de cliente/contacto
+    - [x] Usar `aria-describedby` en los inputs asociados al mensaje de error (propuesta de A1)
 
 - [ ] **[B2]** "Guardado / Error" status indicator en preferencias — Rendimiento visual Medio
     - [ ] Añadir estado `savingState: "idle" | "saving" | "saved" | "error"` en `useUserPreferences`
@@ -745,8 +745,8 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 12       | 66.7%      |
+| ✅ Resuelto    | 13       | 72.2%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 6        | 33.3%      |
+| ⏳ Pendiente   | 5        | 27.8%      |
 
-**Desglose de pendientes:** B1 (Medio), B2 (Medio), B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)
+**Desglose de pendientes:** B2 (Medio), B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)

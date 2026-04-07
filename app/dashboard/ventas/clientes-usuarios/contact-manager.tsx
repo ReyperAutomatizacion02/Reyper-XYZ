@@ -42,6 +42,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentContact, setCurrentContact] = useState<Contact | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     // Form inputs
     const [names, setNames] = useState<string[]>([""]); // Array for batch creation
@@ -102,6 +103,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
         setNames([""]); // Start with one empty field
         setClientId("no_client");
         setIsActive(true);
+        setFieldErrors({});
         setIsModalOpen(true);
     };
 
@@ -110,6 +112,7 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
         setNames([contact.name]); // Single name for editing
         setClientId(contact.client_id || "no_client");
         setIsActive(contact.is_active !== false); // Default to true
+        setFieldErrors({});
         setIsModalOpen(true);
     };
 
@@ -129,11 +132,15 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
 
     const handleSave = async () => {
         const validNames = names.filter((n) => n.trim() !== "");
-        if (validNames.length === 0) return toast.warning("Debes ingresar al menos un nombre");
+        if (validNames.length === 0) {
+            setFieldErrors({ name: "Debes ingresar al menos un nombre" });
+            return;
+        }
 
         const clientToSave = clientId === "no_client" ? undefined : clientId;
 
         setIsLoading(true);
+        setFieldErrors({});
         try {
             if (currentContact) {
                 const result = await updateContactEntry(currentContact.id, validNames[0], clientToSave, isActive);
@@ -148,6 +155,12 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                     toast.success("Usuario actualizado");
                     router.refresh();
                     setIsModalOpen(false);
+                } else if (result.error.code === "VALIDATION_ERROR") {
+                    const mapped: Record<string, string> = {};
+                    for (const [field, msgs] of Object.entries(result.error.fields)) {
+                        mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+                    }
+                    setFieldErrors(mapped);
                 } else {
                     toast.error(getErrorMessage(result.error));
                 }
@@ -157,6 +170,12 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                     toast.success(`${validNames.length} usuario(s) creado(s)`);
                     router.refresh();
                     setIsModalOpen(false);
+                } else if (result.error.code === "VALIDATION_ERROR") {
+                    const mapped: Record<string, string> = {};
+                    for (const [field, msgs] of Object.entries(result.error.fields)) {
+                        mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+                    }
+                    setFieldErrors(mapped);
                 } else {
                     toast.error(getErrorMessage(result.error));
                 }
@@ -305,15 +324,24 @@ export function ContactManager({ initialContacts, clients }: { initialContacts: 
                         <div className="space-y-4">
                             <div className="space-y-3">
                                 <Label>Nombre(s) de Usuario</Label>
+                                {fieldErrors.name && (
+                                    <p role="alert" className="text-xs text-destructive">
+                                        {fieldErrors.name}
+                                    </p>
+                                )}
                                 <div className="space-y-3">
                                     {names.map((n, index) => (
                                         <div key={index} className="flex items-center gap-2">
                                             <Input
                                                 value={n}
-                                                onChange={(e) => handleNameChange(index, e.target.value)}
+                                                onChange={(e) => {
+                                                    handleNameChange(index, e.target.value);
+                                                    setFieldErrors((prev) => ({ ...prev, name: "" }));
+                                                }}
                                                 placeholder={`Nombre del usuario #${index + 1}`}
-                                                className="flex-1"
+                                                className={`flex-1 ${fieldErrors.name ? "border-destructive" : ""}`}
                                                 autoFocus={index === names.length - 1 && index > 0}
+                                                aria-invalid={!!fieldErrors.name}
                                             />
                                             {!currentContact && names.length > 1 && (
                                                 <Button
