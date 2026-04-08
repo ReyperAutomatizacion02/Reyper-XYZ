@@ -56,32 +56,25 @@ export default function LandingPage() {
 
             <main className="flex-1">
                 {/* ── Hero ───────────────────────────────────────────── */}
-                <section className="mx-auto flex min-h-[70vh] w-full max-w-4xl flex-col items-center justify-center px-6 py-20 text-center">
+                <section className="mx-auto flex min-h-[70vh] w-full max-w-7xl items-center justify-between gap-12 px-6 py-20">
+                    {/* Left — text */}
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ opacity: 0, x: -24 }}
+                        animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="space-y-8"
+                        className="flex flex-1 flex-col gap-8"
                     >
-                        <LogoShort className="mx-auto h-20 w-auto md:h-28" />
-
-                        <div className="inline-block rounded-full border border-secondary/20 bg-secondary/10 px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                            🚀 Versión 2.0 Desplegada
-                        </div>
-
                         <h1 className="text-5xl font-black leading-[1.1] tracking-tight md:text-7xl lg:text-8xl">
                             Gestión Integral <br />
-                            <span className="bg-gradient-to-r from-primary via-red-500 to-orange-500 bg-clip-text text-transparent">
-                                Maquinados CNC
-                            </span>
+                            <span className="text-primary">Maquinados CNC</span>
                         </h1>
 
-                        <p className="mx-auto max-w-2xl text-xl font-light leading-relaxed text-muted-foreground md:text-2xl">
+                        <p className="max-w-xl text-xl font-light leading-relaxed text-muted-foreground md:text-2xl">
                             Optimiza producción, ventas y administración con la plataforma definitiva para la industria
                             moderna.
                         </p>
 
-                        <div className="flex flex-col items-center justify-center gap-4 pt-4 sm:flex-row">
+                        <div className="flex flex-wrap gap-4">
                             <Link
                                 href="/login"
                                 className="group flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-lg font-bold text-background shadow-2xl transition-all hover:-translate-y-1 hover:opacity-90"
@@ -96,6 +89,16 @@ export default function LandingPage() {
                                 Crear Cuenta
                             </Link>
                         </div>
+                    </motion.div>
+
+                    {/* Right — logo */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 24 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                        className="hidden shrink-0 lg:block"
+                    >
+                        <LogoShort className="h-72 w-auto xl:h-80" />
                     </motion.div>
                 </section>
 

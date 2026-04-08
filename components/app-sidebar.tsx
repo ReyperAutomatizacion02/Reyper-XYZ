@@ -146,22 +146,20 @@ export function AppSidebar() {
                     isMobileOpen ? "w-[280px] translate-x-0" : "-translate-x-full lg:translate-x-0"
                 )}
             >
-                <div className="flex h-16 shrink-0 items-center justify-between border-b border-navbar-border bg-sidebar-bg px-4">
-                    <div
-                        id="sidebar-logo"
-                        className={cn(
-                            "overflow-hidden transition-all duration-300",
-                            isCollapsed ? "lg:w-9 lg:opacity-100" : "w-36"
-                        )}
-                    >
-                        {isCollapsed ? (
-                            <LogoShort className="h-9 w-9 object-contain" />
-                        ) : (
+                <div
+                    className={cn(
+                        "flex h-16 shrink-0 items-center border-b border-navbar-border bg-sidebar-bg px-3 transition-all duration-300",
+                        isCollapsed ? "justify-center" : "justify-between px-4"
+                    )}
+                >
+                    {/* Logo — hidden when collapsed on desktop */}
+                    {!isCollapsed && (
+                        <div id="sidebar-logo" className="overflow-hidden">
                             <LogoLarge className="h-9 w-auto" />
-                        )}
-                    </div>
+                        </div>
+                    )}
 
-                    <div className="flex items-center gap-1">
+                    <div className={cn("flex items-center gap-1", isCollapsed && "lg:w-full lg:justify-center")}>
                         {/* Saving state indicator — desktop only, hidden when collapsed */}
                         {!isCollapsed && savingState !== "idle" && (
                             <span
