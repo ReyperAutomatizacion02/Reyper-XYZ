@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
-import { FlaskConical, Trash2, Wrench } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronDown, FlaskConical, Trash2, Wrench } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { EvaluationStep, MachineStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { cn } from "@/lib/utils";
 
 interface EvaluationStepRowProps {
     step: EvaluationStep;
@@ -105,6 +107,33 @@ function HourMinuteInput({
     );
 }
 
+function BreakdownRow({
+    color,
+    label,
+    sub,
+    value,
+}: {
+    color: "sky" | "violet" | "emerald";
+    label: string;
+    sub: string;
+    value: string;
+}) {
+    const cls = {
+        sky: "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400",
+        violet: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400",
+        emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+    }[color];
+    return (
+        <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+                <span className={`rounded px-1 py-0.5 text-[8px] font-black uppercase ${cls}`}>{label}</span>
+                <span className="text-[8px] text-muted-foreground/60">{sub}</span>
+            </div>
+            <span className="text-[10px] font-bold tabular-nums text-foreground/70">{value}</span>
+        </div>
+    );
+}
+
 /** Formats fractional hours as "Xh Ym" for display. */
 export function formatHours(hours: number): string {
     if (hours <= 0) return "—";
@@ -127,9 +156,15 @@ export function EvaluationStepRow({
     onUpdateDays,
     onRemove,
 }: EvaluationStepRowProps) {
+    const [showBreakdown, setShowBreakdown] = useState(false);
+
     const isTreatment = isTreatmentStep(step);
     const isMultiPiece = quantity > 1;
     const hasMachine = !isTreatment && !!step.machine;
+
+    const ms = step as MachineStep;
+    const isNewFormat = !isTreatment && ms.machining_time !== undefined;
+    const hasTotal = !isTreatment && ms.hours > 0;
 
     return (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm">
@@ -259,15 +294,73 @@ export function EvaluationStepRow({
                                 })}
                             </div>
 
-                            {/* Step total */}
-                            <div className="mt-2 flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
+                            {/* Step total + breakdown toggle */}
+                            <div
+                                className={cn(
+                                    "mt-2 flex items-center justify-between rounded-md px-2.5 py-1.5",
+                                    isNewFormat && hasTotal
+                                        ? "cursor-pointer bg-muted/40 transition-colors hover:bg-muted/60"
+                                        : "bg-muted/40"
+                                )}
+                                onClick={() => isNewFormat && hasTotal && setShowBreakdown((v) => !v)}
+                            >
                                 <span className="text-[9px] text-muted-foreground">
                                     {isMultiPiece ? `${quantity} piezas` : "1 pieza"}
                                 </span>
-                                <span className="text-[11px] font-black tabular-nums text-foreground/80">
-                                    {formatHours(step.hours)}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-black tabular-nums text-foreground/80">
+                                        {formatHours(ms.hours)}
+                                    </span>
+                                    {isNewFormat && hasTotal && (
+                                        <ChevronDown
+                                            className={cn(
+                                                "h-3 w-3 text-muted-foreground transition-transform duration-200",
+                                                showBreakdown && "rotate-180"
+                                            )}
+                                        />
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Collapsible breakdown */}
+                            <AnimatePresence initial={false}>
+                                {showBreakdown && isNewFormat && hasTotal && (
+                                    <motion.div
+                                        key="breakdown"
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="mt-1.5 space-y-1 rounded-md border border-border/30 bg-background px-2.5 py-2">
+                                            <p className="mb-1 text-[8px] font-black uppercase tracking-wider text-muted-foreground">
+                                                Desglose
+                                            </p>
+                                            <BreakdownRow
+                                                color="sky"
+                                                label="Set Up Inicial"
+                                                sub="× 1"
+                                                value={formatHours(ms.setup_time ?? 0)}
+                                            />
+                                            {isMultiPiece && (
+                                                <BreakdownRow
+                                                    color="violet"
+                                                    label="Set Up / cambio"
+                                                    sub={`× ${quantity - 1}`}
+                                                    value={formatHours((ms.piece_change_time ?? 0) * (quantity - 1))}
+                                                />
+                                            )}
+                                            <BreakdownRow
+                                                color="emerald"
+                                                label="Maquinado"
+                                                sub={`× ${quantity}`}
+                                                value={formatHours((ms.machining_time ?? 0) * quantity)}
+                                            />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </>
                     )}
                 </div>
