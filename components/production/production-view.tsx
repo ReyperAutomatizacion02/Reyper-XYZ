@@ -90,6 +90,7 @@ export function ProductionView({
         isLoading: settings.prefsLoading,
         getEvalPrefs: settings.getEvalPrefs,
         updateEvalPref: settings.updateEvalPref,
+        updateEvalPrefNow: settings.updateEvalPrefNow,
     });
 
     // --- Simple UI state (intentionally kept local — no domain logic) ---
@@ -381,6 +382,7 @@ export function ProductionView({
         availableProjects,
         projectFilter: settings.projectFilter,
         onProjectFilterChange: settings.handleProjectFilterChange,
+        onClearGanttFilters: settings.clearGanttFilters,
         zoomLevel: settings.zoomLevel,
         onZoomChange: settings.handleZoomChange,
         isFullscreen,
@@ -419,6 +421,7 @@ export function ProductionView({
                 planningAlerts={planningAlerts}
                 onLocateTask={locateTask}
                 liveDraftResult={strategy.liveDraftResult as SchedulingResult | null}
+                orders={strategy.localOrders as OrderWithRelations[]}
                 onSaveAllPlanning={taskState.handleSaveAllPlanning}
                 isEvalListOpen={isEvalListOpen}
                 onToggleEvalList={() => setIsEvalListOpen(!isEvalListOpen)}

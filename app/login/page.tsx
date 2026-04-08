@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { ArrowLeft } from "lucide-react";
 import { GoogleSignIn } from "@/components/google-sign-in";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 
 export default function LoginPage() {
     const [state, action] = useActionState(login, null);
@@ -33,11 +34,14 @@ export default function LoginPage() {
 
             <div className="z-10 w-full max-w-md duration-500 animate-in fade-in zoom-in-95">
                 <div className="glass-card rounded-3xl border-border/50 p-8 sm:p-10">
-                    <div className="mb-8 flex flex-col gap-2 text-center">
-                        <h1 className="text-3xl font-bold tracking-tight">Bienvenido</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Ingresa tus credenciales para acceder al sistema.
-                        </p>
+                    <div className="mb-8 flex flex-col items-center gap-4 text-center">
+                        <Logo className="h-16 w-auto" />
+                        <div className="flex flex-col gap-1">
+                            <h1 className="text-3xl font-bold tracking-tight">Bienvenido</h1>
+                            <p className="text-sm text-muted-foreground">
+                                Ingresa tus credenciales para acceder al sistema.
+                            </p>
+                        </div>
                     </div>
 
                     <form className="flex flex-col gap-4" action={action}>

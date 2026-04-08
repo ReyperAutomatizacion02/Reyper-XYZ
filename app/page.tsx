@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, BarChart2, Cpu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { motion } from "framer-motion";
+import { LogoShort, LogoLarge } from "@/components/logo";
 
 const FEATURES = [
     {
@@ -34,9 +35,7 @@ export default function LandingPage() {
 
             {/* ── Header ─────────────────────────────────────────────── */}
             <header className="z-50 mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6 md:py-6">
-                <span className="text-xl font-bold tracking-tight md:text-2xl">
-                    Reyper<span className="text-primary">XYZ</span>
-                </span>
+                <LogoLarge className="h-8 w-auto md:h-10" />
                 <div className="flex items-center gap-3">
                     <ThemeToggle />
                     {/* On mobile, show a compact login link instead of hamburger menu */}
@@ -64,6 +63,8 @@ export default function LandingPage() {
                         transition={{ duration: 0.5 }}
                         className="space-y-8"
                     >
+                        <LogoShort className="mx-auto h-20 w-auto md:h-28" />
+
                         <div className="inline-block rounded-full border border-secondary/20 bg-secondary/10 px-3 py-1 text-xs font-semibold text-secondary-foreground">
                             🚀 Versión 2.0 Desplegada
                         </div>
@@ -124,7 +125,7 @@ export default function LandingPage() {
             {/* ── Footer ─────────────────────────────────────────────── */}
             <footer className="border-t border-border/40 py-8 text-center text-sm text-muted-foreground">
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
-                    <p>© {new Date().getFullYear()} Reyper XYZ. Construido para el futuro.</p>
+                    <p>© {new Date().getFullYear()} XYZ RYXZA. Construido para el futuro.</p>
                     <div className="flex gap-4">
                         <Link href="#" className="transition-colors hover:text-primary">
                             Términos

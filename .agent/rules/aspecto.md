@@ -3,7 +3,8 @@ trigger: always_on
 ---
 
 La plataforma debe contener:
-- Nombre: Reyper XYZ.
+
+- Nombre: XYZ RYXZA.
 - Landing Page.
 - Modo Claro / Oscuro.
 - Agregar animaciones a diferentes componentes.
@@ -12,10 +13,12 @@ La plataforma debe contener:
 - Dashboard principal con todas las áreas.
 
 Control de usuarios:
+
 - Formulario de Registro. (Nombre Completo, Correo Electrónico, Usuario, Contraseña y Confirmar Contraseña)
 - Formulario de Inicio. (Usuario o Correo Eléctronico y Contraseña)
 - Formulario para Recuperación de Contraseña. (Correo Electrónico)
 
 Tonos principales:
+
 - #EC1C21 (rojo)
 - #676161 (gris)

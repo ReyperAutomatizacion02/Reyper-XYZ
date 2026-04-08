@@ -29,6 +29,7 @@ import {
     AlertTriangle,
     Loader2,
 } from "lucide-react";
+import { LogoLarge, LogoShort } from "@/components/logo";
 import { ROLE_ROUTE_ACCESS, hasPermissionForRoute } from "@/lib/config/permissions";
 
 // Role-based access mapping imported from config
@@ -146,15 +147,19 @@ export function AppSidebar() {
                 )}
             >
                 <div className="flex h-16 shrink-0 items-center justify-between border-b border-navbar-border bg-sidebar-bg px-4">
-                    <span
+                    <div
                         id="sidebar-logo"
                         className={cn(
-                            "text-xl font-black tracking-tight transition-opacity duration-300",
-                            isCollapsed && "lg:hidden lg:opacity-0"
+                            "overflow-hidden transition-all duration-300",
+                            isCollapsed ? "lg:w-9 lg:opacity-100" : "w-36"
                         )}
                     >
-                        Reyper<span className="text-primary">XYZ</span>
-                    </span>
+                        {isCollapsed ? (
+                            <LogoShort className="h-9 w-9 object-contain" />
+                        ) : (
+                            <LogoLarge className="h-9 w-auto" />
+                        )}
+                    </div>
 
                     <div className="flex items-center gap-1">
                         {/* Saving state indicator — desktop only, hidden when collapsed */}

@@ -41,6 +41,7 @@ interface EvalPrefsContext {
     isLoading: boolean;
     getEvalPrefs: () => NonNullable<UserPreferences["evaluation"]>;
     updateEvalPref: (updates: Partial<UserPreferences["evaluation"]>) => void;
+    updateEvalPrefNow: (updates: Partial<UserPreferences["evaluation"]>) => void;
 }
 
 export function useEvaluationFilters(
@@ -104,14 +105,25 @@ export function useEvaluationFilters(
     ]);
 
     const clearAllFilters = () => {
+        const cleared = {
+            evalFilterType: "none" as const,
+            evalDateValue: "",
+            evalDateOperator: "after" as const,
+            clientFilter: [] as string[],
+            treatmentFilter: "all",
+            evalSortBy: "auto" as const,
+            evalSortDirection: "asc" as const,
+        };
         setEvalSearchQuery("");
-        setClientFilter([]);
-        setTreatmentFilter("all");
-        setEvalFilterType("none");
-        setEvalDateValue("");
-        setEvalDateOperator("after");
-        setEvalSortBy("auto");
-        setEvalSortDirection("asc");
+        setClientFilter(cleared.clientFilter);
+        setTreatmentFilter(cleared.treatmentFilter);
+        setEvalFilterType(cleared.evalFilterType);
+        setEvalDateValue(cleared.evalDateValue);
+        setEvalDateOperator(cleared.evalDateOperator);
+        setEvalSortBy(cleared.evalSortBy);
+        setEvalSortDirection(cleared.evalSortDirection);
+        // Guardar inmediatamente sin esperar el debounce de 1 segundo
+        prefsContext.updateEvalPrefNow(cleared);
     };
 
     const togglePin = (orderId: string) => {

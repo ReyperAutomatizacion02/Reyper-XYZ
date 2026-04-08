@@ -18,55 +18,61 @@ export function GeneralTour() {
                 element: "#app-sidebar",
                 popover: {
                     title: "Panel de Navegación",
-                    description: "Esta es la barra lateral principal. Desde aquí puedes moverte entre los diferentes departamentos de la empresa.",
+                    description:
+                        "Esta es la barra lateral principal. Desde aquí puedes moverte entre los diferentes departamentos de la empresa.",
                     side: "right" as const,
-                    align: "start" as const
-                }
+                    align: "start" as const,
+                },
             },
             {
                 element: "#sidebar-nav",
                 popover: {
                     title: "Áreas de la Empresa",
-                    description: "Accede a Producción, Ventas, Almacén, Diseño y más. Cada área tiene sus propias herramientas especializadas.",
+                    description:
+                        "Accede a Producción, Ventas, Almacén, Diseño y más. Cada área tiene sus propias herramientas especializadas.",
                     side: "right" as const,
-                    align: "center" as const
-                }
+                    align: "center" as const,
+                },
             },
             {
                 element: "#page-header",
                 popover: {
                     title: "Título de la Sección",
-                    description: "Aquí verás siempre dónde te encuentras. Este título y su descripción cambian dinámicamente según el módulo que estés usando.",
+                    description:
+                        "Aquí verás siempre dónde te encuentras. Este título y su descripción cambian dinámicamente según el módulo que estés usando.",
                     side: "bottom" as const,
-                    align: "start" as const
-                }
+                    align: "start" as const,
+                },
             },
             {
                 element: "#navbar-user-info",
                 popover: {
                     title: "Identidad",
-                    description: "Para tu seguridad, aquí siempre podrás confirmar qué usuario está operando la plataforma en este momento.",
+                    description:
+                        "Para tu seguridad, aquí siempre podrás confirmar qué usuario está operando la plataforma en este momento.",
                     side: "bottom" as const,
-                    align: "end" as const
-                }
+                    align: "end" as const,
+                },
             },
             {
                 element: ".lucide-sun, .lucide-moon",
                 popover: {
                     title: "Apariencia",
-                    description: "Cambia entre el modo claro y oscuro en cualquier momento para trabajar con mayor comodidad.",
+                    description:
+                        "Cambia entre el modo claro y oscuro en cualquier momento para trabajar con mayor comodidad.",
                     side: "bottom" as const,
-                    align: "end" as const
-                }
+                    align: "end" as const,
+                },
             },
             {
                 popover: {
                     title: "Sincronización Total ⚡",
-                    description: "Lo más importante: Reyper XYZ vive en tiempo real. Cualquier cambio realizado por tus compañeros aparecerá en tu pantalla al instante, sin necesidad de refrescar la página.",
+                    description:
+                        "Lo más importante: XYZ RYXZA vive en tiempo real. Cualquier cambio realizado por tus compañeros aparecerá en tu pantalla al instante, sin necesidad de refrescar la página.",
                     side: "bottom" as const,
-                    align: "center" as const
-                }
-            }
+                    align: "center" as const,
+                },
+            },
         ];
 
         // If not on dashboard, we might want to suggest going there for a better experience
@@ -79,10 +85,10 @@ export function GeneralTour() {
             variant="ghost"
             size="icon"
             onClick={handleStartGeneralTour}
-            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Tour General de la Plataforma"
         >
-            <HelpCircle className="w-5 h-5" />
+            <HelpCircle className="h-5 w-5" />
             <span className="sr-only">Ayuda General</span>
         </Button>
     );

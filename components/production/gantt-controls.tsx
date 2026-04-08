@@ -31,6 +31,7 @@ interface GanttControlsProps {
     availableProjects: ProjectOption[];
     projectFilter: string[];
     onProjectFilterChange: (ids: string[]) => void;
+    onClearGanttFilters: () => void;
     zoomLevel: number;
     onZoomChange: (level: number | ((prev: number) => number)) => void;
     isFullscreen: boolean;
@@ -56,6 +57,7 @@ export function GanttControls({
     availableProjects,
     projectFilter,
     onProjectFilterChange,
+    onClearGanttFilters,
     zoomLevel,
     onZoomChange,
     isFullscreen,
@@ -114,14 +116,26 @@ export function GanttControls({
         (projectFilter.length > 0 ? 1 : 0) +
         (selectedMachines.size < allMachineNames.length ? 1 : 0);
 
-    const filteredProjects = availableProjects.filter((p) => {
-        const q = projectSearch.toLowerCase();
-        return !q || p.code.toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
-    });
+    const filteredProjects = availableProjects
+        .filter((p) => {
+            const q = projectSearch.toLowerCase();
+            return !q || p.code.toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
+        })
+        .sort((a, b) => {
+            const aSelected = projectFilter.includes(a.id);
+            const bSelected = projectFilter.includes(b.id);
+            if (aSelected !== bSelected) return aSelected ? -1 : 1;
+            return 0;
+        });
 
-    const filteredMachines = allMachineNames.filter(
-        (name) => !machineSearch || name.toLowerCase().includes(machineSearch.toLowerCase())
-    );
+    const filteredMachines = allMachineNames
+        .filter((name) => !machineSearch || name.toLowerCase().includes(machineSearch.toLowerCase()))
+        .sort((a, b) => {
+            const aSelected = selectedMachines.has(a);
+            const bSelected = selectedMachines.has(b);
+            if (aSelected !== bSelected) return aSelected ? -1 : 1;
+            return 0;
+        });
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -219,8 +233,7 @@ export function GanttControls({
                                         <button
                                             onClick={() => {
                                                 onSearchChange("");
-                                                onProjectFilterChange([]);
-                                                onSelectAllMachines();
+                                                onClearGanttFilters();
                                             }}
                                             className="text-[9px] font-bold text-muted-foreground transition-colors hover:text-destructive"
                                         >

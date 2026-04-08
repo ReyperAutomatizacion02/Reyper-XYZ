@@ -11,8 +11,10 @@ export function useGanttSettings({ allMachineNames }: UseGanttSettingsProps) {
     const {
         getGanttPrefs,
         updateGanttPref,
+        updateGanttPrefNow,
         getEvalPrefs,
         updateEvalPref,
+        updateEvalPrefNow,
         isLoading: prefsLoading,
     } = useUserPreferences();
     const ganttPrefs = getGanttPrefs();
@@ -100,6 +102,12 @@ export function useGanttSettings({ allMachineNames }: UseGanttSettingsProps) {
         updateGanttPref({ selectedMachines: allMachineNames });
     };
 
+    const clearGanttFilters = () => {
+        setProjectFilter([]);
+        setSelectedMachines(new Set(allMachineNames));
+        updateGanttPrefNow({ projectFilter: [], selectedMachines: allMachineNames });
+    };
+
     const clearAllMachines = () => {
         setSelectedMachines(new Set());
         updateGanttPref({ selectedMachines: [] });
@@ -116,9 +124,11 @@ export function useGanttSettings({ allMachineNames }: UseGanttSettingsProps) {
         selectedMachines,
         prefsInitialized,
         prefsLoading,
+        clearGanttFilters,
         // Prefs passthrough (needed by useEvaluationFilters)
         getEvalPrefs,
         updateEvalPref,
+        updateEvalPrefNow,
         // Handlers
         handleViewModeChange,
         handleShowDependenciesChange,

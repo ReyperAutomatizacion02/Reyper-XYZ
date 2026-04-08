@@ -103,41 +103,54 @@ export function useUserPreferences() {
         };
     }, [supabase]);
 
+    // Shared persist logic (no debounce)
+    const persistPreferences = useCallback(
+        async (newPrefs: UserPreferences) => {
+            if (!userId) return;
+            setSavingState("saving");
+            try {
+                const { error } = await supabase
+                    .from("user_profiles")
+                    .update({ preferences: newPrefs as unknown as Json })
+                    .eq("id", userId);
+                if (error) {
+                    console.error("Error saving preferences:", error);
+                    toast.error("No se pudieron guardar las preferencias.");
+                    setSavingState("error");
+                } else {
+                    setSavingState("saved");
+                    if (savedResetRef.current) clearTimeout(savedResetRef.current);
+                    savedResetRef.current = setTimeout(() => setSavingState("idle"), 2000);
+                }
+            } catch (err) {
+                console.error("Failed to save preferences:", err);
+                toast.error("No se pudieron guardar las preferencias.");
+                setSavingState("error");
+            }
+        },
+        [userId, supabase]
+    );
+
     // Save preferences to database (debounced)
     const savePreferences = useCallback(
         (newPrefs: UserPreferences) => {
             if (!userId) return;
-
-            // Clear existing timeouts
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
             if (savedResetRef.current) clearTimeout(savedResetRef.current);
-
             setSavingState("saving");
-
-            // Debounce save
-            saveTimeoutRef.current = setTimeout(async () => {
-                try {
-                    const { error } = await supabase
-                        .from("user_profiles")
-                        .update({ preferences: newPrefs as unknown as Json })
-                        .eq("id", userId);
-
-                    if (error) {
-                        console.error("Error saving preferences:", error);
-                        toast.error("No se pudieron guardar las preferencias.");
-                        setSavingState("error");
-                    } else {
-                        setSavingState("saved");
-                        savedResetRef.current = setTimeout(() => setSavingState("idle"), 2000);
-                    }
-                } catch (err) {
-                    console.error("Failed to save preferences:", err);
-                    toast.error("No se pudieron guardar las preferencias.");
-                    setSavingState("error");
-                }
-            }, DEBOUNCE_MS);
+            saveTimeoutRef.current = setTimeout(() => persistPreferences(newPrefs), DEBOUNCE_MS);
         },
-        [userId, supabase]
+        [userId, persistPreferences]
+    );
+
+    // Save immediately, cancelling any pending debounced save
+    const savePreferencesNow = useCallback(
+        (newPrefs: UserPreferences) => {
+            if (!userId) return;
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+            persistPreferences(newPrefs);
+        },
+        [userId, persistPreferences]
     );
 
     // Update a specific preference key
@@ -186,12 +199,42 @@ export function useUserPreferences() {
         return preferences.evaluation || {};
     }, [preferences.evaluation]);
 
-    // Update evaluation specific preference
+    // Update evaluation specific preference (debounced)
     const updateEvalPref = useCallback(
         (updates: Partial<UserPreferences["evaluation"]>) => {
             updatePreference("evaluation", { ...getEvalPrefs(), ...updates });
         },
         [updatePreference, getEvalPrefs]
+    );
+
+    // Update gantt specific preference (immediate — use for explicit user actions like clear)
+    const updateGanttPrefNow = useCallback(
+        (updates: Partial<UserPreferences["gantt"]>) => {
+            setPreferences((prev) => {
+                const newPrefs = {
+                    ...prev,
+                    gantt: { ...prev.gantt, ...updates },
+                };
+                savePreferencesNow(newPrefs);
+                return newPrefs;
+            });
+        },
+        [savePreferencesNow]
+    );
+
+    // Update evaluation specific preference (immediate — use for explicit user actions like clear)
+    const updateEvalPrefNow = useCallback(
+        (updates: Partial<UserPreferences["evaluation"]>) => {
+            setPreferences((prev) => {
+                const newPrefs = {
+                    ...prev,
+                    evaluation: { ...prev.evaluation, ...updates },
+                };
+                savePreferencesNow(newPrefs);
+                return newPrefs;
+            });
+        },
+        [savePreferencesNow]
     );
 
     return {
@@ -205,5 +248,7 @@ export function useUserPreferences() {
         updateGanttPref,
         getEvalPrefs,
         updateEvalPref,
+        updateEvalPrefNow,
+        updateGanttPrefNow,
     };
 }

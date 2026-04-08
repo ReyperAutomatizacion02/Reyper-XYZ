@@ -7,8 +7,11 @@ import { SidebarProvider } from "@/components/sidebar-context";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Reyper XYZ",
-    description: "Sistema interno de administración Reyper XYZ",
+    title: "XYZ RYXZA",
+    description: "Sistema interno de administración XYZ RYXZA",
+    icons: {
+        icon: "/favicon.svg",
+    },
 };
 
 export default function RootLayout({
@@ -19,15 +22,8 @@ export default function RootLayout({
     return (
         <html lang="es" suppressHydrationWarning>
             <body className={inter.className} suppressHydrationWarning>
-                <ThemeProvider
-                    attribute="class"
-                    defaultTheme="system"
-                    enableSystem
-                    disableTransitionOnChange
-                >
-                    <SidebarProvider>
-                        {children}
-                    </SidebarProvider>
+                <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+                    <SidebarProvider>{children}</SidebarProvider>
                 </ThemeProvider>
             </body>
         </html>

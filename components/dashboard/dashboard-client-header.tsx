@@ -14,28 +14,31 @@ export function DashboardClientHeader() {
                 element: "#dash-header",
                 popover: {
                     title: "Dashboard Principal",
-                    description: "Bienvenido al centro de control de Reyper XYZ. Aquí encontrarás un resumen de la productividad y el estado global de los proyectos.",
+                    description:
+                        "Bienvenido al centro de control de XYZ RYXZA. Aquí encontrarás un resumen de la productividad y el estado global de los proyectos.",
                     side: "bottom",
-                    align: "start"
-                }
+                    align: "start",
+                },
             },
             {
                 element: "#dash-kpi-cards",
                 popover: {
                     title: "Indicadores Clave (KPIs)",
-                    description: "Monitorea proyectos vencidos, partidas en curso y las metas del mes actual de un vistazo.",
+                    description:
+                        "Monitorea proyectos vencidos, partidas en curso y las metas del mes actual de un vistazo.",
                     side: "bottom",
-                    align: "center"
-                }
+                    align: "center",
+                },
             },
             {
                 element: "#dash-chart-utilization",
                 popover: {
                     title: "Utilización de Máquinas",
-                    description: "Visualiza la eficiencia de cada máquina en los últimos 7 días. Los datos se calculan automáticamente basados en la planeación.",
+                    description:
+                        "Visualiza la eficiencia de cada máquina en los últimos 7 días. Los datos se calculan automáticamente basados en la planeación.",
                     side: "top",
-                    align: "center"
-                }
+                    align: "center",
+                },
             },
             {
                 element: "#dash-chart-status",
@@ -43,27 +46,29 @@ export function DashboardClientHeader() {
                     title: "Estatus de Partidas",
                     description: "Distribución actual de todas las piezas en proceso, desde ingeniería hasta entrega.",
                     side: "top",
-                    align: "center"
-                }
+                    align: "center",
+                },
             },
             {
                 element: "#dash-chart-trends",
                 popover: {
                     title: "Flujo de Proyectos",
-                    description: "Tendencia histórica (30 días) de proyectos nuevos vs. entregados para medir el ritmo de trabajo.",
+                    description:
+                        "Tendencia histórica (30 días) de proyectos nuevos vs. entregados para medir el ritmo de trabajo.",
                     side: "top",
-                    align: "center"
-                }
+                    align: "center",
+                },
             },
             {
                 element: "#dash-deliveries-list",
                 popover: {
                     title: "Próximas Entregas",
-                    description: "Listado prioritario de proyectos con fecha de entrega cercana. Los colores indican el nivel de urgencia.",
+                    description:
+                        "Listado prioritario de proyectos con fecha de entrega cercana. Los colores indican el nivel de urgencia.",
                     side: "top",
-                    align: "center"
-                }
-            }
+                    align: "center",
+                },
+            },
         ]);
     };
 
@@ -72,7 +77,7 @@ export function DashboardClientHeader() {
             <DashboardHeader
                 title="Dashboard"
                 description="Resumen general de productividad y proyectos"
-                icon={<LayoutDashboard className="w-8 h-8 text-primary" />}
+                icon={<LayoutDashboard className="h-8 w-8 text-primary" />}
                 bgClass="bg-primary/10"
                 onHelp={handleStartTour}
             />

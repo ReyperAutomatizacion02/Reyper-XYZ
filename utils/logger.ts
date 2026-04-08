@@ -1,5 +1,5 @@
 /**
- * Sistema de logging centralizado para Reyper XYZ
+ * Sistema de logging centralizado para XYZ RYXZA
  *
  * En desarrollo: muestra todos los logs en consola
  * En producción: solo muestra errores críticos y los envía a un servicio de monitoreo
