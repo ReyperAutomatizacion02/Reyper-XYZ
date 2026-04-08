@@ -756,6 +756,73 @@ export function GanttSVG({
                                     strokeDasharray="4 2"
                                 />
                             )}
+
+                            {/* Accessible table for screen readers — only tasks visible in current viewport */}
+                            <foreignObject x={0} y={0} width={1} height={1} aria-hidden="false">
+                                <table
+                                    // @ts-ignore — xmlns required for HTML inside SVG foreignObject
+                                    xmlns="http://www.w3.org/1999/xhtml"
+                                    style={{
+                                        position: "absolute",
+                                        width: "1px",
+                                        height: "1px",
+                                        overflow: "hidden",
+                                        clip: "rect(0 0 0 0)",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                    aria-label="Tareas programadas en el planificador"
+                                >
+                                    <caption style={{ display: "none" }}>
+                                        {`Vista ${viewMode} — ${filteredTasks.length} tarea${filteredTasks.length !== 1 ? "s" : ""}`}
+                                    </caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Orden</th>
+                                            <th scope="col">Máquina</th>
+                                            <th scope="col">Inicio</th>
+                                            <th scope="col">Fin</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredTasks
+                                            .filter((task) => {
+                                                if (!task.planned_date || !task.planned_end) return false;
+                                                const containerWidth =
+                                                    scrollContainerRef.current?.clientWidth ?? totalWidth;
+                                                const containerHeight =
+                                                    scrollContainerRef.current?.clientHeight ?? totalHeight;
+                                                const taskX = timeToX(task.planned_date);
+                                                const taskEndX = timeToX(task.planned_end);
+                                                const machine = (task as any).is_treatment
+                                                    ? "TRATAMIENTO"
+                                                    : task.machine || "Sin Máquina";
+                                                const taskY = machineYOffsets.get(machine) ?? 0;
+                                                const inViewX =
+                                                    taskEndX >= scrollPos.x && taskX <= scrollPos.x + containerWidth;
+                                                const inViewY =
+                                                    taskY + BAR_HEIGHT >= scrollPos.y &&
+                                                    taskY <= scrollPos.y + containerHeight;
+                                                return inViewX && inViewY;
+                                            })
+                                            .map((task) => {
+                                                const machine = (task as any).is_treatment
+                                                    ? "TRATAMIENTO"
+                                                    : task.machine || "Sin Máquina";
+                                                const orderLabel = task.production_orders?.part_code
+                                                    ? `${task.production_orders.part_code}${task.production_orders.part_name ? ` — ${task.production_orders.part_name}` : ""}`
+                                                    : String(task.order_id ?? task.id);
+                                                return (
+                                                    <tr key={task.id}>
+                                                        <td>{orderLabel}</td>
+                                                        <td>{machine}</td>
+                                                        <td>{format(new Date(task.planned_date), "dd/MM HH:mm")}</td>
+                                                        <td>{format(new Date(task.planned_end), "dd/MM HH:mm")}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                    </tbody>
+                                </table>
+                            </foreignObject>
                         </svg>
                     </div>
                 </div>

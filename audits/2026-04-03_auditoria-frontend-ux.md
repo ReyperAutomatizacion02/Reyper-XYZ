@@ -729,9 +729,9 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Añadir `id` faltantes en inputs para que `htmlFor` de los labels funcione correctamente
     - [x] Añadir `role="status"` en mensajes de éxito (register, forgot-password)
 
-- [ ] **[B4]** Tabla alternativa para screen readers en Gantt SVG — Accesibilidad Bajo
-    - [ ] Añadir `<foreignObject width="1" height="1">` con `<table aria-hidden="false">` dentro del SVG listando las tareas visibles (propuesta de A2)
-    - [ ] Solo renderizar las tareas en el viewport actual para no penalizar performance
+- [x] **[B4]** Tabla alternativa para screen readers en Gantt SVG — Accesibilidad Bajo — 2026-04-07
+    - [x] Añadir `<foreignObject width="1" height="1">` con `<table aria-hidden="false">` dentro del SVG listando las tareas visibles (propuesta de A2)
+    - [x] Solo renderizar las tareas en el viewport actual filtrando por `scrollPos` + `clientWidth/clientHeight` del contenedor
 
 - [ ] **[B5]** Progress indicator en wizard de evaluación — UX/Flujo Bajo
     - [ ] Añadir indicador de pasos visibles en `EvaluationFormHeader.tsx`: "Paso 2 de 5 — Máquina CNC-02" (propuesta de C3)
@@ -747,8 +747,8 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 15       | 83.3%      |
+| ✅ Resuelto    | 16       | 88.9%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 3        | 16.7%      |
+| ⏳ Pendiente   | 2        | 11.1%      |
 
-**Desglose de pendientes:** B4 (Bajo), B5 (Bajo), B6 (Bajo)
+**Desglose de pendientes:** B5 (Bajo), B6 (Bajo)
