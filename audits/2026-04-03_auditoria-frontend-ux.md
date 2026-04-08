@@ -723,9 +723,11 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ### 🔵 Bajos pendientes
 
-- [ ] **[B3]** `role="alert"` en mensajes de error de auth — Accesibilidad Bajo
-    - [ ] Añadir `role="alert"` al `<p>` de error en `app/login/page.tsx`, `app/register/page.tsx`, `app/forgot-password/page.tsx` (propuesta de A4)
-    - [ ] Añadir `aria-describedby` en los inputs vinculados al mensaje de error
+- [x] **[B3]** `role="alert"` en mensajes de error de auth — Accesibilidad Bajo — 2026-04-07
+    - [x] Añadir `role="alert"` al `<div>` de error en `app/login/page.tsx`, `app/register/page.tsx`, `app/forgot-password/page.tsx` (propuesta de A4)
+    - [x] Añadir `aria-describedby` en los inputs vinculados al mensaje de error
+    - [x] Añadir `id` faltantes en inputs para que `htmlFor` de los labels funcione correctamente
+    - [x] Añadir `role="status"` en mensajes de éxito (register, forgot-password)
 
 - [ ] **[B4]** Tabla alternativa para screen readers en Gantt SVG — Accesibilidad Bajo
     - [ ] Añadir `<foreignObject width="1" height="1">` con `<table aria-hidden="false">` dentro del SVG listando las tareas visibles (propuesta de A2)
@@ -745,8 +747,8 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 14       | 77.8%      |
+| ✅ Resuelto    | 15       | 83.3%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 4        | 22.2%      |
+| ⏳ Pendiente   | 3        | 16.7%      |
 
-**Desglose de pendientes:** B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)
+**Desglose de pendientes:** B4 (Bajo), B5 (Bajo), B6 (Bajo)

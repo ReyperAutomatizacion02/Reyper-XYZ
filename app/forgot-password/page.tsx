@@ -42,10 +42,15 @@ export default function ForgotPasswordPage() {
                                 Correo Electrónico
                             </label>
                             <input
+                                id="email"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 name="email"
                                 placeholder="tucorreo@ejemplo.com"
                                 required
+                                aria-describedby={
+                                    state?.error ? "forgot-error" : state?.success ? "forgot-success" : undefined
+                                }
+                                aria-invalid={state?.error ? true : undefined}
                             />
                         </div>
 
@@ -57,12 +62,20 @@ export default function ForgotPasswordPage() {
                         </SubmitButton>
 
                         {state?.success && (
-                            <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center text-sm text-green-500 animate-in fade-in">
+                            <div
+                                id="forgot-success"
+                                role="status"
+                                className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center text-sm text-green-500 animate-in fade-in"
+                            >
                                 {state.success}
                             </div>
                         )}
                         {state?.error && (
-                            <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in">
+                            <div
+                                id="forgot-error"
+                                role="alert"
+                                className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in"
+                            >
                                 {state.error}
                             </div>
                         )}

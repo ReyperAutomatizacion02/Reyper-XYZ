@@ -49,10 +49,13 @@ export default function LoginPage() {
                                 Correo / Usuario
                             </label>
                             <input
+                                id="email"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 name="email"
                                 placeholder="nombre@ejemplo.com"
                                 required
+                                aria-describedby={state?.error ? "login-error" : undefined}
+                                aria-invalid={state?.error ? true : undefined}
                             />
                         </div>
 
@@ -72,11 +75,14 @@ export default function LoginPage() {
                                 </Link>
                             </div>
                             <input
+                                id="password"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 type="password"
                                 name="password"
                                 placeholder="••••••••"
                                 required
+                                aria-describedby={state?.error ? "login-error" : undefined}
+                                aria-invalid={state?.error ? true : undefined}
                             />
                         </div>
 
@@ -101,7 +107,11 @@ export default function LoginPage() {
                         <GoogleSignIn />
 
                         {state?.error && (
-                            <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in slide-in-from-top-2">
+                            <div
+                                id="login-error"
+                                role="alert"
+                                className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in slide-in-from-top-2"
+                            >
                                 {state.error}
                             </div>
                         )}

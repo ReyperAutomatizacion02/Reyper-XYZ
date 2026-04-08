@@ -45,10 +45,12 @@ export default function RegisterPage() {
                                 Nombre Completo
                             </label>
                             <input
+                                id="fullName"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 name="fullName"
                                 placeholder="Juan Pérez"
                                 required
+                                aria-describedby={state?.error ? "register-error" : undefined}
                             />
                         </div>
 
@@ -57,10 +59,12 @@ export default function RegisterPage() {
                                 Correo Electrónico
                             </label>
                             <input
+                                id="email"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 name="email"
                                 placeholder="usuario@ejemplo.com"
                                 required
+                                aria-describedby={state?.error ? "register-error" : undefined}
                             />
                         </div>
 
@@ -69,10 +73,12 @@ export default function RegisterPage() {
                                 Usuario
                             </label>
                             <input
+                                id="username"
                                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 name="username"
                                 placeholder="juanperez"
                                 required
+                                aria-describedby={state?.error ? "register-error" : undefined}
                             />
                         </div>
 
@@ -81,12 +87,14 @@ export default function RegisterPage() {
                                 Contraseña
                             </label>
                             <PasswordInput
+                                id="password"
                                 name="password"
                                 placeholder="••••••••"
                                 required
                                 className="h-11 rounded-xl bg-background/50"
+                                aria-describedby={state?.error ? "register-error" : "password-hint"}
                             />
-                            <p className="pl-1 text-[10px] text-muted-foreground">
+                            <p id="password-hint" className="pl-1 text-[10px] text-muted-foreground">
                                 Mín. 10 caracteres, 1 mayúsucla, 1 número, 1 símbolo.
                             </p>
                         </div>
@@ -96,10 +104,12 @@ export default function RegisterPage() {
                                 Confirmar Contraseña
                             </label>
                             <PasswordInput
+                                id="confirmPassword"
                                 name="confirmPassword"
                                 placeholder="••••••••"
                                 required
                                 className="h-11 rounded-xl bg-background/50"
+                                aria-describedby={state?.error ? "register-error" : undefined}
                             />
                         </div>
 
@@ -124,12 +134,19 @@ export default function RegisterPage() {
                         <GoogleSignIn />
 
                         {state?.error && (
-                            <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in slide-in-from-top-2">
+                            <div
+                                id="register-error"
+                                role="alert"
+                                className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive animate-in fade-in slide-in-from-top-2"
+                            >
                                 {state.error}
                             </div>
                         )}
                         {state?.success && (
-                            <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center text-sm text-green-600 animate-in fade-in slide-in-from-top-2">
+                            <div
+                                role="status"
+                                className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center text-sm text-green-600 animate-in fade-in slide-in-from-top-2"
+                            >
                                 {state.success}
                             </div>
                         )}
