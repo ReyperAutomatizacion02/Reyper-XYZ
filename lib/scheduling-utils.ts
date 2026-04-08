@@ -268,9 +268,13 @@ function getPreTreatmentHours(o: Order): number {
     let hours = 0;
     for (const step of evaluation) {
         if (isTreatmentStep(step)) break;
-        hours += (step as any).hours || 0;
+        const machineStep = step as MachineStep;
+        // New format: hours already includes quantity factor.
+        // Legacy format (no machining_time): hours is per-piece, multiply by qty.
+        const isNewFormat = machineStep.machining_time !== undefined;
+        hours += isNewFormat ? machineStep.hours || 0 : (machineStep.hours || 0) * quantity;
     }
-    return hours * quantity;
+    return hours;
 }
 
 /**
@@ -571,7 +575,10 @@ export function generateAutomatedPlanning(
                 break;
             }
 
-            const totalStepHours = step.hours * quantity;
+            // New format: step.hours already = setup + machining×qty + change×(qty-1).
+            // Legacy format (no machining_time): step.hours is per-piece, multiply by qty.
+            const isNewFormat = (step as MachineStep).machining_time !== undefined;
+            const totalStepHours = isNewFormat ? step.hours : step.hours * quantity;
             const register = `${stepNumber}`;
 
             // Consume all existing fixed tasks for this step's machine (split segments
