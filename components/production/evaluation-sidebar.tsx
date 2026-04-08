@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { extractDriveFileId } from "@/lib/drive-utils";
-import { EvaluationStep } from "@/lib/scheduling-utils";
+import { EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { formatHours } from "./evaluation/EvaluationStepRow";
 import { Database } from "@/utils/supabase/types";
 import { EvaluationFiltersState } from "./hooks/use-evaluation-filters";
 import { useEvaluationForm } from "./hooks/use-evaluation-form";
@@ -249,6 +250,7 @@ export function EvaluationSidebar({
                                                 key={index}
                                                 step={step}
                                                 index={index}
+                                                quantity={Math.max(1, selectedOrder?.quantity ?? 1)}
                                                 machines={machines}
                                                 treatments={treatments}
                                                 onToggleType={toggleStepType}
@@ -263,7 +265,61 @@ export function EvaluationSidebar({
                             </div>
 
                             {/* Form Footer */}
-                            <div className="shrink-0 space-y-2 border-t border-border p-4">
+                            <div className="shrink-0 space-y-3 border-t border-border p-4">
+                                {/* Global time summary */}
+                                {(() => {
+                                    const machineSteps = steps.filter((s) => !isTreatmentStep(s) && s.hours > 0);
+                                    const treatmentSteps = steps.filter(
+                                        (s) => isTreatmentStep(s) && s.days > 0
+                                    ) as Extract<EvaluationStep, { type: "treatment" }>[];
+                                    const totalMachineHours = machineSteps.reduce(
+                                        (acc, s) => acc + (s as any).hours,
+                                        0
+                                    );
+                                    const totalTreatmentDays = treatmentSteps.reduce((acc, s) => acc + s.days, 0);
+                                    const hasData = totalMachineHours > 0 || totalTreatmentDays > 0;
+                                    if (!hasData) return null;
+                                    return (
+                                        <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5">
+                                            <p className="mb-2 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                                                Tiempo total de producción
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                {totalMachineHours > 0 && (
+                                                    <div className="flex flex-1 flex-col items-center rounded-lg border border-border/50 bg-background px-2 py-1.5">
+                                                        <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                                                            Máquina
+                                                        </span>
+                                                        <span className="text-base font-black tabular-nums leading-tight text-foreground">
+                                                            {formatHours(totalMachineHours)}
+                                                        </span>
+                                                        {machineSteps.length > 1 && (
+                                                            <span className="text-[8px] text-muted-foreground/70">
+                                                                {machineSteps.length} procesos
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {totalTreatmentDays > 0 && (
+                                                    <div className="flex flex-1 flex-col items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5">
+                                                        <span className="text-[9px] font-bold uppercase text-amber-600">
+                                                            Tratamiento
+                                                        </span>
+                                                        <span className="text-base font-black tabular-nums leading-tight text-amber-700">
+                                                            {totalTreatmentDays}d
+                                                        </span>
+                                                        {treatmentSteps.length > 1 && (
+                                                            <span className="text-[8px] text-amber-500/70">
+                                                                {treatmentSteps.length} tratamientos
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                                 <Button
                                     onClick={handleSave}
                                     disabled={isSaving}

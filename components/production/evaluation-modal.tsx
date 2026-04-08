@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { extractDriveFileId } from "@/lib/drive-utils";
-import { type EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { type EvaluationStep, type MachineStep, isTreatmentStep } from "@/lib/scheduling-utils";
 
 interface EvaluationModalProps {
     isOpen: boolean;
@@ -42,6 +42,7 @@ interface EvaluationModalProps {
         id: string;
         part_code: string;
         part_name: string | null;
+        quantity?: number | null;
         evaluation?: EvaluationStep[] | null;
         drawing_url?: string;
         urgencia?: boolean;
@@ -58,19 +59,40 @@ interface EvaluationModalProps {
 
 /** Returns an empty machine step */
 function emptyMachineStep(): EvaluationStep {
-    return { type: "machine", machine: "", hours: 0 };
+    return { type: "machine", machine: "", hours: 0, setup_time: 0, machining_time: 0, piece_change_time: 0 };
 }
 
 /** Returns true if a step is "complete" (enough data to save) */
 function isStepComplete(step: EvaluationStep): boolean {
     if (isTreatmentStep(step)) return !!step.treatment_id && step.days > 0;
+    if (step.machining_time !== undefined) return !!step.machine && step.machining_time > 0;
     return !!step.machine && step.hours > 0;
 }
 
 /** Returns true if a step is "partially filled" (started but invalid) */
 function isStepIncomplete(step: EvaluationStep): boolean {
     if (isTreatmentStep(step)) return !!step.treatment_id && !(step.days > 0);
+    if (step.machining_time !== undefined) return !!step.machine && !(step.machining_time > 0);
     return !!step.machine && !(step.hours > 0);
+}
+
+/** Computes total hours from the three time components + order quantity. */
+function computeHours(step: MachineStep, qty: number): number {
+    const setup = step.setup_time ?? 0;
+    const machining = step.machining_time ?? 0;
+    const pieceChange = step.piece_change_time ?? 0;
+    if (setup === 0 && machining === 0 && pieceChange === 0 && step.hours > 0) return step.hours;
+    return setup + machining * qty + pieceChange * Math.max(0, qty - 1);
+}
+
+/** Formats fractional hours as "Xh Ym" for display. */
+function formatHours(hours: number): string {
+    if (hours <= 0) return "—";
+    const h = Math.floor(hours);
+    const m = Math.round((hours % 1) * 60);
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
 }
 
 export function EvaluationModal({
@@ -143,11 +165,18 @@ export function EvaluationModal({
         setSteps(newSteps);
     };
 
-    const updateMachineStep = (index: number, field: "machine" | "hours", value: string | number) => {
+    const updateMachineStep = (
+        index: number,
+        field: "machine" | "setup_time" | "machining_time" | "piece_change_time",
+        value: string | number
+    ) => {
         const newSteps = [...steps];
         const step = newSteps[index];
         if (isTreatmentStep(step)) return;
-        newSteps[index] = { ...step, [field]: value } as EvaluationStep;
+        const qty = Math.max(1, order?.quantity ?? 1);
+        const updated: MachineStep = { ...step, [field]: value };
+        updated.hours = computeHours(updated, qty);
+        newSteps[index] = updated;
 
         const isLastStep = index === newSteps.length - 1;
         if (isLastStep && isStepComplete(newSteps[index])) {
@@ -407,7 +436,7 @@ export function EvaluationModal({
                                     return (
                                         <div
                                             key={index}
-                                            className={`group relative flex items-end gap-3 border-b border-border/50 pb-4 last:border-0`}
+                                            className={`group relative flex items-start gap-3 border-b border-border/50 pb-4 last:border-0`}
                                         >
                                             {/* Type toggle button */}
                                             <div
@@ -479,8 +508,9 @@ export function EvaluationModal({
                                                     </div>
                                                 </>
                                             ) : (
-                                                <>
-                                                    <div className="flex-1 space-y-2">
+                                                <div className="flex-1 space-y-2.5">
+                                                    {/* Machine selector */}
+                                                    <div className="space-y-1.5">
                                                         <Label className="text-[10px] font-black uppercase text-muted-foreground">
                                                             Paso {index + 1}: Máquina
                                                         </Label>
@@ -495,58 +525,110 @@ export function EvaluationModal({
                                                         />
                                                     </div>
 
-                                                    <div className="shrink-0 space-y-2">
-                                                        <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                                                            Tiempo
-                                                        </Label>
-                                                        <div className="flex items-center gap-1">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                step="1"
-                                                                placeholder="0"
-                                                                value={
-                                                                    Math.floor(step.hours) > 0
-                                                                        ? Math.floor(step.hours)
-                                                                        : ""
-                                                                }
-                                                                onChange={(e) => {
-                                                                    const h = parseInt(e.target.value) || 0;
-                                                                    const m = Math.round((step.hours % 1) * 60);
-                                                                    updateMachineStep(index, "hours", h + m / 60);
-                                                                }}
-                                                                className="h-9 w-14 px-2 text-center text-xs"
-                                                            />
-                                                            <span className="text-[10px] font-bold text-muted-foreground">
-                                                                h
-                                                            </span>
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                max="59"
-                                                                step="5"
-                                                                placeholder="0"
-                                                                value={
-                                                                    Math.round((step.hours % 1) * 60) > 0
-                                                                        ? Math.round((step.hours % 1) * 60)
-                                                                        : ""
-                                                                }
-                                                                onChange={(e) => {
-                                                                    const m = Math.min(
-                                                                        59,
-                                                                        parseInt(e.target.value) || 0
-                                                                    );
-                                                                    const h = Math.floor(step.hours);
-                                                                    updateMachineStep(index, "hours", h + m / 60);
-                                                                }}
-                                                                className="h-9 w-14 px-2 text-center text-xs"
-                                                            />
-                                                            <span className="text-[10px] font-bold text-muted-foreground">
-                                                                m
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </>
+                                                    {/* Time breakdown */}
+                                                    {(() => {
+                                                        const qty = Math.max(1, order?.quantity ?? 1);
+                                                        const isMulti = qty > 1;
+                                                        const mkInput = (
+                                                            field:
+                                                                | "setup_time"
+                                                                | "machining_time"
+                                                                | "piece_change_time",
+                                                            val: number,
+                                                            disabled?: boolean
+                                                        ) => {
+                                                            const h = Math.floor(val);
+                                                            const m = Math.round((val % 1) * 60);
+                                                            return (
+                                                                <div className="flex items-center gap-1">
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="1"
+                                                                        placeholder="0"
+                                                                        disabled={disabled}
+                                                                        value={h > 0 ? h : ""}
+                                                                        onChange={(e) => {
+                                                                            const newH = parseInt(e.target.value) || 0;
+                                                                            updateMachineStep(
+                                                                                index,
+                                                                                field,
+                                                                                newH + m / 60
+                                                                            );
+                                                                        }}
+                                                                        className="h-8 w-11 px-1 text-center text-xs disabled:opacity-40"
+                                                                    />
+                                                                    <span className="text-[10px] font-bold text-muted-foreground">
+                                                                        h
+                                                                    </span>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="59"
+                                                                        step="5"
+                                                                        placeholder="0"
+                                                                        disabled={disabled}
+                                                                        value={m > 0 ? m : ""}
+                                                                        onChange={(e) => {
+                                                                            const newM = Math.min(
+                                                                                59,
+                                                                                parseInt(e.target.value) || 0
+                                                                            );
+                                                                            updateMachineStep(
+                                                                                index,
+                                                                                field,
+                                                                                h + newM / 60
+                                                                            );
+                                                                        }}
+                                                                        className="h-8 w-11 px-1 text-center text-xs disabled:opacity-40"
+                                                                    />
+                                                                    <span className="text-[10px] font-bold text-muted-foreground">
+                                                                        m
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        };
+                                                        return (
+                                                            <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 rounded-lg border border-border/40 bg-muted/20 p-2">
+                                                                <div className="space-y-1">
+                                                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">
+                                                                        Set Up Inicial
+                                                                    </Label>
+                                                                    {mkInput("setup_time", step.setup_time ?? 0)}
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">
+                                                                        Maquinado / pieza
+                                                                    </Label>
+                                                                    {mkInput(
+                                                                        "machining_time",
+                                                                        step.machining_time ?? 0
+                                                                    )}
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <Label
+                                                                        className={`text-[9px] font-black uppercase ${isMulti ? "text-muted-foreground" : "text-muted-foreground/40"}`}
+                                                                    >
+                                                                        Set Up / cambio
+                                                                    </Label>
+                                                                    {mkInput(
+                                                                        "piece_change_time",
+                                                                        step.piece_change_time ?? 0,
+                                                                        !isMulti
+                                                                    )}
+                                                                </div>
+                                                                <div className="col-span-3 flex items-center justify-between pt-0.5">
+                                                                    <span className="text-[9px] text-muted-foreground">
+                                                                        {isMulti ? `${qty} piezas` : "1 pieza"}
+                                                                    </span>
+                                                                    <span className="text-[10px] font-black text-foreground/70">
+                                                                        Total: {formatHours(step.hours)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                             )}
 
                                             <Button

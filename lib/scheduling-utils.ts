@@ -38,9 +38,20 @@ export type OrderWithRelations = Order & {
 /** Planning task extended with draft flag used in scheduling UI */
 export type PlanningTaskWithDraft = PlanningTask & { isDraft?: boolean };
 
-export type EvaluationStep =
-    | { type?: "machine"; machine: string; hours: number }
-    | { type: "treatment"; treatment_id: string; treatment: string; days: number };
+export type MachineStep = {
+    type?: "machine";
+    machine: string;
+    /** Total computed hours — used by the scheduler. */
+    hours: number;
+    /** Set-up inicial (once per batch). Undefined on legacy records. */
+    setup_time?: number;
+    /** Machining time per piece. Undefined on legacy records. */
+    machining_time?: number;
+    /** Set-up per piece change (applies to pieces 2…n). Undefined on legacy records. */
+    piece_change_time?: number;
+};
+
+export type EvaluationStep = MachineStep | { type: "treatment"; treatment_id: string; treatment: string; days: number };
 
 /** Returns true if the step is a treatment (external supplier) step.
  *  Detects all formats:
