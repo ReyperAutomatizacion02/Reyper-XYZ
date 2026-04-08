@@ -30,7 +30,8 @@
             "Bash(ls instrumentation*)",
             "Bash(xargs grep:*)",
             "Bash(xargs cat:*)",
-            "Bash(xargs head:*)"
+            "Bash(xargs head:*)",
+            "Bash(npm run:*)"
         ]
     }
 }

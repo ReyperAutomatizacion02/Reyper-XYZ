@@ -815,8 +815,8 @@ export function GanttSVG({
                                                     <tr key={task.id}>
                                                         <td>{orderLabel}</td>
                                                         <td>{machine}</td>
-                                                        <td>{format(new Date(task.planned_date), "dd/MM HH:mm")}</td>
-                                                        <td>{format(new Date(task.planned_end), "dd/MM HH:mm")}</td>
+                                                        <td>{format(new Date(task.planned_date!), "dd/MM HH:mm")}</td>
+                                                        <td>{format(new Date(task.planned_end!), "dd/MM HH:mm")}</td>
                                                     </tr>
                                                 );
                                             })}

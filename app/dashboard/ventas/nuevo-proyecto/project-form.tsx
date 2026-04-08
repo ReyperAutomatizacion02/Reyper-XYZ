@@ -807,7 +807,7 @@ export function ProjectForm({
                     requestor: allContacts.find((c) => c.id === selectedUser)?.name || "",
                     requestor_id: selectedUser,
                     start_date: format(requestDate, "yyyy-MM-dd"),
-                    delivery_date: format(deliveryDate, "yyyy-MM-dd"),
+                    delivery_date: format(deliveryDate!, "yyyy-MM-dd"),
                     status: "active",
                     source_quote_id: initialQuote?.id,
                 },
