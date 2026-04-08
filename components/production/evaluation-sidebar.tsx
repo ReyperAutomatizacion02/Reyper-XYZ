@@ -227,6 +227,7 @@ export function EvaluationSidebar({
                                 onNext={handleNext}
                                 onBack={handleBack}
                                 onClose={onClose}
+                                steps={steps}
                             />
 
                             {/* Form Body */}

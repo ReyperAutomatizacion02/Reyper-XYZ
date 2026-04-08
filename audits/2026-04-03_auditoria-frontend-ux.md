@@ -733,9 +733,11 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Añadir `<foreignObject width="1" height="1">` con `<table aria-hidden="false">` dentro del SVG listando las tareas visibles (propuesta de A2)
     - [x] Solo renderizar las tareas en el viewport actual filtrando por `scrollPos` + `clientWidth/clientHeight` del contenedor
 
-- [ ] **[B5]** Progress indicator en wizard de evaluación — UX/Flujo Bajo
-    - [ ] Añadir indicador de pasos visibles en `EvaluationFormHeader.tsx`: "Paso 2 de 5 — Máquina CNC-02" (propuesta de C3)
-    - [ ] Mostrar barra de progreso horizontal sobre los steps del formulario
+- [x] **[B5]** Progress indicator en wizard de evaluación — UX/Flujo Bajo — 2026-04-07
+    - [x] Añadir prop `steps: EvaluationStep[]` a `EvaluationFormHeader` y pasar desde `evaluation-sidebar.tsx`
+    - [x] Mostrar "Orden X de Y" con barra de progreso horizontal (role="progressbar", aria-valuenow/max)
+    - [x] Mostrar contador "N pasos definidos" con aria-live="polite" que se actualiza al completar pasos
+    - [x] Mostrar resumen de pasos: "CNC-01 → Tratamiento → CNC-02" truncado con title para hover
 
 - [ ] **[B6]** Eliminar fallbacks legacy de middleware.ts + auth-guard.ts — Mantenibilidad Bajo
     - [ ] Prerequisito: ejecutar "Migrar Todos" y confirmar que ningún usuario tiene `permissions === null`
@@ -747,8 +749,8 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 16       | 88.9%      |
+| ✅ Resuelto    | 17       | 94.4%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 2        | 11.1%      |
+| ⏳ Pendiente   | 1        | 5.6%       |
 
-**Desglose de pendientes:** B5 (Bajo), B6 (Bajo)
+**Desglose de pendientes:** B6 (Bajo)
