@@ -50,12 +50,33 @@ export function useStrategyDraft({
     const [activeStrategy, setActiveStrategy] = useState<SchedulingStrategy | "NONE">("NONE");
     const [localOrders, setLocalOrders] = useState<OrderWithRelations[]>(initialOrders);
     const [liveDraftResult, setLiveDraftResult] = useState<SchedulingResult | null>(null);
+    const [excludedOrderIds, setExcludedOrderIds] = useState<Set<string>>(new Set());
     const draftDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Sync orders from server refresh
     useEffect(() => {
         setLocalOrders(initialOrders);
     }, [initialOrders]);
+
+    // Orders eligible for strategy (have evaluation), used for the selection UI
+    const eligibleOrders = useMemo(() => {
+        return localOrders.filter((o) => {
+            const eval_ = o.evaluation as unknown[] | null;
+            return eval_ && eval_.length > 0;
+        });
+    }, [localOrders]);
+
+    const toggleOrderExclusion = (orderId: string) => {
+        setExcludedOrderIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(orderId)) next.delete(orderId);
+            else next.add(orderId);
+            return next;
+        });
+    };
+
+    const selectAllOrders = () => setExcludedOrderIds(new Set());
+    const deselectAllOrders = () => setExcludedOrderIds(new Set(eligibleOrders.map((o) => o.id)));
 
     // Recompute the live draft whenever strategy or relevant inputs change
     useEffect(() => {
@@ -67,8 +88,9 @@ export function useStrategyDraft({
         if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
 
         draftDebounceRef.current = setTimeout(() => {
+            const ordersForPlanning = localOrders.filter((o) => !excludedOrderIds.has(o.id));
             const result = generateAutomatedPlanning(
-                localOrders,
+                ordersForPlanning,
                 optimisticTasks,
                 machines.map((m) => m.name),
                 { mainStrategy: activeStrategy, ...STRATEGY_FILTERS },
@@ -80,7 +102,7 @@ export function useStrategyDraft({
         return () => {
             if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
         };
-    }, [activeStrategy, localOrders, optimisticTasks, machines, shifts]);
+    }, [activeStrategy, localOrders, excludedOrderIds, optimisticTasks, machines, shifts]);
 
     // Merge real tasks + live draft + manually-tweaked drafts into a single display list
     const allTasks = useMemo((): PlanningTask[] => {
@@ -131,5 +153,10 @@ export function useStrategyDraft({
         liveDraftResult,
         allTasks,
         handleStrategyChange,
+        eligibleOrders,
+        excludedOrderIds,
+        toggleOrderExclusion,
+        selectAllOrders,
+        deselectAllOrders,
     };
 }

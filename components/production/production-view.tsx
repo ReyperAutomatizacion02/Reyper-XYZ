@@ -422,6 +422,11 @@ export function ProductionView({
                 onLocateTask={locateTask}
                 liveDraftResult={strategy.liveDraftResult as SchedulingResult | null}
                 orders={strategy.localOrders as OrderWithRelations[]}
+                eligibleOrders={strategy.eligibleOrders}
+                excludedOrderIds={strategy.excludedOrderIds}
+                onToggleOrderExclusion={strategy.toggleOrderExclusion}
+                onSelectAllOrders={strategy.selectAllOrders}
+                onDeselectAllOrders={strategy.deselectAllOrders}
                 onSaveAllPlanning={taskState.handleSaveAllPlanning}
                 isEvalListOpen={isEvalListOpen}
                 onToggleEvalList={() => setIsEvalListOpen(!isEvalListOpen)}
