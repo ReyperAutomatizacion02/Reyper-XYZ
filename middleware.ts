@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { ROLE_ROUTE_ACCESS, PUBLIC_ROUTES, hasPermissionForRoute } from "./lib/config/permissions";
+import { PUBLIC_ROUTES, hasPermissionForRoute } from "./lib/config/permissions";
 
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -72,33 +72,12 @@ export async function middleware(request: NextRequest) {
                 return NextResponse.redirect(url);
             }
 
-            const userPermissions: string[] | null = profile.permissions ?? null;
+            const userPermissions = (profile.permissions as string[]) ?? [];
 
-            if (userPermissions !== null) {
-                // ── Nuevo sistema: verificación por permisos ──────────────────
-                if (!hasPermissionForRoute(pathname, userPermissions)) {
-                    const url = request.nextUrl.clone();
-                    url.pathname = "/dashboard";
-                    return NextResponse.redirect(url);
-                }
-            } else {
-                // ── Legacy: verificación por roles (fallback para usuarios sin permisos) ──
-                const allAllowedRoutes = new Set<string>();
-                userRoles.forEach((role) => {
-                    const routes = ROLE_ROUTE_ACCESS[role] || [];
-                    routes.forEach((r) => allAllowedRoutes.add(r));
-                });
-
-                const hasAccess = Array.from(allAllowedRoutes).some((route) => {
-                    if (route === "/dashboard") return pathname === "/dashboard";
-                    return pathname === route || pathname.startsWith(route + "/");
-                });
-
-                if (!hasAccess && pathname !== "/dashboard") {
-                    const url = request.nextUrl.clone();
-                    url.pathname = "/dashboard";
-                    return NextResponse.redirect(url);
-                }
+            if (!hasPermissionForRoute(pathname, userPermissions)) {
+                const url = request.nextUrl.clone();
+                url.pathname = "/dashboard";
+                return NextResponse.redirect(url);
             }
         }
     }

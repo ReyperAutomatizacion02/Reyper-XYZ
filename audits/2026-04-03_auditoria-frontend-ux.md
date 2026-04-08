@@ -739,18 +739,20 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Mostrar contador "N pasos definidos" con aria-live="polite" que se actualiza al completar pasos
     - [x] Mostrar resumen de pasos: "CNC-01 → Tratamiento → CNC-02" truncado con title para hover
 
-- [ ] **[B6]** Eliminar fallbacks legacy de middleware.ts + auth-guard.ts — Mantenibilidad Bajo
-    - [ ] Prerequisito: ejecutar "Migrar Todos" y confirmar que ningún usuario tiene `permissions === null`
-    - [ ] Eliminar bloque `else { // Legacy: verificación por roles }` en `middleware.ts` (líneas 84–102)
-    - [ ] Eliminar bloque `else { // Fallback: derivar permisos desde los roles }` en `lib/auth-guard.ts` (líneas 104–108)
-    - [ ] Eliminar `ROLE_ROUTE_ACCESS` import de `middleware.ts` si queda sin uso
+- [x] **[B6]** Eliminar fallbacks legacy de middleware.ts + auth-guard.ts — Mantenibilidad Bajo — 2026-04-08
+    - [x] Prerequisito ejecutado: todos los usuarios migrados a sistema de permisos explícitos
+    - [x] Eliminar bloque `else { // Legacy: verificación por roles }` en `middleware.ts`
+    - [x] Eliminar bloque `else { // Fallback: derivar permisos desde los roles }` en `lib/auth-guard.ts`
+    - [x] Eliminar import `ROLE_ROUTE_ACCESS` de `middleware.ts` (sin uso)
+    - [x] Eliminar import `ROLE_DEFAULT_PERMISSIONS` de `lib/auth-guard.ts` (sin uso)
+    - [x] Cast explícito `(profile.permissions as string[]) ?? []` para compatibilidad con tipo `Json` de Supabase
 
 ### Estado de resolución
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 17       | 94.4%      |
+| ✅ Resuelto    | 18       | 100%       |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 1        | 5.6%       |
+| ⏳ Pendiente   | 0        | 0%         |
 
-**Desglose de pendientes:** B6 (Bajo)
+**Auditoría completada al 100% — 2026-04-08**
