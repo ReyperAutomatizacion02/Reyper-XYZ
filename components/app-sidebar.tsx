@@ -25,6 +25,9 @@ import {
     Shield,
     X,
     Truck,
+    Check,
+    AlertTriangle,
+    Loader2,
 } from "lucide-react";
 import { ROLE_ROUTE_ACCESS, hasPermissionForRoute } from "@/lib/config/permissions";
 
@@ -48,7 +51,7 @@ export function AppSidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const supabase = createClient();
-    const { getSidebarPrefs, updateSidebarPref, isLoading: prefsLoading } = useUserPreferences();
+    const { getSidebarPrefs, updateSidebarPref, isLoading: prefsLoading, savingState } = useUserPreferences();
     const sidebarPrefs = getSidebarPrefs();
     const { isMobileOpen, setIsMobileOpen, toggleMobile, isCollapsed, setIsCollapsed } = useSidebar();
 
@@ -154,6 +157,26 @@ export function AppSidebar() {
                     </span>
 
                     <div className="flex items-center gap-1">
+                        {/* Saving state indicator — desktop only, hidden when collapsed */}
+                        {!isCollapsed && savingState !== "idle" && (
+                            <span
+                                className={cn(
+                                    "hidden items-center gap-1 text-[10px] font-medium transition-opacity lg:flex",
+                                    savingState === "saving" && "text-muted-foreground",
+                                    savingState === "saved" && "text-green-500",
+                                    savingState === "error" && "text-destructive"
+                                )}
+                                aria-live="polite"
+                            >
+                                {savingState === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
+                                {savingState === "saved" && <Check className="h-3 w-3" />}
+                                {savingState === "error" && <AlertTriangle className="h-3 w-3" />}
+                                {savingState === "saving" && "Guardando"}
+                                {savingState === "saved" && "Guardado"}
+                                {savingState === "error" && "Error"}
+                            </span>
+                        )}
+
                         {/* Mobile close button */}
                         <button
                             onClick={() => setIsMobileOpen(false)}

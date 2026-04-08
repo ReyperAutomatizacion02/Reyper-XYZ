@@ -37,12 +37,16 @@ export interface UserPreferences {
 
 const DEBOUNCE_MS = 1000;
 
+export type SavingState = "idle" | "saving" | "saved" | "error";
+
 export function useUserPreferences() {
     const [preferences, setPreferences] = useState<UserPreferences>({});
     const [isLoading, setIsLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
+    const [savingState, setSavingState] = useState<SavingState>("idle");
     const supabase = createClient();
     const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+    const savedResetRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
     // Load preferences on mount (with retry)
     useEffect(() => {
@@ -104,10 +108,11 @@ export function useUserPreferences() {
         (newPrefs: UserPreferences) => {
             if (!userId) return;
 
-            // Clear existing timeout
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
-            }
+            // Clear existing timeouts
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+            if (savedResetRef.current) clearTimeout(savedResetRef.current);
+
+            setSavingState("saving");
 
             // Debounce save
             saveTimeoutRef.current = setTimeout(async () => {
@@ -120,10 +125,15 @@ export function useUserPreferences() {
                     if (error) {
                         console.error("Error saving preferences:", error);
                         toast.error("No se pudieron guardar las preferencias.");
+                        setSavingState("error");
+                    } else {
+                        setSavingState("saved");
+                        savedResetRef.current = setTimeout(() => setSavingState("idle"), 2000);
                     }
                 } catch (err) {
                     console.error("Failed to save preferences:", err);
                     toast.error("No se pudieron guardar las preferencias.");
+                    setSavingState("error");
                 }
             }, DEBOUNCE_MS);
         },
@@ -187,6 +197,7 @@ export function useUserPreferences() {
     return {
         preferences,
         isLoading,
+        savingState,
         updatePreference,
         getSidebarPrefs,
         getGanttPrefs,

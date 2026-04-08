@@ -717,9 +717,9 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
     - [x] Implementar en formularios clave: cotizador (`cotizador/page.tsx`), nuevo proyecto (`project-form.tsx`), modales de cliente/contacto
     - [x] Usar `aria-describedby` en los inputs asociados al mensaje de error (propuesta de A1)
 
-- [ ] **[B2]** "Guardado / Error" status indicator en preferencias — Rendimiento visual Medio
-    - [ ] Añadir estado `savingState: "idle" | "saving" | "saved" | "error"` en `useUserPreferences`
-    - [ ] Mostrar indicador sutil junto al toggle del sidebar: "Guardado ✓" por 2s tras éxito, "Error al guardar ⚠" si falla (propuesta de M1)
+- [x] **[B2]** "Guardado / Error" status indicator en preferencias — Rendimiento visual Medio — 2026-04-07
+    - [x] Añadir estado `savingState: "idle" | "saving" | "saved" | "error"` en `useUserPreferences`
+    - [x] Mostrar indicador sutil junto al toggle del sidebar: "Guardado ✓" por 2s tras éxito, "Error al guardar ⚠" si falla (propuesta de M1)
 
 ### 🔵 Bajos pendientes
 
@@ -745,8 +745,8 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 | Estado         | Cantidad | Porcentaje |
 | -------------- | -------- | ---------- |
-| ✅ Resuelto    | 13       | 72.2%      |
+| ✅ Resuelto    | 14       | 77.8%      |
 | 🔄 En progreso | 0        | 0%         |
-| ⏳ Pendiente   | 5        | 27.8%      |
+| ⏳ Pendiente   | 4        | 22.2%      |
 
-**Desglose de pendientes:** B2 (Medio), B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)
+**Desglose de pendientes:** B3 (Bajo), B4 (Bajo), B5 (Bajo), B6 (Bajo)
