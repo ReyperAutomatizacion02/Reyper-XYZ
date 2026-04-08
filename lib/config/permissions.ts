@@ -18,6 +18,7 @@ export const PERMISSIONS = {
     ALMACEN_INVENTARIO: "almacen:inventario",
     // Logística
     LOGISTICA_PROYECTOS: "logistica:proyectos",
+    LOGISTICA_TRATAMIENTOS: "logistica:tratamientos",
     // Áreas de página única (sin sub-herramientas por ahora)
     DISENO: "diseno",
     RRHH: "rrhh",
@@ -44,6 +45,7 @@ export const PERMISSION_ROUTES: Record<Permission, string> = {
     "ventas:auditoria": "/dashboard/ventas/auditoria",
     "almacen:inventario": "/dashboard/almacen/inventario",
     "logistica:proyectos": "/dashboard/logistica/proyectos",
+    "logistica:tratamientos": "/dashboard/logistica/tratamientos",
     diseno: "/dashboard/diseno",
     rrhh: "/dashboard/rrhh",
     compras: "/dashboard/compras",
@@ -65,6 +67,7 @@ export const PERMISSION_AREA: Record<Permission, string> = {
     "ventas:auditoria": "/dashboard/ventas",
     "almacen:inventario": "/dashboard/almacen",
     "logistica:proyectos": "/dashboard/logistica",
+    "logistica:tratamientos": "/dashboard/logistica",
     diseno: "/dashboard/diseno",
     rrhh: "/dashboard/rrhh",
     compras: "/dashboard/compras",
@@ -87,6 +90,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
     "ventas:auditoria": "Auditoría de Datos",
     "almacen:inventario": "Inventario",
     "logistica:proyectos": "Proyectos (Logística)",
+    "logistica:tratamientos": "Tratamientos",
     diseno: "Diseño",
     rrhh: "RRHH",
     compras: "Compras",
@@ -119,7 +123,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     contabilidad: ["contabilidad"],
     calidad: ["calidad"],
     almacen: ["almacen:inventario"],
-    logistica: ["logistica:proyectos"],
+    logistica: ["logistica:proyectos", "logistica:tratamientos"],
     administracion: ["administracion"],
 };
 
@@ -144,7 +148,7 @@ export const ROLE_AVAILABLE_PERMISSIONS: Record<string, Permission[]> = {
     contabilidad: ["contabilidad"],
     calidad: ["calidad"],
     almacen: ["almacen:inventario"],
-    logistica: ["logistica:proyectos"],
+    logistica: ["logistica:proyectos", "logistica:tratamientos"],
     administracion: ["administracion"],
 };
 

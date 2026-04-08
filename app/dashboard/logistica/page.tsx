@@ -1,6 +1,6 @@
 "use client";
 
-import { Truck, FolderKanban, MapPin, Clock } from "lucide-react";
+import { Truck, FolderKanban, MapPin, Clock, FlaskConical } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { ToolCard } from "@/components/tool-card";
 
@@ -13,6 +13,14 @@ const logisticsTools = [
         colorClass: "text-blue-500",
         bgClass: "bg-blue-500/10",
     },
+    {
+        name: "Tratamientos",
+        description: "Catálogo de tratamientos y acabados superficiales con proveedores y tiempos de entrega.",
+        href: "/dashboard/logistica/tratamientos",
+        icon: FlaskConical,
+        colorClass: "text-violet-500",
+        bgClass: "bg-violet-500/10",
+    },
     // Future tools as placeholders
     {
         name: "Gestión de Envíos",
@@ -21,7 +29,7 @@ const logisticsTools = [
         icon: Truck,
         colorClass: "text-slate-400",
         bgClass: "bg-slate-100",
-        disabled: true
+        disabled: true,
     },
     {
         name: "Destinos y Rutas",
@@ -30,17 +38,17 @@ const logisticsTools = [
         icon: MapPin,
         colorClass: "text-slate-400",
         bgClass: "bg-slate-100",
-        disabled: true
-    }
+        disabled: true,
+    },
 ];
 
 export default function LogisticaPage() {
     return (
-        <div className="p-6 max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-6xl space-y-8 p-6 duration-500 animate-in fade-in">
             <DashboardHeader
                 title="Logística"
                 description="Gestión de envíos y seguimiento de proyectos"
-                icon={<Truck className="w-8 h-8 text-[#EC1C21]" />}
+                icon={<Truck className="h-8 w-8 text-[#EC1C21]" />}
                 backUrl="/dashboard"
                 iconClassName="bg-red-500/10 text-[#EC1C21]"
             />
@@ -60,8 +68,8 @@ export default function LogisticaPage() {
                 ))}
 
                 {/* Placeholder for future tools */}
-                <div className="p-6 rounded-2xl border border-dashed border-border bg-muted/20 flex flex-col items-center justify-center text-center min-h-[200px]">
-                    <Clock className="w-10 h-10 text-muted-foreground/50 mb-3" />
+                <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center">
+                    <Clock className="mb-3 h-10 w-10 text-muted-foreground/50" />
                     <p className="text-sm font-medium text-muted-foreground">Más herramientas próximamente</p>
                 </div>
             </div>
