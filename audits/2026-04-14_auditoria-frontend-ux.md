@@ -279,7 +279,7 @@ Elimina 7 casts `as any`. Hace el comparador de memo más robusto. Reduce la int
 
 ---
 
-### 🎨 H-05 · TOUR DE PRODUCCIÓN — 120 LÍNEAS INLINE EN EL COMPONENTE [MEDIO]
+### ✅ H-05 · TOUR DE PRODUCCIÓN — 120 LÍNEAS INLINE EN EL COMPONENTE [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `production-view.tsx` contiene la definición completa del tour guiado (pasos, textos, callbacks de demostración) directamente en el cuerpo del componente. Ocupa ~120 líneas (líneas 205–363).
@@ -593,18 +593,18 @@ const suggestions = await getToolingSuggestions({
 
 ## 5. ÍNDICE DE HALLAZGOS
 
-| ID                                                                                | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
-| --------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
-| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)             | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
-| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas-resuelto--2026-04-14)   | `components/production/strategy-toolbar.tsx`   | ✅ RESUELTO | Arquitectura / SRP              | 2026-04-14 |
-| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-resuelto--2026-04-14) | `components/warehouse/inventory-view.tsx`      | ✅ RESUELTO | Tipado / UX                     | 2026-04-14 |
-| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)              | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
-| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio)       | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
-| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-resuelto--2026-04-14)      | `components/production/evaluation-sidebar.tsx` | ✅ RESUELTO | A11y / Z-index                  | 2026-04-14 |
-| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)             | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
-| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                          | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
-| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                   | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
-| [H-10](#h-10--landing-page--progreso-parcial-bajo)                                | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
+| ID                                                                                         | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
+| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)                      | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
+| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas-resuelto--2026-04-14)            | `components/production/strategy-toolbar.tsx`   | ✅ RESUELTO | Arquitectura / SRP              | 2026-04-14 |
+| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-resuelto--2026-04-14)          | `components/warehouse/inventory-view.tsx`      | ✅ RESUELTO | Tipado / UX                     | 2026-04-14 |
+| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)                       | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
+| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-resuelto--2026-04-14) | `components/production/production-view.tsx`    | ✅ RESUELTO | Separación de responsabilidades | 2026-04-14 |
+| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-resuelto--2026-04-14)               | `components/production/evaluation-sidebar.tsx` | ✅ RESUELTO | A11y / Z-index                  | 2026-04-14 |
+| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)                      | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
+| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                                   | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
+| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                            | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
+| [H-10](#h-10--landing-page--progreso-parcial-bajo)                                         | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
 
 **Calificación proyectada al cerrar H-01 a H-04: 9.1 / 10**
 
@@ -698,7 +698,7 @@ const suggestions = await getToolingSuggestions({
     5. Para el tipo `"warning"`, usar `AlertDialogAction className="bg-destructive"` en lugar del botón rojo custom.
 - **Criterio de aceptación:** El backdrop cubre toda la pantalla (no solo el sidebar). Esc cierra el modal de tipo `"info"`. El foco queda atrapado dentro del dialog mientras está abierto.
 
-#### Tarea 3.2 — H-05: Extraer tour de producción
+#### ✅ Tarea 3.2 — H-05: Extraer tour de producción [DONE — 2026-04-14]
 
 - **Archivos nuevos:** `hooks/use-production-tour.ts`, `lib/constants/production-tour-steps.ts`
 - **Pasos:**
@@ -766,7 +766,7 @@ Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
 
 Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
   ├── Tarea 3.1  AlertDialog en EvaluationSidebar         ✅ DONE
-  ├── Tarea 3.2  Extraer tour de producción               2h
+  ├── Tarea 3.2  Extraer tour de producción               ✅ DONE
   └── Tarea 3.3  Separar demo logic en MachiningView      1.5h
 
 Semana 4 (Apr 25–28)    SPRINT 4 — Polish y DX

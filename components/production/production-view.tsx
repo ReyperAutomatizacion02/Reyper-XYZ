@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ProductionViewSkeleton } from "@/components/ui/skeleton";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { useTour, TourStep } from "@/hooks/use-tour";
+import { useProductionTour } from "@/hooks/use-production-tour";
 import { toast } from "sonner";
 import { SchedulingResult, OrderWithRelations, WorkShift, DEFAULT_SHIFTS } from "@/lib/scheduling-utils";
 import { StrategyToolbar } from "./strategy-toolbar";
@@ -200,167 +200,12 @@ export function ProductionView({
     };
 
     // --- Help tour ---
-    const { startTour } = useTour();
-
-    const handleStartTour = () => {
-        const isDemo = taskState.optimisticTasks.length === 0;
-
-        if (isDemo) {
-            const demoTask: any = {
-                id: "demo-task-1",
-                order_id: "demo-order-1",
-                machine: machines[0]?.name || "CNC-01",
-                operator: "Juan Demo",
-                planned_date: new Date().toISOString(),
-                planned_end: new Date(Date.now() + 1000 * 60 * 60 * 4).toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                notes: "Tarea de demostración",
-                status: "planned",
-                production_orders: {
-                    id: "demo-order-1",
-                    part_code: "PZA-DEMO-001",
-                    part_name: "Pieza Demo",
-                    quantity: 10,
-                    client: "Cliente Demo",
-                    status: "active",
-                    created_at: new Date().toISOString(),
-                    delivery_date: new Date(Date.now() + 86400000).toISOString(),
-                    priority: "normal",
-                    material: "Acero",
-                    notes: "",
-                } as any,
-            };
-            taskState.setOptimisticTasks([demoTask]);
-        }
-
-        const cleanup = () => {
-            if (isDemo) taskState.setOptimisticTasks([]);
-            setModalData(null);
-        };
-
-        const steps: TourStep[] = [
-            {
-                element: "#planning-gantt-area",
-                popover: {
-                    title: "Área de Gantt",
-                    description:
-                        "Visualiza y gestiona la producción. Haz DOBLE CLIC en un espacio vacío para crear una tarea, o en una tarea existente para editarla.",
-                    side: "top",
-                    align: "center",
-                },
-            },
-            {
-                element: "#planning-view-modes",
-                popover: {
-                    title: "Modos de Vista",
-                    description: "Cambia la escala de tiempo entre Hora, Día y Semana.",
-                    side: "bottom",
-                    align: "start",
-                },
-            },
-            {
-                element: "#planning-machine-filter",
-                popover: {
-                    title: "Filtro de Máquinas",
-                    description: "Selecciona qué máquinas quieres ver en el diagrama.",
-                    side: "bottom",
-                },
-            },
-            {
-                element: "#planning-search",
-                popover: {
-                    title: "Buscador de Piezas",
-                    description: "Resalta rápidamente las tareas relacionadas con una pieza o código específico.",
-                    side: "bottom",
-                },
-            },
-            {
-                element: "#planning-settings",
-                popover: {
-                    title: "Configuración",
-                    description: "Personaliza la visualización, como mostrar/ocultar líneas de dependencia.",
-                    side: "bottom",
-                },
-            },
-            {
-                element: "#planning-fullscreen",
-                popover: {
-                    title: "Pantalla Completa",
-                    description: "Maximiza el área de trabajo para tener una mejor visión de toda la planta.",
-                    side: "left",
-                },
-            },
-            {
-                element: "#planning-gantt-area",
-                popover: {
-                    title: "Creación de Tareas",
-                    description: "Al hacer doble clic, se abrirá el formulario de tarea.",
-                    side: "top",
-                },
-                onHighlightStarted: () => setModalData(null),
-            },
-            {
-                element: "#task-modal-content",
-                popover: {
-                    title: "Formulario de Tarea",
-                    description: "Aquí se abrirá el formulario. Llénalo con la información del trabajo.",
-                    side: "left",
-                    align: "center",
-                },
-                onHighlightStarted: () => {
-                    setModalData({
-                        machine: machines[0]?.name || "CNC-01",
-                        time: Date.now(),
-                        operator: "Juan Demo",
-                        isDemo: true,
-                    });
-                },
-            },
-            {
-                element: "#task-modal-order",
-                popover: {
-                    title: "Selección de Pieza",
-                    description: "Busca y selecciona la orden de producción o pieza a maquinar.",
-                    side: "right",
-                },
-            },
-            {
-                element: "#task-modal-start",
-                popover: {
-                    title: "Inicio Programado",
-                    description: "Define la fecha y hora de inicio.",
-                    side: "right",
-                },
-            },
-            {
-                element: "#task-modal-end",
-                popover: {
-                    title: "Fin Estimado",
-                    description: "El sistema calculará el fin automáticamente, pero puedes ajustarlo.",
-                    side: "right",
-                },
-            },
-            {
-                element: "#task-modal-operator",
-                popover: {
-                    title: "Asignación de Operador",
-                    description: "Asigna un operador responsable a esta tarea.",
-                    side: "top",
-                },
-            },
-            {
-                element: "#task-modal-save",
-                popover: {
-                    title: "Guardar Cambios",
-                    description: "Guarda la tarea para reflejarla en el tablero de todos los usuarios.",
-                    side: "top",
-                },
-            },
-        ];
-
-        startTour(steps, cleanup);
-    };
+    const { handleStartTour } = useProductionTour({
+        machines,
+        hasOptimisticTasks: taskState.optimisticTasks.length > 0,
+        setOptimisticTasks: taskState.setOptimisticTasks,
+        setModalData,
+    });
 
     if (!settings.prefsInitialized) {
         return <ProductionViewSkeleton />;
