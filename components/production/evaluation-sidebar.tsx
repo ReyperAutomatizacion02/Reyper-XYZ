@@ -3,6 +3,16 @@
 import React from "react";
 import { AlertTriangle, Info, Search, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { extractDriveFileId } from "@/lib/drive-utils";
@@ -337,55 +347,56 @@ export function EvaluationSidebar({
                                 </Button>
                             </div>
 
-                            {/* Confirm overlay */}
-                            {confirmModal && (
-                                <div className="absolute inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
-                                    <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-border bg-background p-6 text-center shadow-2xl">
+                            {/* Confirm Dialog */}
+                            <AlertDialog open={!!confirmModal} onOpenChange={(open) => !open && setConfirmModal(null)}>
+                                <AlertDialogContent className="max-w-sm rounded-3xl p-6">
+                                    <div className="flex justify-center">
                                         <div
-                                            className={`flex h-16 w-16 items-center justify-center rounded-2xl border shadow-sm ${
-                                                confirmModal.type === "warning"
+                                            className={cn(
+                                                "flex h-16 w-16 items-center justify-center rounded-2xl border shadow-sm",
+                                                confirmModal?.type === "warning"
                                                     ? "border-red-500/20 bg-red-500/10"
                                                     : "border-primary/20 bg-primary/10"
-                                            }`}
+                                            )}
                                         >
-                                            {confirmModal.type === "warning" ? (
+                                            {confirmModal?.type === "warning" ? (
                                                 <AlertTriangle className="h-8 w-8 text-red-500" />
                                             ) : (
                                                 <Info className="h-8 w-8 text-primary" />
                                             )}
                                         </div>
-                                        <div className="space-y-2">
-                                            <h3 className="text-base font-black uppercase tracking-tight">
-                                                {confirmModal.title}
-                                            </h3>
-                                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                                                {confirmModal.message}
-                                            </p>
-                                        </div>
-                                        <div className="mt-2 flex w-full flex-col gap-2">
-                                            <Button
-                                                onClick={confirmModal.onConfirm}
-                                                className={`h-10 w-full text-xs font-black ${
-                                                    confirmModal.type === "warning"
-                                                        ? "bg-red-600 hover:bg-red-700"
-                                                        : "bg-primary hover:bg-primary/90"
-                                                }`}
-                                            >
-                                                {confirmModal.type === "warning" ? "ENTENDIDO" : "CONTINUAR"}
-                                            </Button>
-                                            {confirmModal.type === "info" && (
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => setConfirmModal(null)}
-                                                    className="h-10 w-full text-xs font-bold"
-                                                >
-                                                    CANCELAR
-                                                </Button>
-                                            )}
-                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                    <AlertDialogHeader className="text-center sm:text-center">
+                                        <AlertDialogTitle className="text-base font-black uppercase tracking-tight">
+                                            {confirmModal?.title}
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription className="whitespace-pre-wrap text-xs leading-relaxed">
+                                            {confirmModal?.message}
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+                                        <AlertDialogAction
+                                            onClick={confirmModal?.onConfirm}
+                                            className={cn(
+                                                "h-10 w-full text-xs font-black",
+                                                confirmModal?.type === "warning"
+                                                    ? "bg-red-600 hover:bg-red-700"
+                                                    : "bg-primary hover:bg-primary/90"
+                                            )}
+                                        >
+                                            {confirmModal?.type === "warning" ? "ENTENDIDO" : "CONTINUAR"}
+                                        </AlertDialogAction>
+                                        {confirmModal?.type === "info" && (
+                                            <AlertDialogCancel
+                                                onClick={() => setConfirmModal(null)}
+                                                className="mt-0 h-10 w-full text-xs font-bold"
+                                            >
+                                                CANCELAR
+                                            </AlertDialogCancel>
+                                        )}
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </motion.div>
                     )}
                 </AnimatePresence>

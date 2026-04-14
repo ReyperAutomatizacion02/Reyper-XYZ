@@ -332,7 +332,7 @@ Al separar los steps, es trivial añadir un segundo tour "avanzado" para usuario
 
 ---
 
-### 🎨 H-06 · EVALUATION CONFIRM MODAL — Z-INDEX FRÁGIL [MEDIO]
+### ✅ H-06 · EVALUATION CONFIRM MODAL — Z-INDEX FRÁGIL [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `evaluation-sidebar.tsx` renderiza su modal de confirmación como un `div` con `absolute inset-0 z-[10000]` dentro del sidebar (`z-[1000]`).
@@ -600,7 +600,7 @@ const suggestions = await getToolingSuggestions({
 | [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-resuelto--2026-04-14) | `components/warehouse/inventory-view.tsx`      | ✅ RESUELTO | Tipado / UX                     | 2026-04-14 |
 | [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)              | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
 | [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio)       | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
-| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)                     | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
+| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-resuelto--2026-04-14)      | `components/production/evaluation-sidebar.tsx` | ✅ RESUELTO | A11y / Z-index                  | 2026-04-14 |
 | [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)             | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
 | [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                          | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
 | [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                   | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
@@ -687,7 +687,7 @@ const suggestions = await getToolingSuggestions({
 **Objetivo:** Corregir el modal de confirmación, extraer el tour y limpiar el flujo de maquinados.
 **Fecha objetivo:** 2026-04-24
 
-#### Tarea 3.1 — H-06: Reemplazar confirm modal inline por `AlertDialog`
+#### ✅ Tarea 3.1 — H-06: Reemplazar confirm modal inline por `AlertDialog` [DONE — 2026-04-14]
 
 - **Archivo:** `components/production/evaluation-sidebar.tsx`
 - **Pasos:**
@@ -765,7 +765,7 @@ Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
   └── Tarea 2.2  Tipar + paginar InventoryView            ✅ DONE
 
 Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
-  ├── Tarea 3.1  AlertDialog en EvaluationSidebar         1h
+  ├── Tarea 3.1  AlertDialog en EvaluationSidebar         ✅ DONE
   ├── Tarea 3.2  Extraer tour de producción               2h
   └── Tarea 3.3  Separar demo logic en MachiningView      1.5h
 
