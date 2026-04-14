@@ -377,7 +377,7 @@ Elimina el z-index mágico. Cumple WCAG 2.1 con focus trap. El usuario no puede 
 
 ---
 
-### 🎨 H-07 · AUTO-PLAN DIALOG — ERROR DE GUARDADO SIN FEEDBACK [MEDIO]
+### ✅ H-07 · AUTO-PLAN DIALOG — ERROR DE GUARDADO SIN FEEDBACK [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `auto-plan-dialog.tsx:176` — el bloque catch de `handleSave` solo hace `console.error(err)`.
@@ -601,7 +601,7 @@ const suggestions = await getToolingSuggestions({
 | [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)        | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
 | [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio) | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
 | [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)               | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
-| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)       | `components/production/auto-plan-dialog.tsx`   | 🟡 MEDIO    | UX / Error handling             | 15min      |
+| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)       | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
 | [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                    | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
 | [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)             | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
 | [H-10](#h-10--landing-page--progreso-parcial-bajo)                          | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
@@ -640,21 +640,13 @@ const suggestions = await getToolingSuggestions({
     - Corregido bug latente en `GanttTaskBar`: `onDoubleClick` pasaba el objeto `task` completo a `setModalData`; ahora construye el shape correcto.
     - `tsc --noEmit` pasa sin errores. Cero ocurrencias de `as any` en los archivos afectados.
 
-#### Tarea 1.3 — H-07: Feedback de error en `AutoPlanDialog` _(quickwin — 15 min)_
+#### ✅ Tarea 1.3 — H-07: Feedback de error en `AutoPlanDialog` — COMPLETADA 2026-04-14
 
-- **Archivo:** `components/production/auto-plan-dialog.tsx:175`
-- **Pasos:**
-    1. Reemplazar el bloque catch:
-        ```typescript
-        } catch (err) {
-            console.error("[AutoPlanDialog] Error saving scenario:", err);
-            toast.error("No se pudo guardar el escenario. Intenta de nuevo.");
-        } finally {
-            setIsSaving(false);
-        }
-        ```
-    2. Remover el `setIsSaving(false)` del bloque try para que siempre se ejecute en finally.
-- **Criterio de aceptación:** Al simular un error en `onSaveScenario`, el dialog no se cierra y aparece un toast de error.
+- **Solución aplicada:** 2 líneas en `auto-plan-dialog.tsx:175`.
+    - `console.error(err)` → `console.error("[AutoPlanDialog] Error saving scenario:", err)`.
+    - Añadido `toast.error("No se pudo guardar el escenario. Intenta de nuevo.")` en el catch.
+    - El dialog no se cierra al fallar (`onClose()` solo se llama en el try). `setIsSaving(false)` permanece en `finally`.
+    - `tsc --noEmit` pasa sin errores.
 
 ---
 
@@ -766,7 +758,7 @@ const suggestions = await getToolingSuggestions({
 Semana 1 (Apr 14–17)    SPRINT 1 — Estabilidad Crítica
   ├── Tarea 1.1  GanttControls → componente real          ✅ DONE (2026-04-14)
   ├── Tarea 1.2  Eliminar as any en gantt-svg             ✅ DONE (2026-04-14)
-  └── Tarea 1.3  Toast de error en AutoPlanDialog         15min
+  └── Tarea 1.3  Toast de error en AutoPlanDialog         ✅ DONE (2026-04-14)
 
 Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
   ├── Tarea 2.1  Dividir strategy-toolbar.tsx             3–4h

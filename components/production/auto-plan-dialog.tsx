@@ -173,7 +173,8 @@ export function AutoPlanDialog({
             setScenarioName("");
             onClose();
         } catch (err) {
-            console.error(err);
+            console.error("[AutoPlanDialog] Error saving scenario:", err);
+            toast.error("No se pudo guardar el escenario. Intenta de nuevo.");
         } finally {
             setIsSaving(false);
         }
