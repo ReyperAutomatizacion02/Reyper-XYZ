@@ -158,7 +158,7 @@ Contiene la deuda antes de que se magnifique. Facilita que otro desarrollador mo
 
 ---
 
-### 🎨 H-03 · INVENTORYVIEW — TIPADO AUSENTE Y UX INCOMPLETA [ALTO]
+### ✅ H-03 · INVENTORYVIEW — TIPADO AUSENTE Y UX INCOMPLETA [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/warehouse/inventory-view.tsx` (135 líneas) es el módulo más nuevo del sistema. Implementa búsqueda con debounce y muestra una tabla de inventario.
@@ -593,18 +593,18 @@ const suggestions = await getToolingSuggestions({
 
 ## 5. ÍNDICE DE HALLAZGOS
 
-| ID                                                                              | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
-| ------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
-| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)           | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
-| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas-resuelto--2026-04-14) | `components/production/strategy-toolbar.tsx`   | ✅ RESUELTO | Arquitectura / SRP              | 2026-04-14 |
-| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-alto)               | `components/warehouse/inventory-view.tsx`      | 🟠 ALTO     | Tipado / UX                     | 2h         |
-| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)            | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
-| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio)     | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
-| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)                   | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
-| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)           | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
-| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                        | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
-| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                 | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
-| [H-10](#h-10--landing-page--progreso-parcial-bajo)                              | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
+| ID                                                                                | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
+| --------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
+| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)             | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
+| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas-resuelto--2026-04-14)   | `components/production/strategy-toolbar.tsx`   | ✅ RESUELTO | Arquitectura / SRP              | 2026-04-14 |
+| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-resuelto--2026-04-14) | `components/warehouse/inventory-view.tsx`      | ✅ RESUELTO | Tipado / UX                     | 2026-04-14 |
+| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)              | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
+| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio)       | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
+| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)                     | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
+| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)             | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
+| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                          | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
+| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                   | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
+| [H-10](#h-10--landing-page--progreso-parcial-bajo)                                | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
 
 **Calificación proyectada al cerrar H-01 a H-04: 9.1 / 10**
 
@@ -667,7 +667,7 @@ const suggestions = await getToolingSuggestions({
     6. Actualizar el barrel export si existe, o ajustar el import en `production-view.tsx`.
 - **Criterio de aceptación:** `strategy-toolbar.tsx` ≤ 120 líneas. Cada archivo hijo ≤ 220 líneas. Funcionalidad idéntica al estado anterior.
 
-#### Tarea 2.2 — H-03: Tipar y paginar `InventoryView`
+#### ✅ Tarea 2.2 — H-03: Tipar y paginar `InventoryView` [DONE — 2026-04-14]
 
 - **Archivo:** `components/warehouse/inventory-view.tsx`
 - **Pasos:**
@@ -762,7 +762,7 @@ Semana 1 (Apr 14–17)    SPRINT 1 — Estabilidad Crítica
 
 Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
   ├── Tarea 2.1  Dividir strategy-toolbar.tsx             ✅ DONE
-  └── Tarea 2.2  Tipar + paginar InventoryView            2h
+  └── Tarea 2.2  Tipar + paginar InventoryView            ✅ DONE
 
 Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
   ├── Tarea 3.1  AlertDialog en EvaluationSidebar         1h
