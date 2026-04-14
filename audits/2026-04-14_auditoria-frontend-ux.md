@@ -21,7 +21,7 @@ También se cerraron los problemas de feedback de errores (`lib/action-result.ts
 
 **La deuda técnica se redistribuyó:** los monolitos desaparecieron, pero emergieron nuevos patrones problemáticos de menor severidad. Hay un anti-patrón crítico nuevo (`GanttControls` llamado como función) — **ya resuelto (2026-04-14)** —, un segundo monolito formándose (`strategy-toolbar.tsx` con 622 líneas), y el módulo de Almacén debuta sin tipado.
 
-**Distribución de hallazgos: 1 crítico · 3 altos · 4 medios · 3 bajos** | **Resueltos en esta iteración: 4** (H-01, H-02, H-04, H-07)
+**Distribución de hallazgos: 1 crítico · 3 altos · 4 medios · 3 bajos** | **Resueltos en esta iteración: 10/10** ✅ (H-01 a H-10 — todos cerrados)
 
 ---
 
@@ -496,7 +496,7 @@ Patrón estándar de formularios en el resto del sistema (login, cotizador). Con
 
 ---
 
-### 🎨 H-10 · LANDING PAGE — PROGRESO PARCIAL [BAJO]
+### ✅ H-10 · LANDING PAGE — PROGRESO PARCIAL [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `app/page.tsx` implementó la mejora de jerarquía visual recomendada: hero de 70vh con h1 prominente, CTAs separados, features debajo del fold. Sin embargo, la sección de features en desktop sigue siendo 3 columnas compactas sin separación visual clara del hero.
@@ -604,7 +604,7 @@ const suggestions = await getToolingSuggestions({
 | [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)                      | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
 | [H-08](#h-08--machining-view--lógica-demo-acoplada-resuelto--2026-04-14)                   | `components/production/machining-view.tsx`     | ✅ RESUELTO | DX / Testabilidad               | 2026-04-14 |
 | [H-09](#h-09--workshift-manager--validación-solo-en-toast-resuelto--2026-04-14)            | `components/admin/work-shift-manager.tsx`      | ✅ RESUELTO | UX / Formularios                | 2026-04-14 |
-| [H-10](#h-10--landing-page--progreso-parcial-bajo)                                         | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
+| [H-10](#h-10--landing-page--progreso-parcial-resuelto--2026-04-14)                         | `app/page.tsx`                                 | ✅ RESUELTO | UI / Visual                     | 2026-04-14 |
 
 **Calificación proyectada al cerrar H-01 a H-04: 9.1 / 10**
 
@@ -740,7 +740,7 @@ const suggestions = await getToolingSuggestions({
     5. Limpiar `fieldErrors` al abrir el formulario (`cancelEdit` y `openNew`).
 - **Criterio de aceptación:** Enviar el formulario vacío resalta los campos en rojo con mensajes inline. Los toasts de validación eliminados.
 
-#### Tarea 4.2 — H-10: Separador visual en landing + scroll snap mobile
+#### ✅ Tarea 4.2 — H-10: Separador visual en landing + scroll snap mobile [DONE — 2026-04-14]
 
 - **Archivo:** `app/page.tsx`
 - **Pasos:**
@@ -771,7 +771,7 @@ Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
 
 Semana 4 (Apr 25–28)    SPRINT 4 — Polish y DX
   ├── Tarea 4.1  Validación inline WorkShiftManager       ✅ DONE
-  └── Tarea 4.2  Landing separator + scroll snap          30min
+  └── Tarea 4.2  Landing separator + scroll snap          ✅ DONE
 ```
 
 **Esfuerzo total estimado: ~19–21 horas de desarrollo**

@@ -103,24 +103,30 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Features ───────────────────────────────────────── */}
-                <section className="border-t border-border/40 py-24">
-                    <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-6 sm:grid-cols-2 md:grid-cols-3">
-                        {FEATURES.map((feature, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: i * 0.1 }}
-                                className="glass-card group flex flex-col items-start rounded-3xl p-8 text-left transition-colors hover:border-primary/50"
-                            >
-                                <div className="mb-6 rounded-2xl bg-primary/10 p-3 text-primary transition-transform duration-300 group-hover:scale-110">
-                                    <feature.icon className="h-8 w-8" />
-                                </div>
-                                <h3 className="mb-3 text-2xl font-bold">{feature.title}</h3>
-                                <p className="leading-relaxed text-muted-foreground">{feature.desc}</p>
-                            </motion.div>
-                        ))}
+                <section className="border-t border-border/50 bg-muted/20 py-24">
+                    <div className="mx-auto w-full max-w-7xl px-6">
+                        <p className="mb-12 text-center text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                            ¿Qué incluye?
+                        </p>
+                        {/* Mobile: horizontal scroll-snap. Desktop: 3-col grid */}
+                        <div className="flex snap-x snap-mandatory gap-6 overflow-x-auto pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
+                            {FEATURES.map((feature, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ delay: i * 0.1 }}
+                                    className="glass-card group flex min-w-[280px] snap-start flex-col items-start rounded-3xl p-8 text-left transition-colors hover:border-primary/50 md:min-w-0"
+                                >
+                                    <div className="mb-6 rounded-2xl bg-primary/10 p-3 text-primary transition-transform duration-300 group-hover:scale-110">
+                                        <feature.icon className="h-8 w-8" />
+                                    </div>
+                                    <h3 className="mb-3 text-2xl font-bold">{feature.title}</h3>
+                                    <p className="leading-relaxed text-muted-foreground">{feature.desc}</p>
+                                </motion.div>
+                            ))}
+                        </div>
                     </div>
                 </section>
             </main>
