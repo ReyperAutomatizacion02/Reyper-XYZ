@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { upsertWorkShift, deleteWorkShift, type WorkShiftRow } from "@/app/dashboard/admin-panel/actions";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const DEFAULT_WORK_DAYS = [1, 2, 3, 4, 5, 6];
@@ -38,10 +39,15 @@ interface WorkShiftManagerProps {
 export function WorkShiftManager({ initialShifts }: WorkShiftManagerProps) {
     const [shifts, setShifts] = useState<WorkShiftRow[]>(initialShifts);
     const [editing, setEditing] = useState<EditingShift | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
 
-    const openNew = () => setEditing(emptyShift());
-    const openEdit = (s: WorkShiftRow) =>
+    const openNew = () => {
+        setEditing(emptyShift());
+        setFieldErrors({});
+    };
+    const openEdit = (s: WorkShiftRow) => {
+        setFieldErrors({});
         setEditing({
             id: s.id,
             name: s.name,
@@ -51,7 +57,11 @@ export function WorkShiftManager({ initialShifts }: WorkShiftManagerProps) {
             active: s.active,
             sort_order: s.sort_order,
         });
-    const cancelEdit = () => setEditing(null);
+    };
+    const cancelEdit = () => {
+        setEditing(null);
+        setFieldErrors({});
+    };
 
     const toggleDay = (day: number) => {
         if (!editing) return;
@@ -63,18 +73,18 @@ export function WorkShiftManager({ initialShifts }: WorkShiftManagerProps) {
 
     const saveShift = () => {
         if (!editing) return;
-        if (!editing.name.trim()) {
-            toast.error("El nombre es obligatorio");
+
+        const errors: Record<string, string> = {};
+        if (!editing.name.trim()) errors.name = "El nombre es obligatorio";
+        if (!editing.start_time) errors.start_time = "Hora de inicio requerida";
+        if (!editing.end_time) errors.end_time = "Hora de fin requerida";
+        if (editing.days_of_week.length === 0) errors.days = "Selecciona al menos un día";
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
-        if (!editing.start_time || !editing.end_time) {
-            toast.error("Ingresa hora de inicio y fin");
-            return;
-        }
-        if (editing.days_of_week.length === 0) {
-            toast.error("Selecciona al menos un día");
-            return;
-        }
+        setFieldErrors({});
 
         startTransition(async () => {
             try {
@@ -224,28 +234,44 @@ export function WorkShiftManager({ initialShifts }: WorkShiftManagerProps) {
                             <label className="mb-1 block text-xs text-muted-foreground">Nombre</label>
                             <Input
                                 value={editing.name}
-                                onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                                onChange={(e) => {
+                                    setEditing({ ...editing, name: e.target.value });
+                                    if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: "" }));
+                                }}
                                 placeholder="Turno 3"
-                                className="h-8 text-sm"
+                                className={cn("h-8 text-sm", fieldErrors.name && "border-destructive")}
                             />
+                            {fieldErrors.name && <p className="mt-1 text-xs text-destructive">{fieldErrors.name}</p>}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs text-muted-foreground">Inicio</label>
                             <Input
                                 type="time"
                                 value={editing.start_time}
-                                onChange={(e) => setEditing({ ...editing, start_time: e.target.value })}
-                                className="h-8 text-sm"
+                                onChange={(e) => {
+                                    setEditing({ ...editing, start_time: e.target.value });
+                                    if (fieldErrors.start_time) setFieldErrors((f) => ({ ...f, start_time: "" }));
+                                }}
+                                className={cn("h-8 text-sm", fieldErrors.start_time && "border-destructive")}
                             />
+                            {fieldErrors.start_time && (
+                                <p className="mt-1 text-xs text-destructive">{fieldErrors.start_time}</p>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs text-muted-foreground">Fin</label>
                             <Input
                                 type="time"
                                 value={editing.end_time}
-                                onChange={(e) => setEditing({ ...editing, end_time: e.target.value })}
-                                className="h-8 text-sm"
+                                onChange={(e) => {
+                                    setEditing({ ...editing, end_time: e.target.value });
+                                    if (fieldErrors.end_time) setFieldErrors((f) => ({ ...f, end_time: "" }));
+                                }}
+                                className={cn("h-8 text-sm", fieldErrors.end_time && "border-destructive")}
                             />
+                            {fieldErrors.end_time && (
+                                <p className="mt-1 text-xs text-destructive">{fieldErrors.end_time}</p>
+                            )}
                         </div>
                     </div>
 
@@ -257,17 +283,23 @@ export function WorkShiftManager({ initialShifts }: WorkShiftManagerProps) {
                                 <button
                                     key={i}
                                     type="button"
-                                    onClick={() => toggleDay(i)}
-                                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                                    onClick={() => {
+                                        toggleDay(i);
+                                        if (fieldErrors.days) setFieldErrors((f) => ({ ...f, days: "" }));
+                                    }}
+                                    className={cn(
+                                        "rounded px-2 py-1 text-xs font-medium transition-colors",
                                         editing.days_of_week.includes(i)
                                             ? "bg-primary text-primary-foreground"
-                                            : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                    }`}
+                                            : "bg-muted text-muted-foreground hover:bg-muted/80",
+                                        fieldErrors.days && "ring-1 ring-destructive"
+                                    )}
                                 >
                                     {label}
                                 </button>
                             ))}
                         </div>
+                        {fieldErrors.days && <p className="mt-1 text-xs text-destructive">{fieldErrors.days}</p>}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-1">

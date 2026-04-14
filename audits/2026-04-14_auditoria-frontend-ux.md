@@ -447,7 +447,7 @@ Facilita escribir tests unitarios para `filteredTasks` sin simular el estado del
 
 ---
 
-### 🎨 H-09 · WORKSHIFT MANAGER — VALIDACIÓN SOLO EN TOAST [BAJO]
+### ✅ H-09 · WORKSHIFT MANAGER — VALIDACIÓN SOLO EN TOAST [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/admin/work-shift-manager.tsx` valida el formulario de turnos mostrando errores como toasts (`toast.error("El nombre es obligatorio")`). El campo incorrecto no recibe feedback visual.
@@ -603,7 +603,7 @@ const suggestions = await getToolingSuggestions({
 | [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-resuelto--2026-04-14)               | `components/production/evaluation-sidebar.tsx` | ✅ RESUELTO | A11y / Z-index                  | 2026-04-14 |
 | [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)                      | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
 | [H-08](#h-08--machining-view--lógica-demo-acoplada-resuelto--2026-04-14)                   | `components/production/machining-view.tsx`     | ✅ RESUELTO | DX / Testabilidad               | 2026-04-14 |
-| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                            | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
+| [H-09](#h-09--workshift-manager--validación-solo-en-toast-resuelto--2026-04-14)            | `components/admin/work-shift-manager.tsx`      | ✅ RESUELTO | UX / Formularios                | 2026-04-14 |
 | [H-10](#h-10--landing-page--progreso-parcial-bajo)                                         | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
 
 **Calificación proyectada al cerrar H-01 a H-04: 9.1 / 10**
@@ -729,7 +729,7 @@ const suggestions = await getToolingSuggestions({
 **Objetivo:** Pulir formularios, landing y unificar patrones de validación.
 **Fecha objetivo:** 2026-04-28
 
-#### Tarea 4.1 — H-09: Validación inline en `WorkShiftManager`
+#### ✅ Tarea 4.1 — H-09: Validación inline en `WorkShiftManager` [DONE — 2026-04-14]
 
 - **Archivo:** `components/admin/work-shift-manager.tsx`
 - **Pasos:**
@@ -770,7 +770,7 @@ Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
   └── Tarea 3.3  Separar demo logic en MachiningView      ✅ DONE
 
 Semana 4 (Apr 25–28)    SPRINT 4 — Polish y DX
-  ├── Tarea 4.1  Validación inline WorkShiftManager       1h
+  ├── Tarea 4.1  Validación inline WorkShiftManager       ✅ DONE
   └── Tarea 4.2  Landing separator + scroll snap          30min
 ```
 
