@@ -34,7 +34,8 @@
             "Bash(npm run:*)",
             "Bash(tree -L 3 -d \"c:\\\\Users\\\\User2\\\\Documents\\\\Reyper XYZ\" --ignore \"node_modules|.next|.git\")",
             "mcp__claude_ai_Supabase__list_projects",
-            "mcp__claude_ai_Supabase__execute_sql"
+            "mcp__claude_ai_Supabase__execute_sql",
+            "Bash(wc -l e:/Users/gerar/Documentos/Dimancio/Reyper-XYZ/components/production/evaluation/*.tsx)"
         ]
     }
 }

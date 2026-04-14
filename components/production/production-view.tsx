@@ -13,7 +13,7 @@ import { useTour, TourStep } from "@/hooks/use-tour";
 import { toast } from "sonner";
 import { SchedulingResult, OrderWithRelations, WorkShift, DEFAULT_SHIFTS } from "@/lib/scheduling-utils";
 import { StrategyToolbar } from "./strategy-toolbar";
-import { GanttControls, ProjectOption } from "./gantt-controls";
+import { GanttStartControls, GanttEndControls, ProjectOption } from "./gantt-controls";
 import { EvaluationSidebar } from "./evaluation-sidebar";
 import { ConfirmationDialogs } from "./confirmation-dialogs";
 import { useEvaluationFilters } from "./hooks/use-evaluation-filters";
@@ -362,33 +362,6 @@ export function ProductionView({
         startTour(steps, cleanup);
     };
 
-    // --- Gantt controls (renders start/end toolbar elements) ---
-    const { startControls, endControls } = GanttControls({
-        viewMode: settings.viewMode,
-        onViewModeChange: settings.handleViewModeChange,
-        searchQuery,
-        onSearchChange: setSearchQuery,
-        allMachineNames,
-        selectedMachines: settings.selectedMachines,
-        onToggleMachine: settings.toggleMachine,
-        onSelectAllMachines: settings.selectAllMachines,
-        onClearAllMachines: settings.clearAllMachines,
-        showDependencies: settings.showDependencies,
-        onShowDependenciesChange: settings.handleShowDependenciesChange,
-        hideEmptyMachines: settings.hideEmptyMachines,
-        onHideEmptyMachinesChange: settings.handleHideEmptyMachinesChange,
-        cascadeMode: settings.cascadeMode,
-        onCascadeModeChange: settings.handleCascadeModeChange,
-        availableProjects,
-        projectFilter: settings.projectFilter,
-        onProjectFilterChange: settings.handleProjectFilterChange,
-        onClearGanttFilters: settings.clearGanttFilters,
-        zoomLevel: settings.zoomLevel,
-        onZoomChange: settings.handleZoomChange,
-        isFullscreen,
-        onToggleFullscreen: toggleFullscreen,
-    });
-
     if (!settings.prefsInitialized) {
         return <ProductionViewSkeleton />;
     }
@@ -460,8 +433,38 @@ export function ProductionView({
                         }}
                         focusTaskId={focusTaskId}
                         projectFilter={settings.projectFilter}
-                        startControls={startControls}
-                        endControls={endControls}
+                        startControls={
+                            <GanttStartControls
+                                viewMode={settings.viewMode}
+                                onViewModeChange={settings.handleViewModeChange}
+                            />
+                        }
+                        endControls={
+                            <GanttEndControls
+                                viewMode={settings.viewMode}
+                                searchQuery={searchQuery}
+                                onSearchChange={setSearchQuery}
+                                allMachineNames={allMachineNames}
+                                selectedMachines={settings.selectedMachines}
+                                onToggleMachine={settings.toggleMachine}
+                                onSelectAllMachines={settings.selectAllMachines}
+                                onClearAllMachines={settings.clearAllMachines}
+                                showDependencies={settings.showDependencies}
+                                onShowDependenciesChange={settings.handleShowDependenciesChange}
+                                hideEmptyMachines={settings.hideEmptyMachines}
+                                onHideEmptyMachinesChange={settings.handleHideEmptyMachinesChange}
+                                cascadeMode={settings.cascadeMode}
+                                onCascadeModeChange={settings.handleCascadeModeChange}
+                                availableProjects={availableProjects}
+                                projectFilter={settings.projectFilter}
+                                onProjectFilterChange={settings.handleProjectFilterChange}
+                                onClearGanttFilters={settings.clearGanttFilters}
+                                zoomLevel={settings.zoomLevel}
+                                onZoomChange={settings.handleZoomChange}
+                                isFullscreen={isFullscreen}
+                                onToggleFullscreen={toggleFullscreen}
+                            />
+                        }
                         onToggleLock={taskState.handleToggleLock}
                         cascadeMode={settings.cascadeMode}
                         container={containerRef.current}
