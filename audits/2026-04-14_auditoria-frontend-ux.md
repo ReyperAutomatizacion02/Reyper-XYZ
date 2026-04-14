@@ -21,7 +21,7 @@ También se cerraron los problemas de feedback de errores (`lib/action-result.ts
 
 **La deuda técnica se redistribuyó:** los monolitos desaparecieron, pero emergieron nuevos patrones problemáticos de menor severidad. Hay un anti-patrón crítico nuevo (`GanttControls` llamado como función) — **ya resuelto (2026-04-14)** —, un segundo monolito formándose (`strategy-toolbar.tsx` con 622 líneas), y el módulo de Almacén debuta sin tipado.
 
-**Distribución de hallazgos: 1 crítico · 3 altos · 4 medios · 3 bajos** | **Resueltos en esta iteración: 1**
+**Distribución de hallazgos: 1 crítico · 3 altos · 4 medios · 3 bajos** | **Resueltos en esta iteración: 4** (H-01, H-02, H-04, H-07)
 
 ---
 
@@ -104,7 +104,7 @@ Elimina un bug latente que podría manifestarse en React 19+ con mayor rigor en 
 
 ---
 
-### 🎨 H-02 · STRATEGY-TOOLBAR — NUEVO MONOLITO (622 LÍNEAS)
+### ✅ H-02 · STRATEGY-TOOLBAR — NUEVO MONOLITO (622 LÍNEAS) [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/production/strategy-toolbar.tsx` se creó como parte de la refactorización de `production-view.tsx` y acumula 622 líneas mezclando cuatro responsabilidades distintas en un solo archivo.
@@ -593,18 +593,18 @@ const suggestions = await getToolingSuggestions({
 
 ## 5. ÍNDICE DE HALLAZGOS
 
-| ID                                                                          | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
-| --------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
-| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)       | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
-| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas)                  | `components/production/strategy-toolbar.tsx`   | 🟠 ALTO     | Arquitectura / SRP              | 3–4h       |
-| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-alto)           | `components/warehouse/inventory-view.tsx`      | 🟠 ALTO     | Tipado / UX                     | 2h         |
-| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)        | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
-| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio) | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
-| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)               | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
-| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)       | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
-| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                    | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
-| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)             | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
-| [H-10](#h-10--landing-page--progreso-parcial-bajo)                          | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
+| ID                                                                              | Componente / Archivo                           | Severidad   | Categoría                       | Esfuerzo   |
+| ------------------------------------------------------------------------------- | ---------------------------------------------- | ----------- | ------------------------------- | ---------- |
+| [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)           | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
+| [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas-resuelto--2026-04-14) | `components/production/strategy-toolbar.tsx`   | ✅ RESUELTO | Arquitectura / SRP              | 2026-04-14 |
+| [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-alto)               | `components/warehouse/inventory-view.tsx`      | 🟠 ALTO     | Tipado / UX                     | 2h         |
+| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)            | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
+| [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio)     | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
+| [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)                   | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
+| [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)           | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
+| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                        | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
+| [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                 | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
+| [H-10](#h-10--landing-page--progreso-parcial-bajo)                              | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
 
 **Calificación proyectada al cerrar H-01 a H-04: 9.1 / 10**
 
@@ -655,7 +655,7 @@ const suggestions = await getToolingSuggestions({
 **Objetivo:** Frenar la formación del segundo monolito y completar el tipado del módulo de Almacén.
 **Fecha objetivo:** 2026-04-21
 
-#### Tarea 2.1 — H-02: Dividir `strategy-toolbar.tsx`
+#### ✅ Tarea 2.1 — H-02: Dividir `strategy-toolbar.tsx` [DONE — 2026-04-14]
 
 - **Archivos:** `components/production/strategy/` (directorio nuevo)
 - **Pasos:**
@@ -761,7 +761,7 @@ Semana 1 (Apr 14–17)    SPRINT 1 — Estabilidad Crítica
   └── Tarea 1.3  Toast de error en AutoPlanDialog         ✅ DONE (2026-04-14)
 
 Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
-  ├── Tarea 2.1  Dividir strategy-toolbar.tsx             3–4h
+  ├── Tarea 2.1  Dividir strategy-toolbar.tsx             ✅ DONE
   └── Tarea 2.2  Tipar + paginar InventoryView            2h
 
 Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad

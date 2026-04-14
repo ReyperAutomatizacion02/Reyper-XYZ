@@ -1,31 +1,21 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardList, Info, ListChecks, Save, Search, Sparkles, X } from "lucide-react";
-import { differenceInCalendarDays, format, isAfter } from "date-fns";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { getProductionTaskColor } from "@/utils/production-colors";
-import { SchedulingStrategy, SchedulingResult, OrderWithRelations } from "@/lib/scheduling-utils";
-import { Database } from "@/utils/supabase/types";
+import { differenceInCalendarDays, isAfter } from "date-fns";
+import { type SchedulingStrategy, type SchedulingResult, type OrderWithRelations } from "@/lib/scheduling-utils";
+import { OrderSelectionPopover } from "./strategy/OrderSelectionPopover";
+import { PlanningAlertsPopover } from "./strategy/PlanningAlertsPopover";
+import { ToolbarRightSection } from "./strategy/ToolbarRightSection";
 
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-};
-
-interface PlanningAlert {
-    type: "OVERLAP" | "MISSING_OPERATOR";
-    task: PlanningTask;
-    details: string;
-}
+export type { PlanningAlert } from "./strategy/types";
 
 interface StrategyToolbarProps {
     activeStrategy: SchedulingStrategy | "NONE";
     onStrategyChange: (strategy: SchedulingStrategy | "NONE") => void;
-    planningAlerts: PlanningAlert[];
+    planningAlerts: import("./strategy/types").PlanningAlert[];
     onLocateTask: (taskId: string) => void;
     liveDraftResult: SchedulingResult | null;
     orders: OrderWithRelations[];
@@ -74,7 +64,6 @@ export function StrategyToolbar({
         onStrategyChange(activeStrategy === "NONE" ? "CRITICAL_PATH" : "NONE");
     };
 
-    // Compute per-order status for the detail panel
     const orderStatuses = useMemo(() => {
         if (!liveDraftResult || activeStrategy === "NONE") return [];
         return orders
@@ -103,7 +92,6 @@ export function StrategyToolbar({
             );
     }, [liveDraftResult, orders, activeStrategy]);
 
-    // Machine load sorted by descending hours
     const machineLoad = useMemo(() => {
         if (!liveDraftResult) return [];
         return Object.entries(liveDraftResult.metrics.machineUtilization)
@@ -117,6 +105,7 @@ export function StrategyToolbar({
         <div className="flex flex-col gap-3 bg-background px-6 pb-4">
             <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-muted/30 p-2 shadow-sm backdrop-blur-sm">
                 <div className="custom-scrollbar flex shrink-0 items-center gap-6 overflow-x-auto px-2 pb-1 md:pb-0">
+                    {/* Strategy toggle */}
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5 px-1">
                             <Sparkles className="h-3 w-3 text-primary" />
@@ -124,7 +113,6 @@ export function StrategyToolbar({
                                 Estrategia
                             </span>
                         </div>
-
                         <Button
                             variant={activeStrategy === "NONE" ? "outline" : "default"}
                             size="sm"
@@ -140,482 +128,37 @@ export function StrategyToolbar({
                         </Button>
                     </div>
 
-                    {/* Order selection for strategy */}
-                    {eligibleOrders.length > 0 && (
-                        <>
-                            <div className="mx-1 h-10 border-l border-border/50" />
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-1.5 px-1">
-                                    <ListChecks className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/80">
-                                        Partidas
-                                    </span>
-                                </div>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <button
-                                            className={cn(
-                                                "flex h-8 items-center gap-2 rounded-xl border px-3 text-[10px] font-black uppercase tracking-tight transition-all",
-                                                excludedOrderIds.size > 0
-                                                    ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
-                                                    : "border-border/60 bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground"
-                                            )}
-                                        >
-                                            {excludedOrderIds.size > 0 ? (
-                                                <>
-                                                    {eligibleOrders.length - excludedOrderIds.size}/
-                                                    {eligibleOrders.length}
-                                                </>
-                                            ) : (
-                                                <>Todas ({eligibleOrders.length})</>
-                                            )}
-                                        </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                        container={containerRef.current}
-                                        className="z-[10001] w-72 overflow-hidden p-0"
-                                        align="start"
-                                    >
-                                        <div className="border-b border-border bg-muted/30 px-4 py-3">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                                Selección de Partidas
-                                            </p>
-                                            <p className="mt-0.5 text-[9px] text-muted-foreground">
-                                                Elige qué partidas incluir en la estrategia
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-end gap-3 border-b border-border/50 px-4 py-2">
-                                            <button
-                                                onClick={onSelectAllOrders}
-                                                className="text-[9px] font-bold text-primary hover:underline"
-                                            >
-                                                Todas
-                                            </button>
-                                            <button
-                                                onClick={onDeselectAllOrders}
-                                                className="text-[9px] font-bold text-muted-foreground hover:underline"
-                                            >
-                                                Ninguna
-                                            </button>
-                                        </div>
-                                        <div className="custom-scrollbar max-h-72 overflow-y-auto py-2">
-                                            {eligibleOrders.map((order) => {
-                                                const isIncluded = !excludedOrderIds.has(order.id);
-                                                return (
-                                                    <label
-                                                        key={order.id}
-                                                        className={cn(
-                                                            "flex cursor-pointer items-center gap-3 px-4 py-2 transition-colors",
-                                                            isIncluded ? "bg-primary/5" : "hover:bg-muted/40"
-                                                        )}
-                                                    >
-                                                        <div
-                                                            className={cn(
-                                                                "flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[3px] border transition-all",
-                                                                isIncluded
-                                                                    ? "border-primary bg-primary"
-                                                                    : "border-border bg-background"
-                                                            )}
-                                                        >
-                                                            {isIncluded && (
-                                                                <svg
-                                                                    viewBox="0 0 10 7"
-                                                                    className="h-2.5 w-2.5"
-                                                                    fill="none"
-                                                                    stroke="white"
-                                                                    strokeWidth="1.8"
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                >
-                                                                    <path d="M1 3.5L3.5 6L9 1" />
-                                                                </svg>
-                                                            )}
-                                                        </div>
-                                                        <input
-                                                            type="checkbox"
-                                                            className="sr-only"
-                                                            checked={isIncluded}
-                                                            onChange={() => onToggleOrderExclusion(order.id)}
-                                                        />
-                                                        <div className="min-w-0">
-                                                            <p
-                                                                className={cn(
-                                                                    "truncate text-[11px] font-bold leading-none",
-                                                                    isIncluded
-                                                                        ? "text-foreground"
-                                                                        : "text-muted-foreground line-through"
-                                                                )}
-                                                            >
-                                                                {order.part_code}
-                                                            </p>
-                                                            {order.part_name && (
-                                                                <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
-                                                                    {order.part_name}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </label>
-                                                );
-                                            })}
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                        </>
-                    )}
+                    <OrderSelectionPopover
+                        eligibleOrders={eligibleOrders}
+                        excludedOrderIds={excludedOrderIds}
+                        onToggleOrderExclusion={onToggleOrderExclusion}
+                        onSelectAllOrders={onSelectAllOrders}
+                        onDeselectAllOrders={onDeselectAllOrders}
+                        containerRef={containerRef}
+                    />
 
-                    {/* Planning Alerts */}
-                    <div className="mx-1 h-10 border-l border-border/50" />
-
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className={cn(
-                                    "relative h-9 w-9 rounded-xl transition-all duration-300",
-                                    planningAlerts.length > 0
-                                        ? "bg-amber-500/10 text-amber-500 shadow-[0_0_15px_-5px_rgba(245,158,11,0.4)] hover:bg-amber-500/20"
-                                        : "text-muted-foreground opacity-40 hover:opacity-100"
-                                )}
-                            >
-                                <AlertTriangle
-                                    className={cn("h-5 w-5", planningAlerts.length > 0 && "animate-pulse")}
-                                />
-                                {planningAlerts.length > 0 && (
-                                    <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-white shadow-md ring-2 ring-background">
-                                        {planningAlerts.length}
-                                    </span>
-                                )}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                            container={containerRef.current}
-                            className="z-[10001] w-80 overflow-hidden p-0"
-                            align="start"
-                        >
-                            <div className="border-b border-border bg-muted/30 p-3">
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                    <h4 className="text-xs font-bold uppercase tracking-wider">
-                                        Alertas de Planeación
-                                    </h4>
-                                </div>
-                                <p className="mt-1 text-[10px] text-muted-foreground">
-                                    Se detectaron {planningAlerts.length} posibles inconvenientes en el cronograma
-                                    actual.
-                                </p>
-                            </div>
-                            <div className="custom-scrollbar flex max-h-[300px] flex-col gap-1 overflow-y-auto overflow-x-hidden p-2">
-                                {planningAlerts.length === 0 ? (
-                                    <div className="flex flex-col items-center gap-2 py-8 text-center opacity-50">
-                                        <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                                        <p className="text-[10px] font-bold uppercase tracking-widest">
-                                            Sin alertas detectadas
-                                        </p>
-                                    </div>
-                                ) : (
-                                    planningAlerts.map((alert, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="group flex cursor-default flex-col rounded-lg border border-border/50 bg-background p-2 transition-colors hover:bg-muted/30"
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span
-                                                    className={cn(
-                                                        "shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-black uppercase leading-none",
-                                                        alert.type === "OVERLAP"
-                                                            ? "border-red-500/20 bg-red-500/10 text-red-500"
-                                                            : "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                                                    )}
-                                                >
-                                                    {alert.type === "OVERLAP" ? "Solapamiento" : "Carga"}
-                                                </span>
-                                                <span className="truncate text-[9px] font-black uppercase text-muted-foreground">
-                                                    {alert.task.machine}
-                                                </span>
-                                            </div>
-                                            <div className="mt-2 flex items-center gap-2">
-                                                <div
-                                                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                                    style={{ backgroundColor: getProductionTaskColor(alert.task) }}
-                                                />
-                                                <span className="truncate text-[11px] font-bold">
-                                                    {alert.task.production_orders?.part_code} -{" "}
-                                                    {alert.task.production_orders?.part_name}
-                                                </span>
-                                            </div>
-                                            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-                                                {alert.details}
-                                            </p>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="mt-2 h-6 w-full gap-1.5 text-[9px] font-black uppercase tracking-widest transition-all duration-300 hover:bg-primary/10 hover:text-primary"
-                                                onClick={() => onLocateTask(alert.task.id)}
-                                            >
-                                                <Search className="h-3 w-3" />
-                                                Localizar
-                                            </Button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                    <PlanningAlertsPopover
+                        planningAlerts={planningAlerts}
+                        onLocateTask={onLocateTask}
+                        containerRef={containerRef}
+                    />
                 </div>
 
-                <div className="ml-2 flex flex-wrap items-center justify-end gap-4 border-l border-border px-4">
-                    {liveDraftResult && activeStrategy !== "NONE" && (
-                        <div className="flex shrink-0 items-center gap-4">
-                            <div className="flex min-w-[70px] flex-col items-end">
-                                <span className="text-[9px] font-black uppercase leading-none text-muted-foreground">
-                                    A tiempo
-                                </span>
-                                <span
-                                    className={cn(
-                                        "text-xs font-black leading-tight",
-                                        liveDraftResult.metrics.lateOrders > 0 ? "text-red-500" : "text-green-500"
-                                    )}
-                                >
-                                    {liveDraftResult.metrics.totalOrders - liveDraftResult.metrics.lateOrders}/
-                                    {liveDraftResult.metrics.totalOrders}
-                                </span>
-                            </div>
-                            <div className="flex min-w-[60px] flex-col items-end">
-                                <span className="text-[9px] font-black uppercase leading-none text-muted-foreground">
-                                    Carga
-                                </span>
-                                <span className="text-xs font-black leading-tight text-primary">
-                                    {liveDraftResult.metrics.totalHours.toFixed(0)}h
-                                </span>
-                            </div>
-
-                            {/* Detail popover */}
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-                                        title="Ver desglose de planeación"
-                                    >
-                                        <Info className="h-3.5 w-3.5" />
-                                    </button>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                    container={containerRef.current}
-                                    className="z-[10001] w-96 overflow-hidden p-0"
-                                    align="end"
-                                >
-                                    <div className="border-b border-border bg-muted/30 px-4 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                            Desglose de Planeación
-                                        </p>
-                                    </div>
-                                    <div className="custom-scrollbar max-h-[400px] overflow-y-auto">
-                                        {/* Orders section */}
-                                        <div className="px-4 py-3">
-                                            <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                                                Órdenes ({orderStatuses.length})
-                                            </p>
-                                            <div className="space-y-1.5">
-                                                {orderStatuses.map(
-                                                    ({ order, isLate, lastEnd, deliveryDate, diffDays }) => (
-                                                        <div
-                                                            key={order.id}
-                                                            className={cn(
-                                                                "rounded-lg border px-3 py-2 transition-colors",
-                                                                isLate
-                                                                    ? "border-red-500/20 bg-red-500/5"
-                                                                    : "border-green-500/20 bg-green-500/5"
-                                                            )}
-                                                        >
-                                                            {/* Header row */}
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <p className="truncate text-[11px] font-bold leading-none">
-                                                                    {order.part_code}
-                                                                    {order.part_name && (
-                                                                        <span className="ml-1 font-normal text-muted-foreground">
-                                                                            · {order.part_name}
-                                                                        </span>
-                                                                    )}
-                                                                </p>
-                                                                <span
-                                                                    className={cn(
-                                                                        "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black leading-none",
-                                                                        isLate
-                                                                            ? "bg-red-500/15 text-red-500"
-                                                                            : "bg-green-500/15 text-green-600"
-                                                                    )}
-                                                                >
-                                                                    {isLate ? "Con retraso" : "A tiempo"}
-                                                                </span>
-                                                            </div>
-                                                            {/* Date comparison row */}
-                                                            <div className="mt-1.5 flex items-center gap-3 text-[9px]">
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-black uppercase leading-none text-muted-foreground">
-                                                                        Entrega
-                                                                    </span>
-                                                                    <span className="mt-0.5 font-bold text-foreground">
-                                                                        {deliveryDate
-                                                                            ? format(deliveryDate, "dd/MM/yyyy")
-                                                                            : "—"}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-muted-foreground">→</span>
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-black uppercase leading-none text-muted-foreground">
-                                                                        Previsto
-                                                                    </span>
-                                                                    <span
-                                                                        className={cn(
-                                                                            "mt-0.5 font-bold",
-                                                                            isLate ? "text-red-500" : "text-green-600"
-                                                                        )}
-                                                                    >
-                                                                        {format(lastEnd, "dd/MM/yyyy")}
-                                                                    </span>
-                                                                </div>
-                                                                {diffDays !== null && (
-                                                                    <span
-                                                                        className={cn(
-                                                                            "ml-auto shrink-0 font-black",
-                                                                            isLate ? "text-red-500" : "text-green-600"
-                                                                        )}
-                                                                    >
-                                                                        {isLate
-                                                                            ? `${Math.abs(diffDays)}d tarde`
-                                                                            : diffDays === 0
-                                                                              ? "justo"
-                                                                              : `${diffDays}d margen`}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                )}
-                                                {orderStatuses.length === 0 && (
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        Sin órdenes planificadas
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Machine load section */}
-                                        {machineLoad.length > 0 && (
-                                            <>
-                                                <div className="mx-4 border-t border-border/50" />
-                                                <div className="px-4 py-3">
-                                                    <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                                                        Carga por Máquina
-                                                    </p>
-                                                    <div className="space-y-2">
-                                                        {machineLoad.map(([machine, hours]) => (
-                                                            <div key={machine} className="space-y-0.5">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[10px] font-bold">
-                                                                        {machine}
-                                                                    </span>
-                                                                    <span className="text-[10px] font-black text-primary">
-                                                                        {hours.toFixed(1)}h
-                                                                    </span>
-                                                                </div>
-                                                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                                                    <div
-                                                                        className="h-full rounded-full bg-primary/60 transition-all"
-                                                                        style={{
-                                                                            width: `${Math.min(100, (hours / maxMachineHours) * 100)}%`,
-                                                                        }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {/* Skipped orders section */}
-                                        {liveDraftResult.skipped.length > 0 && (
-                                            <>
-                                                <div className="mx-4 border-t border-border/50" />
-                                                <div className="px-4 py-3">
-                                                    <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                                                        Omitidas ({liveDraftResult.skipped.length})
-                                                    </p>
-                                                    <div className="space-y-1">
-                                                        {liveDraftResult.skipped.map(({ order, reason }, i) => (
-                                                            <div
-                                                                key={i}
-                                                                className="flex items-start gap-2 rounded-lg px-2 py-1.5"
-                                                            >
-                                                                <X className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-                                                                <div className="min-w-0">
-                                                                    <p className="truncate text-[10px] font-bold">
-                                                                        {order.part_code}
-                                                                    </p>
-                                                                    <p className="text-[9px] text-muted-foreground">
-                                                                        {reason}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-
-                            <Button
-                                size="sm"
-                                onClick={onSaveAllPlanning}
-                                disabled={liveDraftResult.tasks.length === 0}
-                                className="ml-2 h-8 rounded-xl bg-[#EC1C21] text-[10px] font-black uppercase tracking-tight text-white shadow-lg shadow-[#EC1C21]/20 transition-all hover:scale-[1.05] hover:bg-[#EC1C21]/90 active:scale-95"
-                            >
-                                Aplicar
-                            </Button>
-                        </div>
-                    )}
-
-                    <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-border px-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onToggleEvalList}
-                            className={cn(
-                                "h-8 gap-2 rounded-xl border-border/60 px-4 text-[10px] font-black uppercase shadow-sm transition-all",
-                                isEvalListOpen ? "border-[#EC1C21] bg-[#EC1C21] text-white" : "hover:bg-muted"
-                            )}
-                        >
-                            <ClipboardList className="h-3.5 w-3.5" />
-                            <span>{showEvaluated ? "Evaluadas" : "Por Evaluar"}</span>
-                            {ordersPendingEvalCount > 0 && (
-                                <span
-                                    className={cn(
-                                        "flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white duration-300 animate-in zoom-in",
-                                        isEvalListOpen ? "bg-white text-[#EC1C21]" : "bg-[#EC1C21]"
-                                    )}
-                                >
-                                    {ordersPendingEvalCount}
-                                </span>
-                            )}
-                        </Button>
-
-                        {activeStrategy === "NONE" && (changedTasksCount > 0 || draftTasksCount > 0) && (
-                            <Button
-                                size="sm"
-                                onClick={onSaveAllPlanning}
-                                className="h-8 rounded-xl bg-black text-[10px] font-black uppercase tracking-tight text-white shadow-lg shadow-black/10 hover:bg-black/90"
-                            >
-                                <Save className="mr-1.5 h-3.5 w-3.5" />
-                                Guardar
-                            </Button>
-                        )}
-                    </div>
-                </div>
+                <ToolbarRightSection
+                    liveDraftResult={liveDraftResult}
+                    activeStrategy={activeStrategy}
+                    orderStatuses={orderStatuses}
+                    machineLoad={machineLoad}
+                    maxMachineHours={maxMachineHours}
+                    onSaveAllPlanning={onSaveAllPlanning}
+                    isEvalListOpen={isEvalListOpen}
+                    onToggleEvalList={onToggleEvalList}
+                    ordersPendingEvalCount={ordersPendingEvalCount}
+                    showEvaluated={showEvaluated}
+                    changedTasksCount={changedTasksCount}
+                    draftTasksCount={draftTasksCount}
+                    containerRef={containerRef}
+                />
             </div>
         </div>
     );
