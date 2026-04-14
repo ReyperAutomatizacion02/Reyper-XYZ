@@ -217,7 +217,7 @@ Un operario buscando el código de un inserto específico necesita que la búsqu
 
 ---
 
-### 🎨 H-04 · GANTT-SVG — TIPO `any` PERSISTENTE Y PROP EXPLOSION [ALTO]
+### ✅ H-04 · GANTT-SVG — TIPO `any` PERSISTENTE Y PROP EXPLOSION [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 A pesar de la refactorización exitosa, `gantt-svg.tsx` mantiene 7 instancias de `(task as any).is_treatment` y la prop `modalData?: any` sin tipar en la interfaz pública.
@@ -598,7 +598,7 @@ const suggestions = await getToolingSuggestions({
 | [H-01](#h-01--ganttcontrols--componente-llamado-como-función-crítico)       | `components/production/gantt-controls.tsx`     | ✅ RESUELTO | Arquitectura / Hooks            | 2026-04-14 |
 | [H-02](#h-02--strategy-toolbar--nuevo-monolito-622-líneas)                  | `components/production/strategy-toolbar.tsx`   | 🟠 ALTO     | Arquitectura / SRP              | 3–4h       |
 | [H-03](#h-03--inventoryview--tipado-ausente-y-ux-incompleta-alto)           | `components/warehouse/inventory-view.tsx`      | 🟠 ALTO     | Tipado / UX                     | 2h         |
-| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)        | `components/production/gantt-svg.tsx`          | 🟠 ALTO     | Tipado / DX                     | 1–2h       |
+| [H-04](#h-04--gantt-svg--tipo-any-persistente-y-prop-explosion-alto)        | `components/production/gantt-svg.tsx`          | ✅ RESUELTO | Tipado / DX                     | 2026-04-14 |
 | [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-medio) | `components/production/production-view.tsx`    | 🟡 MEDIO    | Separación de responsabilidades | 2h         |
 | [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-medio)               | `components/production/evaluation-sidebar.tsx` | 🟡 MEDIO    | A11y / Z-index                  | 1h         |
 | [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)       | `components/production/auto-plan-dialog.tsx`   | 🟡 MEDIO    | UX / Error handling             | 15min      |
@@ -630,24 +630,15 @@ const suggestions = await getToolingSuggestions({
     - `<GanttSVG>` recibe `startControls={<GanttStartControls ... />}` y `endControls={<GanttEndControls ... />}` como JSX directo.
     - `tsc --noEmit` pasa sin errores. Cero referencias al patrón antiguo en el codebase.
 
-#### Tarea 1.2 — H-04: Eliminar casts `as any` en `gantt-svg.tsx`
+#### ✅ Tarea 1.2 — H-04: Eliminar casts `as any` — COMPLETADA 2026-04-14
 
-- **Archivo:** `components/production/gantt-svg.tsx`
-- **Pasos:**
-    1. Actualizar el tipo local `PlanningTask` añadiendo los campos faltantes:
-        ```typescript
-        type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-            production_orders: Order | null;
-            isDraft?: boolean;
-            is_treatment?: boolean | null;
-            register?: string | null;
-            cascadeIds?: string[];
-        };
-        ```
-    2. Buscar y reemplazar las 7 instancias de `(task as any).is_treatment` → `task.is_treatment`.
-    3. Actualizar la interfaz `GanttSVGProps`: reemplazar `modalData?: any` por el tipo real `GanttModalData` (extraer del uso en `task-modal.tsx`).
-    4. Propagar el tipo `GanttModalData` a `GanttTaskBar.setModalData`.
-- **Criterio de aceptación:** `tsc --noEmit` no reporta errores en estos archivos. Cero ocurrencias de `as any` en `gantt-svg.tsx`.
+- **Solución aplicada:**
+    - Creado `components/production/types.ts` con `GanttPlanningTask` (tipo canónico compartido) y `GanttModalData`.
+    - `GanttPlanningTask` extiende la fila de Supabase con `is_treatment`, `treatment_type`, `register`, `isDraft`, `cascadeIds`, `startMs`, `endMs`.
+    - Los 4 archivos que redefinían `PlanningTask` localmente (`gantt-svg.tsx`, `GanttTaskBar.tsx`, `use-gantt-drag-drop.ts`, `use-gantt-layout.ts`) ahora importan el tipo compartido.
+    - Eliminados todos los casts `as any` en los 4 archivos. `modalData` y `setModalData` tipados con `GanttModalData | null`.
+    - Corregido bug latente en `GanttTaskBar`: `onDoubleClick` pasaba el objeto `task` completo a `setModalData`; ahora construye el shape correcto.
+    - `tsc --noEmit` pasa sin errores. Cero ocurrencias de `as any` en los archivos afectados.
 
 #### Tarea 1.3 — H-07: Feedback de error en `AutoPlanDialog` _(quickwin — 15 min)_
 
@@ -774,7 +765,7 @@ const suggestions = await getToolingSuggestions({
 ```
 Semana 1 (Apr 14–17)    SPRINT 1 — Estabilidad Crítica
   ├── Tarea 1.1  GanttControls → componente real          ✅ DONE (2026-04-14)
-  ├── Tarea 1.2  Eliminar as any en gantt-svg             1–2h
+  ├── Tarea 1.2  Eliminar as any en gantt-svg             ✅ DONE (2026-04-14)
   └── Tarea 1.3  Toast de error en AutoPlanDialog         15min
 
 Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad

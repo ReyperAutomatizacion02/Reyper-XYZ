@@ -5,13 +5,9 @@ import { motion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { format, isBefore } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Database } from "@/utils/supabase/types";
+import { type GanttPlanningTask, type GanttModalData } from "../types";
 
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-};
+type PlanningTask = GanttPlanningTask;
 
 export interface GanttTaskBarProps {
     task: PlanningTask;
@@ -37,7 +33,7 @@ export interface GanttTaskBarProps {
     setTooltipPos: (pos: { x: number; y: number; mode: "above" | "below" }) => void;
     setContextMenu: (data: { x: number; y: number; task: PlanningTask } | null) => void;
     onTaskDoubleClick?: (task: PlanningTask) => void;
-    setModalData: (data: any) => void;
+    setModalData: (data: GanttModalData | null) => void;
 }
 
 const TOOLTIP_WIDTH = 320;
@@ -133,7 +129,17 @@ function GanttTaskBarInner({
                 if (onTaskDoubleClick) {
                     onTaskDoubleClick(task);
                 } else {
-                    setModalData(task);
+                    setModalData({
+                        id: task.id,
+                        machine: task.machine || "Sin Máquina",
+                        start: task.planned_date
+                            ? format(new Date(task.planned_date), "yyyy-MM-dd'T'HH:mm")
+                            : undefined,
+                        end: task.planned_end ? format(new Date(task.planned_end), "yyyy-MM-dd'T'HH:mm") : undefined,
+                        operator: task.operator || "",
+                        orderId: task.order_id || "",
+                        activeOrder: task.production_orders,
+                    });
                 }
             }}
         >

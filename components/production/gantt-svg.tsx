@@ -25,13 +25,11 @@ import { useGanttDragDrop } from "./hooks/use-gantt-drag-drop";
 import { GanttTaskBar } from "./gantt/GanttTaskBar";
 import { GanttTooltip } from "./gantt/GanttTooltip";
 import { GanttContextMenu } from "./gantt/GanttContextMenu";
+import { type GanttPlanningTask, type GanttModalData } from "./types";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-};
+type PlanningTask = GanttPlanningTask;
 
 export interface GanttSVGProps {
     initialMachines: Machine[];
@@ -51,8 +49,8 @@ export interface GanttSVGProps {
     onTaskDoubleClick?: (task: PlanningTask) => void;
     hideDateNavigation?: boolean;
     hideEmptyMachines?: boolean;
-    modalData?: any;
-    setModalData?: (data: any) => void;
+    modalData?: GanttModalData | null;
+    setModalData?: (data: GanttModalData | null) => void;
     onToggleLock?: (taskId: string, locked: boolean) => void;
     cascadeMode?: boolean;
     container?: HTMLElement | null;
@@ -155,10 +153,8 @@ export function GanttSVG({
             for (let i = 0; i < groupTasks.length - 1; i++) {
                 const startTask = groupTasks[i];
                 const endTask = groupTasks[i + 1];
-                const startMachine = (startTask as any).is_treatment
-                    ? "TRATAMIENTO"
-                    : startTask.machine || "Sin Máquina";
-                const endMachine = (endTask as any).is_treatment ? "TRATAMIENTO" : endTask.machine || "Sin Máquina";
+                const startMachine = startTask.is_treatment ? "TRATAMIENTO" : startTask.machine || "Sin Máquina";
+                const endMachine = endTask.is_treatment ? "TRATAMIENTO" : endTask.machine || "Sin Máquina";
                 if (!machineYOffsets.has(startMachine) || !machineYOffsets.has(endMachine)) continue;
                 const startY =
                     (machineYOffsets.get(startMachine) || 0) +
@@ -173,10 +169,8 @@ export function GanttSVG({
                 const startX = timeToX(new Date(startTask.planned_end!));
                 const endX = timeToX(new Date(endTask.planned_date!));
                 const isContinuation =
-                    !!(startTask as any).register &&
-                    startTask.register === endTask.register &&
-                    startMachine === endMachine;
-                const involvesTreatment = !!(startTask as any).is_treatment || !!(endTask as any).is_treatment;
+                    !!startTask.register && startTask.register === endTask.register && startMachine === endMachine;
+                const involvesTreatment = !!startTask.is_treatment || !!endTask.is_treatment;
                 const lineColor = getProductionTaskColor(startTask, taskColorMap);
                 const controlOffset = Math.min(Math.abs(endX - startX) / 2, 50);
                 const path = `M ${startX} ${startY} C ${startX + controlOffset} ${startY}, ${endX - controlOffset} ${endY}, ${endX} ${endY}`;
@@ -220,7 +214,7 @@ export function GanttSVG({
 
     // ── UI-local state ───────────────────────────────────────────────────────
     const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
-    const [localModalData, setLocalModalData] = useState<any>(null);
+    const [localModalData, setLocalModalData] = useState<GanttModalData | null>(null);
     const modalData = externalModalData !== undefined ? externalModalData : localModalData;
     const setModalData = externalSetModalData || setLocalModalData;
     const [hoveredTask, setHoveredTask] = useState<PlanningTask | null>(null);
@@ -273,7 +267,7 @@ export function GanttSVG({
         if (!task || !task.planned_date) return;
 
         const x = timeToX(task.planned_date);
-        const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
+        const machine = task.is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
         const yOffset = machineYOffsets.get(machine) || 0;
         const lane = taskLanes.get(task.id) || 0;
         const y = yOffset + lane * 40 + 10;
@@ -689,7 +683,7 @@ export function GanttSVG({
 
                             {/* Task bars */}
                             {filteredTasks.map((task) => {
-                                const isTreatmentTask = !!(task as any).is_treatment;
+                                const isTreatmentTask = !!task.is_treatment;
                                 const machine = isTreatmentTask ? "TRATAMIENTO" : task.machine || "Sin Máquina";
                                 const machineY = machineYOffsets.get(machine) || 0;
                                 const lane = taskLanes.get(task.id) || 0;
@@ -793,7 +787,7 @@ export function GanttSVG({
                                                     scrollContainerRef.current?.clientHeight ?? totalHeight;
                                                 const taskX = timeToX(task.planned_date);
                                                 const taskEndX = timeToX(task.planned_end);
-                                                const machine = (task as any).is_treatment
+                                                const machine = task.is_treatment
                                                     ? "TRATAMIENTO"
                                                     : task.machine || "Sin Máquina";
                                                 const taskY = machineYOffsets.get(machine) ?? 0;
@@ -805,7 +799,7 @@ export function GanttSVG({
                                                 return inViewX && inViewY;
                                             })
                                             .map((task) => {
-                                                const machine = (task as any).is_treatment
+                                                const machine = task.is_treatment
                                                     ? "TRATAMIENTO"
                                                     : task.machine || "Sin Máquina";
                                                 const orderLabel = task.production_orders?.part_code

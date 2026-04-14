@@ -13,14 +13,10 @@ import {
     startOfDay,
     endOfDay,
 } from "date-fns";
-import { Database } from "@/utils/supabase/types";
 import { snapToNearest15Minutes } from "@/lib/scheduling-utils";
+import { type GanttPlanningTask } from "../types";
 
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-};
+type PlanningTask = GanttPlanningTask;
 
 interface DraggingState {
     id: string;
@@ -173,9 +169,7 @@ export function useGanttDragDrop({
                 let newStartTime = xToTime(newX);
                 newStartTime = snapToNearest15Minutes(newStartTime);
 
-                const isDraggingTreatment = optimisticTasks.some(
-                    (t) => t.id === draggingTask.id && (t as any).is_treatment
-                );
+                const isDraggingTreatment = optimisticTasks.some((t) => t.id === draggingTask.id && t.is_treatment);
                 if (isDraggingTreatment) newStartTime = snapTreatmentToWeekday(newStartTime);
 
                 const originalStart = xToTime(draggingTask.initialX);
@@ -212,9 +206,7 @@ export function useGanttDragDrop({
                 const direction = resizingTask.direction || "right";
                 const limitStart = resizingTask.dayStart ? new Date(resizingTask.dayStart) : null;
                 const limitEnd = resizingTask.dayEnd ? new Date(resizingTask.dayEnd) : null;
-                const isResizingTreatment = optimisticTasks.some(
-                    (t) => t.id === resizingTask.id && (t as any).is_treatment
-                );
+                const isResizingTreatment = optimisticTasks.some((t) => t.id === resizingTask.id && t.is_treatment);
 
                 setOptimisticTasks((prev) => {
                     const updated = prev.map((t) => {

@@ -15,13 +15,10 @@ import {
 } from "date-fns";
 import { Database } from "@/utils/supabase/types";
 import { buildColorMap } from "@/utils/production-colors";
+import { type GanttPlanningTask } from "../types";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-};
+type PlanningTask = GanttPlanningTask;
 
 // Bar sizing constants (exported so GanttTaskBar can import them)
 export const BAR_HEIGHT = 36;
@@ -42,15 +39,15 @@ interface UseGanttLayoutProps {
 
 /** Resolve the treatment type name from a task (handles both draft and saved tasks). */
 export function getTreatmentTypeName(task: PlanningTask): string | null {
-    if ((task as any).treatment_type) return (task as any).treatment_type as string;
+    if (task.treatment_type) return task.treatment_type;
     const reg = task.register;
     if (!reg) return null;
     const m = reg.match(/^(\d+)-T$/);
     if (!m) return null;
     const stepIdx = parseInt(m[1]) - 1;
-    const evaluation = (task.production_orders as any)?.evaluation as any[] | null;
+    const evaluation = task.production_orders?.evaluation as { treatment?: string }[] | null;
     if (!evaluation || stepIdx < 0 || stepIdx >= evaluation.length) return null;
-    return (evaluation[stepIdx]?.treatment as string) || null;
+    return evaluation[stepIdx]?.treatment || null;
 }
 
 export function useGanttLayout({
@@ -71,7 +68,7 @@ export function useGanttLayout({
             ...initialMachines.map((m) => m.name),
             ...optimisticTasks.map((t) => t.machine).filter((n): n is string => !!n),
         ]);
-        if (optimisticTasks.some((t) => !t.machine && !(t as any).is_treatment)) uniqueNames.add("Sin Máquina");
+        if (optimisticTasks.some((t) => !t.machine && !t.is_treatment)) uniqueNames.add("Sin Máquina");
 
         const machines = Array.from(uniqueNames)
             .filter((name) => {
@@ -83,7 +80,7 @@ export function useGanttLayout({
                     const hasTasksInWindow = optimisticTasks.some((t) => {
                         if (t.check_in && t.check_out) return false;
                         const isThisMachine =
-                            t.machine === name || (name === "Sin Máquina" && !t.machine && !(t as any).is_treatment);
+                            t.machine === name || (name === "Sin Máquina" && !t.machine && !t.is_treatment);
                         if (!isThisMachine) return false;
                         if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? ""))
                             return false;
@@ -106,7 +103,7 @@ export function useGanttLayout({
         // Add TRATAMIENTO row when there are visible treatment tasks
         const q = searchQuery?.toLowerCase();
         const hasTreatmentTasksInWindow = optimisticTasks.some((t) => {
-            if (!(t as any).is_treatment) return false;
+            if (!t.is_treatment) return false;
             if (t.check_in && t.check_out) return false;
             if (projectFilter?.length && !projectFilter.includes(t.production_orders?.project_id ?? "")) return false;
             if (
@@ -131,7 +128,7 @@ export function useGanttLayout({
             if (projectFilter?.length && !projectFilter.includes(task.production_orders?.project_id ?? ""))
                 return false;
 
-            if ((task as any).is_treatment) {
+            if (task.is_treatment) {
                 const taskStart = new Date(task.planned_date!);
                 const taskEnd = new Date(task.planned_end!);
                 const matchesSearch =
@@ -163,7 +160,7 @@ export function useGanttLayout({
         // Non-treatment tasks: group by machine|day
         const machineDayGroups: Map<string, PlanningTask[]> = new Map();
         filteredTasks.forEach((task) => {
-            if ((task as any).is_treatment) return;
+            if (task.is_treatment) return;
             const machine = task.machine || "Sin Máquina";
             const day = format(new Date(task.planned_date!), "yyyy-MM-dd");
             const key = `${machine}|${day}`;
@@ -196,7 +193,7 @@ export function useGanttLayout({
         // Treatment tasks: each type gets its own dedicated lane band
         const treatmentByType = new Map<string, PlanningTask[]>();
         filteredTasks.forEach((task) => {
-            if (!(task as any).is_treatment || !task.planned_date || !task.planned_end) return;
+            if (!task.is_treatment || !task.planned_date || !task.planned_end) return;
             const type = getTreatmentTypeName(task) || "__unknown__";
             if (!treatmentByType.has(type)) treatmentByType.set(type, []);
             treatmentByType.get(type)!.push(task);
@@ -246,7 +243,7 @@ export function useGanttLayout({
                 return;
             }
             const machineTasks = optimisticTasks.filter(
-                (t) => !(t as any).is_treatment && (t.machine === m || (m === "Sin Máquina" && !t.machine))
+                (t) => !t.is_treatment && (t.machine === m || (m === "Sin Máquina" && !t.machine))
             );
             if (machineTasks.length === 0) {
                 stats.set(m, 0);
@@ -316,7 +313,7 @@ export function useGanttLayout({
     const machineLaneCounts = useMemo(() => {
         const counts: Map<string, number> = new Map();
         filteredTasks.forEach((task) => {
-            const machine = (task as any).is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
+            const machine = task.is_treatment ? "TRATAMIENTO" : task.machine || "Sin Máquina";
             const lane = taskLanes.get(task.id) || 0;
             const current = counts.get(machine) || 0;
             counts.set(machine, Math.max(current, lane + 1));
@@ -327,7 +324,7 @@ export function useGanttLayout({
     const treatmentBatchGroups = useMemo(() => {
         const groups = new Map<string, PlanningTask[]>();
         filteredTasks.forEach((task) => {
-            if (!(task as any).is_treatment || !task.planned_date || !task.planned_end) return;
+            if (!task.is_treatment || !task.planned_date || !task.planned_end) return;
             const name = getTreatmentTypeName(task);
             if (!name) return;
             const key = name.toLowerCase().trim();
