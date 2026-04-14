@@ -408,7 +408,7 @@ Cambio de 2 líneas. Elimina un punto ciego de UX donde el usuario no sabe si el
 
 ---
 
-### 🎨 H-08 · MACHINING VIEW — LÓGICA DEMO ACOPLADA [BAJO]
+### ✅ H-08 · MACHINING VIEW — LÓGICA DEMO ACOPLADA [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `machining-view.tsx` (354 líneas) tiene un sistema de `demoMode` ("none" | "pending" | "active") que genera tareas falsas para el tour. La lógica de demo está mezclada con la lógica de filtrado de tareas reales.
@@ -602,7 +602,7 @@ const suggestions = await getToolingSuggestions({
 | [H-05](#h-05--tour-de-producción--120-líneas-inline-en-el-componente-resuelto--2026-04-14) | `components/production/production-view.tsx`    | ✅ RESUELTO | Separación de responsabilidades | 2026-04-14 |
 | [H-06](#h-06--evaluation-confirm-modal--z-index-frágil-resuelto--2026-04-14)               | `components/production/evaluation-sidebar.tsx` | ✅ RESUELTO | A11y / Z-index                  | 2026-04-14 |
 | [H-07](#h-07--auto-plan-dialog--error-de-guardado-sin-feedback-medio)                      | `components/production/auto-plan-dialog.tsx`   | ✅ RESUELTO | UX / Error handling             | 2026-04-14 |
-| [H-08](#h-08--machining-view--lógica-demo-acoplada-bajo)                                   | `components/production/machining-view.tsx`     | 🟢 BAJO     | DX / Testabilidad               | 1.5h       |
+| [H-08](#h-08--machining-view--lógica-demo-acoplada-resuelto--2026-04-14)                   | `components/production/machining-view.tsx`     | ✅ RESUELTO | DX / Testabilidad               | 2026-04-14 |
 | [H-09](#h-09--workshift-manager--validación-solo-en-toast-bajo)                            | `components/admin/work-shift-manager.tsx`      | 🟢 BAJO     | UX / Formularios                | 1h         |
 | [H-10](#h-10--landing-page--progreso-parcial-bajo)                                         | `app/page.tsx`                                 | 🟢 BAJO     | UI / Visual                     | 30min      |
 
@@ -711,7 +711,7 @@ const suggestions = await getToolingSuggestions({
     4. Eliminar las ~120 líneas extraídas de `production-view.tsx`.
 - **Criterio de aceptación:** `production-view.tsx` ≤ 400 líneas. El tour funciona igual que antes. El código del tour es editable sin abrir `production-view.tsx`.
 
-#### Tarea 3.3 — H-08: Separar lógica demo en `MachiningView`
+#### ✅ Tarea 3.3 — H-08: Separar lógica demo en `MachiningView` [DONE — 2026-04-14]
 
 - **Archivo nuevo:** `hooks/use-machining-tour.ts`
 - **Pasos:**
@@ -767,7 +767,7 @@ Semana 2 (Apr 18–21)    SPRINT 2 — Arquitectura y Calidad
 Semana 3 (Apr 22–24)    SPRINT 3 — UX y Accesibilidad
   ├── Tarea 3.1  AlertDialog en EvaluationSidebar         ✅ DONE
   ├── Tarea 3.2  Extraer tour de producción               ✅ DONE
-  └── Tarea 3.3  Separar demo logic en MachiningView      1.5h
+  └── Tarea 3.3  Separar demo logic en MachiningView      ✅ DONE
 
 Semana 4 (Apr 25–28)    SPRINT 4 — Polish y DX
   ├── Tarea 4.1  Validación inline WorkShiftManager       1h
