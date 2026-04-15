@@ -22,14 +22,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-};
+import { GanttPlanningTask } from "./types";
 
 interface MachiningViewProps {
-    initialTasks: PlanningTask[];
+    initialTasks: GanttPlanningTask[];
     operatorName: string;
 }
 

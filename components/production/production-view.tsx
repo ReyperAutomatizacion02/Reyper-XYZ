@@ -20,20 +20,15 @@ import { useEvaluationFilters } from "./hooks/use-evaluation-filters";
 import { useProductionTasks } from "./hooks/use-production-tasks";
 import { useGanttSettings } from "./hooks/use-gantt-settings";
 import { useStrategyDraft } from "./hooks/use-strategy-draft";
+import { GanttPlanningTask, GanttModalData } from "./types";
 
 type Machine = Database["public"]["Tables"]["machines"]["Row"];
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-    isDraft?: boolean;
-    startMs?: number;
-    endMs?: number;
-};
 
 interface ProductionViewProps {
     machines: Machine[];
     orders: OrderWithRelations[];
-    tasks: PlanningTask[];
+    tasks: GanttPlanningTask[];
     operators: string[];
     treatments: { id: string; name: string; avg_lead_days: number | null }[];
     shifts?: WorkShift[];
@@ -101,18 +96,18 @@ export function ProductionView({
     const [selectedOrderForEval, setSelectedOrderForEval] = useState<Order | null>(null);
     const [idToClearEval, setIdToClearEval] = useState<string | null>(null);
     const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
-    const [modalData, setModalData] = useState<any>(null);
+    const [modalData, setModalData] = useState<GanttModalData | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // --- Planning alerts ---
     const planningAlerts = useMemo(() => {
-        const alerts: { type: "OVERLAP" | "MISSING_OPERATOR"; task: PlanningTask; details: string }[] = [];
+        const alerts: { type: "OVERLAP" | "MISSING_OPERATOR"; task: GanttPlanningTask; details: string }[] = [];
         const now = new Date();
         const today = startOfDay(now);
         const flaggedIds = new Set<string>();
-        const machineGroups: Record<string, PlanningTask[]> = {};
+        const machineGroups: Record<string, GanttPlanningTask[]> = {};
 
         strategy.allTasks.forEach((task) => {
             if (!task.machine || !task.planned_date || !task.planned_end) return;

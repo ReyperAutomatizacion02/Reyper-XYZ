@@ -4,11 +4,9 @@ import { useState, useMemo, useCallback } from "react";
 import { addHours, isSameDay, startOfDay, subMinutes } from "date-fns";
 import { useTour, type TourStep } from "@/hooks/use-tour";
 import { Database } from "@/utils/supabase/types";
+import { GanttPlanningTask } from "@/components/production/types";
 
 type Order = Database["public"]["Tables"]["production_orders"]["Row"];
-type PlanningTask = Database["public"]["Tables"]["planning"]["Row"] & {
-    production_orders: Order | null;
-};
 
 type DemoMode = "none" | "pending" | "active";
 
@@ -56,7 +54,7 @@ function buildMachiningTourSteps(setDemoMode: (mode: DemoMode) => void): TourSte
     ];
 }
 
-function createMachiningDemoTask(operatorName: string): PlanningTask {
+function createMachiningDemoTask(operatorName: string): GanttPlanningTask {
     const now = new Date();
     // Demo-only stub — intentionally partial shape
     return {
@@ -75,18 +73,18 @@ function createMachiningDemoTask(operatorName: string): PlanningTask {
             part_name: "EJE DE TRANSMISIÓN",
             client: "MAQUINADOS REYPER",
         } as unknown as Order,
-    } as unknown as PlanningTask;
+    } as unknown as GanttPlanningTask;
 }
 
 interface UseMachiningTourProps {
-    initialTasks: PlanningTask[];
+    initialTasks: GanttPlanningTask[];
     operatorName: string;
 }
 
 interface UseMachiningTourResult {
     demoMode: DemoMode;
     handleStartTour: () => void;
-    filteredTasks: PlanningTask[];
+    filteredTasks: GanttPlanningTask[];
     allMachineNames: string[];
 }
 
@@ -103,7 +101,7 @@ export function useMachiningTour({ initialTasks, operatorName }: UseMachiningTou
         }, 1000);
     }, [startTour]);
 
-    const filteredTasks = useMemo((): PlanningTask[] => {
+    const filteredTasks = useMemo((): GanttPlanningTask[] => {
         if (demoMode !== "none") {
             return [createMachiningDemoTask(operatorName)];
         }
