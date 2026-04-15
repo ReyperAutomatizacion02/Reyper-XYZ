@@ -17,7 +17,7 @@ La iteración 3 dejó el codebase en su mejor estado estructural hasta la fecha:
 
 La calificación baja levemente porque se detectó una regresión directa de la iteración anterior, pero la base arquitectónica sigue sólida. Cerrar H-01 a H-03 devuelve el score a 8.7+ con poco esfuerzo.
 
-**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 5/8**
+**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 6/8**
 
 ---
 
@@ -171,7 +171,7 @@ El operario ve el error como un toast no-bloqueante integrado con el diseño del
 
 ---
 
-### 🎨 H-03 · PRODUCTION-ITEM-DETAIL — `item: any` + 657 LÍNEAS + 14 `useState`
+### ✅ H-03 · ~~PRODUCTION-ITEM-DETAIL — `item: any` + 657 LÍNEAS + 14 `useState`~~ [RESUELTO — 2026-04-15]
 
 **Análisis de Estado Actual:**
 `components/shared/production-item-detail.tsx` es el componente de edición de partidas de producción. Tiene 657 líneas y gestiona:
@@ -684,7 +684,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 | ---- | -------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------ | ------------------------ |
 | H-01 | `components/production/production-view.tsx` (línea 26, 104)                                                                      | Alta      | Tipado / Regresión       | ✅ RESUELTO — 2026-04-15 |
 | H-02 | `components/production/machining-view.tsx` (línea 68, 90) / `create-task-modal.tsx` (línea 163, 180)                             | Alta      | UX / Consistencia        | ✅ RESUELTO — 2026-04-15 |
-| H-03 | `components/shared/production-item-detail.tsx`                                                                                   | Alta      | Arquitectura / Tipado    | Pendiente                |
+| H-03 | `components/shared/production-item-detail.tsx`                                                                                   | Alta      | Arquitectura / Tipado    | ✅ RESUELTO — 2026-04-15 |
 | H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | ✅ RESUELTO — 2026-04-15 |
 | H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | Pendiente                |
 | H-06 | `components/production/evaluation-modal.tsx`                                                                                     | Media     | Arquitectura / SRP       | Pendiente                |
@@ -751,7 +751,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 **Objetivo:** Descomponer el componente compartido más crítico y establecer la escala de z-index.
 **Fecha objetivo:** 2026-04-27
 
-#### Tarea 3.1 — H-03: Tipar y dividir `production-item-detail.tsx`
+#### ✅ Tarea 3.1 — H-03: Tipar y dividir `production-item-detail.tsx` — COMPLETADA 2026-04-15
 
 - **Archivos:** `components/shared/production-item-detail.tsx` → directorio `components/shared/production-item/`
 - **Pasos:**

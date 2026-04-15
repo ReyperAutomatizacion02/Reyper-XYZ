@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { ItemFieldKey } from "./types";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/utils/cn";
@@ -90,8 +91,8 @@ interface ProjectDetailsPanelProps {
         };
         items?: {
             allowEdit?: boolean;
-            hiddenFields?: string[];
-            readOnlyFields?: string[];
+            hiddenFields?: ItemFieldKey[];
+            readOnlyFields?: ItemFieldKey[];
         };
     };
 }
