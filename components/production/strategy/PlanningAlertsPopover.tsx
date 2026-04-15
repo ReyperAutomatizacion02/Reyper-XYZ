@@ -40,7 +40,7 @@ export function PlanningAlertsPopover({ planningAlerts, onLocateTask, containerR
                 </PopoverTrigger>
                 <PopoverContent
                     container={containerRef.current}
-                    className="z-[10001] w-80 overflow-hidden p-0"
+                    className="z-modal w-80 overflow-hidden p-0"
                     align="start"
                 >
                     <div className="border-b border-border bg-muted/30 p-3">

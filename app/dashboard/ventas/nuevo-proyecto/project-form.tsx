@@ -139,7 +139,7 @@ const ImagePreviewWithZoom = ({ src, fileId }: { src: string; fileId?: string })
 
     return (
         <>
-            <div className="absolute bottom-6 left-1/2 z-[10001] flex -translate-x-1/2 scale-110 gap-2 rounded-full border border-white/10 bg-black/50 p-1.5 shadow-xl backdrop-blur-md">
+            <div className="absolute bottom-6 left-1/2 z-modal flex -translate-x-1/2 scale-110 gap-2 rounded-full border border-white/10 bg-black/50 p-1.5 shadow-xl backdrop-blur-md">
                 <Button
                     size="icon"
                     variant="ghost"

@@ -33,7 +33,7 @@ export function PlanningDetailPopover({
                     <Info className="h-3.5 w-3.5" />
                 </button>
             </PopoverTrigger>
-            <PopoverContent container={containerRef.current} className="z-[10001] w-96 overflow-hidden p-0" align="end">
+            <PopoverContent container={containerRef.current} className="z-modal w-96 overflow-hidden p-0" align="end">
                 <div className="border-b border-border bg-muted/30 px-4 py-3">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         Desglose de Planeación

@@ -189,7 +189,7 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
 
     return (
         <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200 animate-in fade-in"
+            className="fixed inset-0 z-eval-sidebar flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200 animate-in fade-in"
             aria-hidden="true"
             onClick={onClose}
         >

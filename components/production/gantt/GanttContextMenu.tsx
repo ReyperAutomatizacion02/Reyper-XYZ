@@ -35,7 +35,7 @@ export function GanttContextMenu({
 
     return (
         <div
-            className="fixed z-[100] min-w-[160px] rounded-md border border-border bg-popover py-1 shadow-md duration-100 animate-in fade-in zoom-in-95"
+            className="fixed z-dropdown min-w-[160px] rounded-md border border-border bg-popover py-1 shadow-md duration-100 animate-in fade-in zoom-in-95"
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onClick={(e) => e.stopPropagation()}
         >

@@ -36,21 +36,22 @@ export function ConfirmationDialogs({
         <>
             {/* Clear Evaluation Confirmation */}
             <AlertDialog open={!!idToClearEval} onOpenChange={(open) => !open && onClearEvalCancel()}>
-                <AlertDialogContent container={container} className="z-[10003]">
+                <AlertDialogContent container={container} className="z-dialog-stack">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5 text-amber-500" />
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
                             Limpiar Evaluación
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que deseas limpiar la evaluación de esta pieza? Volverá a aparecer en la lista de &apos;Por Evaluar&apos; y se quitará de la planeación actual.
+                            ¿Estás seguro de que deseas limpiar la evaluación de esta pieza? Volverá a aparecer en la
+                            lista de &apos;Por Evaluar&apos; y se quitará de la planeación actual.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => idToClearEval && onClearEvalConfirm(idToClearEval)}
-                            className="bg-red-600 hover:bg-red-700 text-white"
+                            className="bg-red-600 text-white hover:bg-red-700"
                         >
                             Limpiar
                         </AlertDialogAction>
@@ -60,21 +61,22 @@ export function ConfirmationDialogs({
 
             {/* Discard Changes Confirmation */}
             <AlertDialog open={isDiscardConfirmOpen} onOpenChange={onDiscardCancel}>
-                <AlertDialogContent container={container} className="z-[10003]">
+                <AlertDialogContent container={container} className="z-dialog-stack">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
-                            <RotateCcw className="w-5 h-5 text-primary" />
+                            <RotateCcw className="h-5 w-5 text-primary" />
                             Descartar Cambios
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que deseas descartar todos los cambios no guardados? Esta acción revertirá el Gantt a su último estado guardado y no se puede deshacer.
+                            ¿Estás seguro de que deseas descartar todos los cambios no guardados? Esta acción revertirá
+                            el Gantt a su último estado guardado y no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Continuar Editando</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={onDiscardConfirm}
-                            className="bg-primary hover:bg-primary/90 text-white"
+                            className="bg-primary text-white hover:bg-primary/90"
                         >
                             Descartar
                         </AlertDialogAction>

@@ -52,7 +52,7 @@ export function GanttTooltip({ hoveredTask, tooltipPos, getColor }: GanttTooltip
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="pointer-events-none fixed z-[100]"
+                    className="pointer-events-none fixed z-dropdown"
                     style={{
                         left: tooltipPos.x,
                         top: tooltipPos.mode === "below" ? tooltipPos.y : undefined,

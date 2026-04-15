@@ -211,7 +211,7 @@ export function ProductionView({
             ref={containerRef}
             className={cn(
                 "flex w-full flex-col bg-background transition-all duration-500",
-                isFullscreen ? "fixed inset-0 z-[9999] h-screen pt-4" : "h-[calc(100vh-64px)]"
+                isFullscreen ? "fixed inset-0 z-nav-drawer h-screen pt-4" : "h-[calc(100vh-64px)]"
             )}
         >
             {!isFullscreen && (

@@ -28,7 +28,7 @@ export default function LandingPage() {
     return (
         <div className="flex min-h-screen flex-col overflow-hidden bg-background transition-colors duration-300 selection:bg-primary selection:text-white">
             {/* Background Gradients */}
-            <div className="pointer-events-none fixed inset-0 z-[-1]">
+            <div className="pointer-events-none fixed inset-0 z-behind">
                 <div className="absolute left-[-10%] top-[-10%] h-[40%] w-[40%] animate-pulse rounded-full bg-primary/20 opacity-30 blur-[120px]" />
                 <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] animate-pulse rounded-full bg-blue-500/10 opacity-30 blur-[120px] delay-1000" />
             </div>

@@ -105,7 +105,7 @@ export function EvaluationFilterPanel({ filters, ordersPendingEvaluation }: Eval
             </Button>
 
             {isOpen && (
-                <div className="absolute right-full top-0 z-[1500] mr-2 w-72 rounded-2xl border border-border bg-popover p-4 shadow-2xl duration-200 animate-in fade-in slide-in-from-right-4">
+                <div className="absolute right-full top-0 z-filter-fly mr-2 w-72 rounded-2xl border border-border bg-popover p-4 shadow-2xl duration-200 animate-in fade-in slide-in-from-right-4">
                     <div className="space-y-4">
                         {/* Header */}
                         <div className="flex items-center justify-between border-b border-border pb-2">

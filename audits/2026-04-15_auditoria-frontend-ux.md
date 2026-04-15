@@ -17,7 +17,7 @@ La iteración 3 dejó el codebase en su mejor estado estructural hasta la fecha:
 
 La calificación baja levemente porque se detectó una regresión directa de la iteración anterior, pero la base arquitectónica sigue sólida. Cerrar H-01 a H-03 devuelve el score a 8.7+ con poco esfuerzo.
 
-**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 6/8**
+**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 7/8**
 
 ---
 
@@ -686,7 +686,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 | H-02 | `components/production/machining-view.tsx` (línea 68, 90) / `create-task-modal.tsx` (línea 163, 180)                             | Alta      | UX / Consistencia        | ✅ RESUELTO — 2026-04-15 |
 | H-03 | `components/shared/production-item-detail.tsx`                                                                                   | Alta      | Arquitectura / Tipado    | ✅ RESUELTO — 2026-04-15 |
 | H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | ✅ RESUELTO — 2026-04-15 |
-| H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | Pendiente                |
+| H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | ✅ RESUELTO — 2026-04-15 |
 | H-06 | `components/production/evaluation-modal.tsx`                                                                                     | Media     | Arquitectura / SRP       | Pendiente                |
 | H-07 | `components/sales/quote-pdf.tsx` (línea 241)                                                                                     | Baja      | Tipado / DX              | ✅ RESUELTO — 2026-04-15 |
 | H-08 | `components/shared/` (múltiples — `any` en callbacks)                                                                            | Baja      | Tipado / DX              | ✅ RESUELTO — 2026-04-15 |
@@ -762,7 +762,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
     5. Actualizar imports en los consumidores del componente.
 - **Criterio de aceptación:** `production-item-detail.tsx` (o su equivalente) ≤ 120 líneas. `item: any` eliminado. `tsc --noEmit` pasa.
 
-#### Tarea 3.2 — H-05: Sistema de z-index semántico
+#### ✅ Tarea 3.2 — H-05: Sistema de z-index semántico — COMPLETADA 2026-04-15
 
 - **Archivos:** `tailwind.config.ts`, y los 8+ componentes con z-index hardcodeados
 - **Pasos:**

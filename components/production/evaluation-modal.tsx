@@ -298,7 +298,7 @@ export function EvaluationModal({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 container={container}
-                className={`${hasDrawing ? "sm:max-w-[95vw] lg:max-w-7xl" : "sm:max-w-[600px]"} z-[10001] flex h-[95vh] flex-col overflow-hidden rounded-2xl border-none bg-background p-0 shadow-2xl [&>button]:hidden`}
+                className={`${hasDrawing ? "sm:max-w-[95vw] lg:max-w-7xl" : "sm:max-w-[600px]"} z-modal flex h-[95vh] flex-col overflow-hidden rounded-2xl border-none bg-background p-0 shadow-2xl [&>button]:hidden`}
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className={`flex flex-1 overflow-hidden ${hasDrawing ? "flex-row" : "flex-col"}`}>
@@ -668,7 +668,7 @@ export function EvaluationModal({
 
                 {/* Premium Confirm Modal */}
                 {confirmModal && (
-                    <div className="absolute inset-0 z-[20000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
+                    <div className="absolute inset-0 z-saving flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
                         <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-border bg-background p-6 text-center shadow-2xl duration-200 animate-in zoom-in-95">
                             <div
                                 className={`flex h-16 w-16 items-center justify-center rounded-2xl border shadow-sm ${confirmModal.type === "warning" ? "border-red-500/20 bg-red-500/10" : "border-primary/20 bg-primary/10"}`}

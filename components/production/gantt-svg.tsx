@@ -323,7 +323,7 @@ export function GanttSVG({
     return (
         <div className="relative flex flex-1 select-none flex-col overflow-hidden bg-background">
             {/* ── Gantt Header Bar ──────────────────────────────────────────── */}
-            <div className="z-[50] flex h-10 flex-none items-center gap-2 border-b border-border bg-muted/30 px-4">
+            <div className="z-gantt-bar flex h-10 flex-none items-center gap-2 border-b border-border bg-muted/30 px-4">
                 {startControls}
 
                 {!hideDateNavigation && (
@@ -368,7 +368,7 @@ export function GanttSVG({
                                     </PopoverTrigger>
                                     <PopoverContent
                                         container={container}
-                                        className="z-[10001] w-auto p-0"
+                                        className="z-modal w-auto p-0"
                                         align="start"
                                         side="bottom"
                                         sideOffset={10}
@@ -400,7 +400,7 @@ export function GanttSVG({
                                         </PopoverTrigger>
                                         <PopoverContent
                                             container={container}
-                                            className="z-[10001] w-auto p-0"
+                                            className="z-modal w-auto p-0"
                                             align="start"
                                         >
                                             <CalendarUI
@@ -428,7 +428,7 @@ export function GanttSVG({
                                         </PopoverTrigger>
                                         <PopoverContent
                                             container={container}
-                                            className="z-[10001] w-auto p-0"
+                                            className="z-modal w-auto p-0"
                                             align="end"
                                         >
                                             <CalendarUI
@@ -453,7 +453,7 @@ export function GanttSVG({
 
             <div className="relative flex flex-1 overflow-hidden">
                 {/* ── Machine Sidebar ──────────────────────────────────────── */}
-                <div className="z-[40] flex w-[200px] flex-shrink-0 flex-col border-r border-border bg-background shadow-2xl transition-colors dark:bg-[#0a0a0a]">
+                <div className="z-gantt-col flex w-[200px] flex-shrink-0 flex-col border-r border-border bg-background shadow-2xl transition-colors dark:bg-[#0a0a0a]">
                     <div className="flex h-[50px] flex-shrink-0 items-center border-b border-border bg-muted/30 px-4 text-[9px] font-black uppercase tracking-[0.2em] text-foreground/40">
                         Máquinas
                     </div>

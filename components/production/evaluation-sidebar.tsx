@@ -111,7 +111,7 @@ export function EvaluationSidebar({
                         exit={{ opacity: 0, x: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
                         className={cn(
-                            "fixed bottom-0 right-[450px] z-[999] border-r border-border bg-slate-100/90 backdrop-blur-sm",
+                            "fixed bottom-0 right-[450px] z-eval-panel border-r border-border bg-slate-100/90 backdrop-blur-sm",
                             isFullscreen ? "top-0" : "top-[64px]",
                             isCollapsed ? "left-[80px]" : "left-[288px]",
                             "max-lg:left-0"
@@ -130,7 +130,7 @@ export function EvaluationSidebar({
             {/* Main Sidebar */}
             <div
                 className={cn(
-                    "fixed bottom-0 right-0 z-[1000] flex w-[450px] flex-col border-l border-border bg-background/95 shadow-2xl backdrop-blur-md",
+                    "fixed bottom-0 right-0 z-eval-sidebar flex w-[450px] flex-col border-l border-border bg-background/95 shadow-2xl backdrop-blur-md",
                     isFullscreen ? "top-0" : "top-[64px]"
                 )}
             >

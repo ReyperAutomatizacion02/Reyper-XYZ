@@ -74,7 +74,7 @@ function CustomTimePicker({
 
     return (
         <div className={`flex items-center gap-1 ${className} relative`}>
-            {openStack !== "none" && <div className="fixed inset-0 z-[100]" onClick={() => setOpenStack("none")} />}
+            {openStack !== "none" && <div className="fixed inset-0 z-dropdown" onClick={() => setOpenStack("none")} />}
 
             {/* Hour Dropdown */}
             <div className="relative w-20">
@@ -95,7 +95,7 @@ function CustomTimePicker({
                 {openStack === "hour" && (
                     <div
                         ref={hourListRef}
-                        className="no-scrollbar absolute left-0 top-full z-[101] -ml-0 mt-1 flex max-h-48 w-20 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+                        className="no-scrollbar absolute left-0 top-full z-picker -ml-0 mt-1 flex max-h-48 w-20 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
                     >
                         {hours.map((h) => (
                             <button
@@ -136,7 +136,7 @@ function CustomTimePicker({
                 {openStack === "minute" && (
                     <div
                         ref={minuteListRef}
-                        className="no-scrollbar absolute right-0 top-full z-[101] -mr-0 mt-1 flex max-h-48 w-20 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+                        className="no-scrollbar absolute right-0 top-full z-picker -mr-0 mt-1 flex max-h-48 w-20 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
                     >
                         {minutes.map((m) => (
                             <button
@@ -411,7 +411,7 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
     const modalContent = (
         <div
             className={cn(
-                "fixed inset-0 z-[10000] overflow-y-auto bg-black/50 backdrop-blur-sm",
+                "fixed inset-0 z-overlay overflow-y-auto bg-black/50 backdrop-blur-sm",
                 // Only animate if NOT demo mode to ensure instant availability for tour driver
                 !initialData?.isDemo && "duration-200 animate-in fade-in"
             )}

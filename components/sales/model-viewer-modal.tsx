@@ -1,26 +1,32 @@
 "use client";
 
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X, Download, Maximize2, RotateCcw, AlertTriangle, Box, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import {
+    X,
+    Download,
+    Maximize2,
+    RotateCcw,
+    AlertTriangle,
+    Box,
+    ChevronLeft,
+    ChevronRight,
+    ZoomIn,
+    ZoomOut,
+    RotateCw,
+} from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { Separator } from "@/components/ui/separator";
 
 // Implementation note: model-viewer is a web component
-// We use 'auto auto auto' for orbit to avoid strict limits, 
+// We use 'auto auto auto' for orbit to avoid strict limits,
 // though phi is naturally limited by the component to prevent flipping.
 // To allow "360 in all directions" we ensure camera-controls is active.
 
-declare module 'react' {
+declare module "react" {
     namespace JSX {
         interface IntrinsicElements {
-            'model-viewer': any;
+            "model-viewer": any;
         }
     }
 }
@@ -44,7 +50,7 @@ export function ModelViewerModal({
     onNext,
     onPrevious,
     hasNext,
-    hasPrevious
+    hasPrevious,
 }: ModelViewerModalProps) {
     const [scriptLoaded, setScriptLoaded] = useState(false);
     const [loadError, setLoadError] = useState<boolean>(false);
@@ -79,9 +85,9 @@ export function ModelViewerModal({
             setLoadError(true);
         };
 
-        viewer.addEventListener('error', handleError);
+        viewer.addEventListener("error", handleError);
         return () => {
-            viewer.removeEventListener('error', handleError);
+            viewer.removeEventListener("error", handleError);
         };
     }, [scriptLoaded, isOpen]);
 
@@ -96,17 +102,17 @@ export function ModelViewerModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-none w-screen h-screen p-0 gap-0 overflow-hidden bg-background border-none flex flex-col rounded-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 transition-all duration-500">
-                <DialogHeader className="p-4 border-b border-border bg-background/80 backdrop-blur-xl flex flex-row items-center justify-between space-y-0 sticky top-0 z-[100]">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                            <Box className="w-4 h-4 text-red-500" />
+            <DialogContent className="flex h-screen w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-none bg-background p-0 transition-all duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+                <DialogHeader className="sticky top-0 z-dropdown flex flex-row items-center justify-between space-y-0 border-b border-border bg-background/80 p-4 backdrop-blur-xl">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+                            <Box className="h-4 w-4 text-red-500" />
                         </div>
-                        <div className="flex flex-col min-w-0">
-                            <DialogTitle className="text-sm font-black truncate uppercase tracking-tight leading-none mb-1">
+                        <div className="flex min-w-0 flex-col">
+                            <DialogTitle className="mb-1 truncate text-sm font-black uppercase leading-none tracking-tight">
                                 {title}
                             </DialogTitle>
-                            <p className="text-[10px] text-muted-foreground font-medium truncate opacity-70">
+                            <p className="truncate text-[10px] font-medium text-muted-foreground opacity-70">
                                 Visor 3D Interactivo • GLB/GLTF
                             </p>
                         </div>
@@ -114,33 +120,33 @@ export function ModelViewerModal({
 
                     {/* Navigation Controls */}
                     {(onNext || onPrevious) && (
-                        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border border-border mx-2">
+                        <div className="mx-2 flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={onPrevious}
                                 disabled={!hasPrevious}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30 sm:h-8 sm:w-8"
                                 title="Anterior"
                             >
-                                <ChevronLeft className="w-4 h-4" />
+                                <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={onNext}
                                 disabled={!hasNext}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30 sm:h-8 sm:w-8"
                                 title="Siguiente"
                             >
-                                <ChevronRight className="w-4 h-4" />
+                                <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
                     )}
 
                     <div className="flex items-center gap-1 sm:gap-2">
                         {/* 3D Tools Grid - Consistent with DrawingViewer */}
-                        <div className="flex items-center bg-muted/50 rounded-lg px-1 sm:px-2 border border-border mr-2">
+                        <div className="mr-2 flex items-center rounded-lg border border-border bg-muted/50 px-1 sm:px-2">
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -148,15 +154,15 @@ export function ModelViewerModal({
                                     if (viewerRef.current) {
                                         viewerRef.current.zoom(-1);
                                         // Approximate zoom tracking for UI
-                                        setZoomPercent(prev => Math.max(25, prev - 25));
+                                        setZoomPercent((prev) => Math.max(25, prev - 25));
                                     }
                                 }}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                                 title="Zoom Out"
                             >
-                                <ZoomOut className="w-4 h-4" />
+                                <ZoomOut className="h-4 w-4" />
                             </Button>
-                            <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground w-10 sm:w-12 text-center select-none">
+                            <span className="w-10 select-none text-center font-mono text-[9px] text-muted-foreground sm:w-12 sm:text-[10px]">
                                 {zoomPercent}%
                             </span>
                             <Button
@@ -165,15 +171,15 @@ export function ModelViewerModal({
                                 onClick={() => {
                                     if (viewerRef.current) {
                                         viewerRef.current.zoom(1);
-                                        setZoomPercent(prev => Math.min(500, prev + 25));
+                                        setZoomPercent((prev) => Math.min(500, prev + 25));
                                     }
                                 }}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                                 title="Zoom In"
                             >
-                                <ZoomIn className="w-4 h-4" />
+                                <ZoomIn className="h-4 w-4" />
                             </Button>
-                            <Separator orientation="vertical" className="h-4 bg-border mx-0.5 sm:mx-1" />
+                            <Separator orientation="vertical" className="mx-0.5 h-4 bg-border sm:mx-1" />
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -181,14 +187,14 @@ export function ModelViewerModal({
                                     if (viewerRef.current) {
                                         const orbit = viewerRef.current.getCameraOrbit();
                                         // Force horizontal rotation by 90 degrees
-                                        const newTheta = orbit.theta + (Math.PI / 2);
+                                        const newTheta = orbit.theta + Math.PI / 2;
                                         viewerRef.current.cameraOrbit = `${newTheta}rad ${orbit.phi}rad ${orbit.radius}m`;
                                     }
                                 }}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                                 title="Rotar 90°"
                             >
-                                <RotateCw className="w-3.5 h-3.5" />
+                                <RotateCw className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                                 variant="ghost"
@@ -200,20 +206,20 @@ export function ModelViewerModal({
                                         setZoomPercent(100);
                                     }
                                 }}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                                 title="Resetear Cámara"
                             >
-                                <Maximize2 className="w-3.5 h-3.5" />
+                                <Maximize2 className="h-3.5 w-3.5" />
                             </Button>
-                            <Separator orientation="vertical" className="h-4 bg-border mx-0.5 sm:mx-1" />
+                            <Separator orientation="vertical" className="mx-0.5 h-4 bg-border sm:mx-1" />
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={handleDownload}
-                                className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                                 title="Descargar"
                             >
-                                <Download className="w-3.5 h-3.5" />
+                                <Download className="h-3.5 w-3.5" />
                             </Button>
                         </div>
 
@@ -221,30 +227,30 @@ export function ModelViewerModal({
                             variant="destructive"
                             size="icon"
                             onClick={onClose}
-                            className="h-7 w-7 sm:h-8 sm:w-8 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg"
+                            className="h-7 w-7 rounded-lg bg-red-600 text-white shadow-lg hover:bg-red-700 sm:h-8 sm:w-8"
                             title="Cerrar"
                         >
-                            <X className="w-4 h-4 sm:w-5 h-5" />
+                            <X className="h-4 h-5 w-4 sm:w-5" />
                         </Button>
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 relative bg-background overflow-hidden flex items-center justify-center">
+                <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-background">
                     {loadError ? (
-                        <div className="flex flex-col items-center gap-4 text-center px-6 max-w-md">
-                            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                                <AlertTriangle className="w-6 h-6 text-red-500" />
+                        <div className="flex max-w-md flex-col items-center gap-4 px-6 text-center">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+                                <AlertTriangle className="h-6 w-6 text-red-500" />
                             </div>
                             <div className="space-y-2">
                                 <h3 className="font-bold uppercase tracking-tight">Error al cargar el modelo</h3>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-sm text-muted-foreground">
                                     Parece que el archivo es inválido o le faltan dependencias.
                                 </p>
-                                <div className="bg-muted/50 border border-border p-3 rounded-lg mt-4 text-left">
-                                    <p className="text-[#EC1C21] text-[11px] font-bold uppercase leading-relaxed">
+                                <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-left">
+                                    <p className="text-[11px] font-bold uppercase leading-relaxed text-[#EC1C21]">
                                         💡 Recomendación: Usa el formato .GLB
                                     </p>
-                                    <p className="text-muted-foreground text-[10px] mt-1">
+                                    <p className="mt-1 text-[10px] text-muted-foreground">
                                         El formato .glb es auto-contenido y funciona mejor en la web.
                                     </p>
                                 </div>
@@ -258,7 +264,7 @@ export function ModelViewerModal({
                                     onClose();
                                 }}
                             >
-                                <RotateCcw className="w-4 h-4 mr-2" />
+                                <RotateCcw className="mr-2 h-4 w-4" />
                                 Cerrar y reintentar
                             </Button>
                         </div>
@@ -273,26 +279,30 @@ export function ModelViewerModal({
                             environment-image="neutral"
                             exposure="1.2"
                             interaction-prompt="none"
-                            style={{ width: '100%', height: '100%', outline: 'none' }}
-                            className="w-full h-full"
+                            style={{ width: "100%", height: "100%", outline: "none" }}
+                            className="h-full w-full"
                             camera-orbit={INITIAL_ORBIT}
                             touch-action="none"
                             interpolation-decay="200"
                         >
-                            <div slot="progress-bar" className="bg-[#EC1C21] h-1" />
+                            <div slot="progress-bar" className="h-1 bg-[#EC1C21]" />
                         </model-viewer>
                     ) : (
                         <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                            <div className="w-8 h-8 border-4 border-muted border-t-[#EC1C21] rounded-full animate-spin" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-[#EC1C21]" />
                             <p className="text-sm font-medium">Cargando visor 3D...</p>
                         </div>
                     )}
 
                     {/* Instruction Overlay matching standard viewer */}
                     {!loadError && scriptLoaded && (
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-background/50 backdrop-blur-md border border-border rounded-full text-[10px] text-muted-foreground uppercase font-medium pointer-events-none flex items-center gap-4">
-                            <span className="flex items-center gap-1.5"><RotateCcw className="w-3 h-3" /> Arrastra para rotar</span>
-                            <span className="flex items-center gap-1.5"><Maximize2 className="w-3 h-3" /> Scroll para zoom</span>
+                        <div className="pointer-events-none absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-full border border-border bg-background/50 px-3 py-1.5 text-[10px] font-medium uppercase text-muted-foreground backdrop-blur-md">
+                            <span className="flex items-center gap-1.5">
+                                <RotateCcw className="h-3 w-3" /> Arrastra para rotar
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Maximize2 className="h-3 w-3" /> Scroll para zoom
+                            </span>
                         </div>
                     )}
                 </div>
@@ -300,4 +310,3 @@ export function ModelViewerModal({
         </Dialog>
     );
 }
-

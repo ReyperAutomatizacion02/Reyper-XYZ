@@ -56,7 +56,7 @@ export function OrderSelectionPopover({
                     </PopoverTrigger>
                     <PopoverContent
                         container={containerRef.current}
-                        className="z-[10001] w-72 overflow-hidden p-0"
+                        className="z-modal w-72 overflow-hidden p-0"
                         align="start"
                     >
                         <div className="border-b border-border bg-muted/30 px-4 py-3">

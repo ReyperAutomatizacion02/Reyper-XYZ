@@ -132,7 +132,7 @@ export function DateSelector({
                 {isOpen && (
                     <>
                         {/* Transparent backdrop for click-outside */}
-                        <div className="fixed inset-0 z-[9998] bg-transparent" onClick={() => setIsOpen(false)} />
+                        <div className="fixed inset-0 z-nav-backdrop bg-transparent" onClick={() => setIsOpen(false)} />
 
                         {/* Calendar panel — fixed to viewport, never clipped */}
                         <motion.div

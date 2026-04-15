@@ -213,7 +213,7 @@ export function ProjectDetailsPanel({
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
                                 className={cn(
-                                    "fixed bottom-0 right-[500px] top-16 z-[15] border-r border-border bg-slate-100/90 backdrop-blur-sm transition-all duration-300",
+                                    "fixed bottom-0 right-[500px] top-16 z-sub-panel border-r border-border bg-slate-100/90 backdrop-blur-sm transition-all duration-300",
                                     isCollapsed ? "left-[80px]" : "left-[288px]",
                                     "max-lg:left-0"
                                 )}

@@ -128,7 +128,7 @@ export function CustomDropdown({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 5, scale: 0.95 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute left-0 z-[11000] mt-1.5 w-max min-w-full max-w-[350px] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl backdrop-blur-md"
+                        className="absolute left-0 z-super-dropdown mt-1.5 w-max min-w-full max-w-[350px] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl backdrop-blur-md"
                     >
                         {searchable && (
                             <div className="flex items-center border-b border-border bg-muted/20 px-2 py-2">
