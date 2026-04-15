@@ -17,7 +17,7 @@ La iteración 3 dejó el codebase en su mejor estado estructural hasta la fecha:
 
 La calificación baja levemente porque se detectó una regresión directa de la iteración anterior, pero la base arquitectónica sigue sólida. Cerrar H-01 a H-03 devuelve el score a 8.7+ con poco esfuerzo.
 
-**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 2/8**
+**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 3/8**
 
 ---
 
@@ -293,7 +293,7 @@ Elimina `item: any`. El compilador detecta si Supabase cambia el shape de `produ
 
 ---
 
-### 🎨 H-04 · EVALUATION-SIDEBAR + SCHEDULING-UTILS — `as any` EN TIPO DISCRIMINADO `EvaluationStep`
+### ✅ H-04 · ~~EVALUATION-SIDEBAR + SCHEDULING-UTILS — `as any` EN TIPO DISCRIMINADO `EvaluationStep`~~ [RESUELTO — 2026-04-15]
 
 **Análisis de Estado Actual:**
 `evaluation-sidebar.tsx:285–286` contiene:
@@ -685,7 +685,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 | H-01 | `components/production/production-view.tsx` (línea 26, 104)                                                                      | Alta      | Tipado / Regresión       | ✅ RESUELTO — 2026-04-15 |
 | H-02 | `components/production/machining-view.tsx` (línea 68, 90) / `create-task-modal.tsx` (línea 163, 180)                             | Alta      | UX / Consistencia        | ✅ RESUELTO — 2026-04-15 |
 | H-03 | `components/shared/production-item-detail.tsx`                                                                                   | Alta      | Arquitectura / Tipado    | Pendiente                |
-| H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | Pendiente                |
+| H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | ✅ RESUELTO — 2026-04-15 |
 | H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | Pendiente                |
 | H-06 | `components/production/evaluation-modal.tsx`                                                                                     | Media     | Arquitectura / SRP       | Pendiente                |
 | H-07 | `components/sales/quote-pdf.tsx` (línea 241)                                                                                     | Baja      | Tipado / DX              | Pendiente                |
@@ -728,14 +728,13 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 **Objetivo:** Eliminar los últimos `as any` en el módulo de evaluación y fortalecer los contratos de los componentes compartidos.
 **Fecha objetivo:** 2026-04-22
 
-#### Tarea 2.1 — H-04: Añadir `isMachineStep` type predicate
+#### ✅ Tarea 2.1 — H-04: Añadir `isMachineStep` type predicate — COMPLETADA 2026-04-15
 
-- **Archivos:** `lib/scheduling-utils.ts`, `components/production/evaluation-sidebar.tsx`, `components/production/evaluation-modal.tsx`
-- **Pasos:**
-    1. En `scheduling-utils.ts`: añadir `export function isMachineStep(step: EvaluationStep): step is MachineStep { return !isTreatmentStep(step); }`.
-    2. En `evaluation-sidebar.tsx:285`: cambiar a `steps.filter(isMachineStep).filter(s => s.hours > 0)`. Eliminar el `(s as any)` en el reduce.
-    3. En `evaluation-modal.tsx:270–271`: reemplazar los dos casts `as any` por acceso directo a `firstTreatment?.treatment_id` y `firstTreatment?.treatment`.
-- **Criterio de aceptación:** `grep -r 'as any' components/production/` devuelve cero resultados. `tsc --noEmit` pasa.
+- **Solución aplicada:**
+    - `lib/scheduling-utils.ts`: añadido `export function isMachineStep(s: EvaluationStep): s is MachineStep` junto a `isTreatmentStep`, con JSDoc explicativo.
+    - `evaluation-sidebar.tsx`: actualizado import para incluir `isMachineStep`. `steps.filter((s) => !isTreatmentStep(s) && s.hours > 0)` → `steps.filter(isMachineStep).filter((s) => s.hours > 0)`. `(s as any).hours` → `s.hours` (type-safe).
+    - `evaluation-modal.tsx`: `(firstTreatment as any).treatment_id || null` → `firstTreatment?.treatment_id ?? null`. Ídem para `.treatment`. El narrowing de `isTreatmentStep` ya expone ambos campos directamente.
+    - `tsc --noEmit` pasa sin errores. Cero `as any` en `evaluation-sidebar.tsx` y `evaluation-modal.tsx`.
 
 #### Tarea 2.2 — H-07 + H-08: Tipar `QuotePDF` y callbacks en `shared/`
 

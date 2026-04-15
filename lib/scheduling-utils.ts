@@ -64,6 +64,12 @@ export function isTreatmentStep(
     return (s as any).type === "treatment" || !!(s as any).treatment_id || ("treatment" in s && !("machine" in s));
 }
 
+/** Returns true if the step is a machine (maquinado) step.
+ *  Inverse of isTreatmentStep — narrows EvaluationStep to MachineStep. */
+export function isMachineStep(s: EvaluationStep): s is MachineStep {
+    return !isTreatmentStep(s);
+}
+
 // ── Work Shifts ───────────────────────────────────────────────────────────────
 
 export interface WorkShift {

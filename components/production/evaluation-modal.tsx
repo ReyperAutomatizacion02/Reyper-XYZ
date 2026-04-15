@@ -267,8 +267,8 @@ export function EvaluationModal({
                 .update({
                     evaluation: validSteps as unknown as Json,
                     urgencia: urgencia,
-                    treatment_id: firstTreatment ? (firstTreatment as any).treatment_id || null : null,
-                    treatment: firstTreatment ? (firstTreatment as any).treatment || null : null,
+                    treatment_id: firstTreatment?.treatment_id ?? null,
+                    treatment: firstTreatment?.treatment ?? null,
                 })
                 .eq("id", order.id);
 

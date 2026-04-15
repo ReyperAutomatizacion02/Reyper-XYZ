@@ -16,7 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { extractDriveFileId } from "@/lib/drive-utils";
-import { EvaluationStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { EvaluationStep, isTreatmentStep, isMachineStep } from "@/lib/scheduling-utils";
 import { formatHours } from "./evaluation/EvaluationStepRow";
 import { Database } from "@/utils/supabase/types";
 import { EvaluationFiltersState } from "./hooks/use-evaluation-filters";
@@ -278,14 +278,11 @@ export function EvaluationSidebar({
                             <div className="shrink-0 space-y-3 border-t border-border p-4">
                                 {/* Global time summary */}
                                 {(() => {
-                                    const machineSteps = steps.filter((s) => !isTreatmentStep(s) && s.hours > 0);
+                                    const machineSteps = steps.filter(isMachineStep).filter((s) => s.hours > 0);
                                     const treatmentSteps = steps.filter(
                                         (s) => isTreatmentStep(s) && s.days > 0
                                     ) as Extract<EvaluationStep, { type: "treatment" }>[];
-                                    const totalMachineHours = machineSteps.reduce(
-                                        (acc, s) => acc + (s as any).hours,
-                                        0
-                                    );
+                                    const totalMachineHours = machineSteps.reduce((acc, s) => acc + s.hours, 0);
                                     const totalTreatmentDays = treatmentSteps.reduce((acc, s) => acc + s.days, 0);
                                     const hasData = totalMachineHours > 0 || totalTreatmentDays > 0;
                                     if (!hasData) return null;
