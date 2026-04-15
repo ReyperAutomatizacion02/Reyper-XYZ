@@ -1,4 +1,4 @@
-# REPORTE DE AUDITORÍA FRONTEND / UX-UI — REYPER XYZ
+# REPORTE DE AUDITORÍA FRONTEND / UX-UI — REYPER XYZ · Iteración 2
 
 **Fecha:** 2026-04-03 | **Auditor:** Senior Frontend Architect & UX/UI Product Strategist | **Modelo:** Claude Sonnet 4.6
 
@@ -22,7 +22,7 @@ La experiencia de usuario es sólida en flujos felices pero presenta fricciones 
 
 ---
 
-### 🎨 GANTT SVG — MONOLITO DE 2500 LÍNEAS
+### 🎨 F-01 · GANTT SVG — MONOLITO DE 2500 LÍNEAS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/production/gantt-svg.tsx` implementa el motor de renderizado SVG del planificador: timeline configurable (hora/día/semana), drag-drop con snap a 15 min, zoom, búsqueda, filtros, dependencias entre tareas y modo foco. Todo en un único archivo de 103KB y 2500+ líneas.
@@ -79,7 +79,7 @@ El desarrollador puede modificar la lógica de drag-drop sin tocar el renderizad
 
 ---
 
-### 🎨 PRODUCTION VIEW — ESTADO DESORGANIZADO (10+ useState)
+### 🎨 F-02 · PRODUCTION VIEW — ESTADO DESORGANIZADO (10+ useState) [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/production/production-view.tsx` orquesta el Gantt, la barra de estrategia, el sidebar de evaluación y múltiples modales. Para hacerlo usa más de 10 hooks `useState` independientes.
@@ -140,7 +140,7 @@ Elimina re-renders innecesarios. El estado del módulo es serializable (debuggea
 
 ---
 
-### 🎨 EVALUATION SIDEBAR — SEGUNDO MONOLITO (2000 LÍNEAS)
+### 🎨 F-03 · EVALUATION SIDEBAR — SEGUNDO MONOLITO (2000 LÍNEAS) [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `components/production/evaluation-sidebar.tsx` combina: filtros de fecha/cliente/tratamiento, drag-drop de órdenes, formulario de evaluación por pasos (máquina → tratamiento), vista de planos embebida, manejo de confirmación de eliminación y lógica de órdenes pinneadas. Todo en 2000+ líneas.
@@ -172,7 +172,7 @@ La superficie de bugs se reduce proporcionalmente al tamaño de cada archivo. Un
 
 ---
 
-### 🎨 FEEDBACK DE ERRORES — MENSAJES GENÉRICOS
+### 🎨 F-04 · FEEDBACK DE ERRORES — MENSAJES GENÉRICOS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 Las Server Actions de `app/dashboard/ventas/actions.ts` y `app/dashboard/produccion/actions.ts` capturan casi todos los errores con el mismo mensaje: `"Error en la operación. Intenta de nuevo."` Los errores de autenticación en `/login` se comunican vía query param (`?message=...`) y se renderizan como texto plano.
@@ -234,7 +234,7 @@ Reducción directa en tickets de soporte. El usuario puede resolver sus propios 
 
 ---
 
-### 🎨 ACCESIBILIDAD — BRECHAS EN COMPONENTES COMPLEJOS
+### 🎨 F-05 · ACCESIBILIDAD — BRECHAS EN COMPONENTES COMPLEJOS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 Los componentes base de Radix UI (Dialog, Select, Popover) incluyen accesibilidad por defecto. Sin embargo, el SVG del Gantt, los modales custom del módulo de producción y las imágenes dinámicas en cotizaciones no tienen atributos ARIA.
@@ -281,7 +281,7 @@ Cumplimiento básico de WCAG 2.1 AA. Requerimiento legal en muchas jurisdiccione
 
 ---
 
-### 🎨 USEUSERPREFERNCES — SIN MANEJO DE FALLOS
+### 🎨 F-06 · USEUSERPREFERNCES — SIN MANEJO DE FALLOS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `hooks/use-user-preferences.ts` persiste las preferencias del usuario (estado del sidebar, configuración del Gantt) en Supabase con debounce de 1000ms. Si la escritura falla, el error se descarta silenciosamente.
@@ -324,7 +324,7 @@ El usuario confía en que el sistema recuerda sus preferencias. La pérdida sile
 
 ---
 
-### 🎨 FORMULARIO DE ERROR EN AUTH — QUERY PARAMS
+### 🎨 F-07 · FORMULARIO DE ERROR EN AUTH — QUERY PARAMS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 Los errores de login y registro se comunican vía `redirect('/login?message=...')` desde la Server Action. El componente de la página lee `searchParams.message` y lo muestra como texto.
@@ -368,7 +368,7 @@ Patrón estándar moderno de Next.js con React 19. Elimina el antipatrón de que
 
 ---
 
-### 🎨 LANDING PAGE — JERARQUÍA VISUAL DÉBIL
+### 🎨 F-08 · LANDING PAGE — JERARQUÍA VISUAL DÉBIL [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `app/page.tsx` implementa la landing con animaciones Framer Motion, cards glasmorphism y un CTA de login. Funciona correctamente como punto de entrada.
@@ -411,7 +411,7 @@ El tiempo hasta el primer click en CTA se reduce. La landing comunica el valor d
 
 ---
 
-### 🎨 GANTT — AUSENCIA DE FEEDBACK DE CARGA EN OPERACIONES LENTAS
+### 🎨 F-09 · GANTT — AUSENCIA DE FEEDBACK DE CARGA EN OPERACIONES LENTAS [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 Cuando el usuario ejecuta "Auto-planeación" (`auto-plan-dialog.tsx`), el algoritmo de scheduling puede tardar varios segundos procesando decenas de órdenes. El botón queda deshabilitado pero no hay indicador de progreso.
@@ -454,7 +454,7 @@ El usuario espera con confianza en lugar de cancelar y reintentar. En operacione
 
 ---
 
-### 🎨 MEMOIZACIÓN AUSENTE EN CÁLCULOS DEL GANTT
+### 🎨 F-10 · MEMOIZACIÓN AUSENTE EN CÁLCULOS DEL GANTT [RESUELTO — 2026-04-14]
 
 **Análisis de Estado Actual:**
 `gantt-svg.tsx` recalcula las coordenadas x/y de cada tarea en cada render. Con 20 máquinas y 100 tareas en vista de horas, esto implica cientos de operaciones `differenceInMinutes` y multiplicaciones de `date-fns` por frame durante el drag-drop.
@@ -503,7 +503,7 @@ El drag-drop alcanza 60fps en hardware estándar. La diferencia es perceptible i
 
 ---
 
-### 🎨 SISTEMA DE PERMISOS — MIGRACIÓN INCOMPLETA (DUAL SYSTEM)
+### 🎨 F-11 · SISTEMA DE PERMISOS — MIGRACIÓN INCOMPLETA (DUAL SYSTEM)
 
 **Análisis de Estado Actual:**
 `middleware.ts` y `lib/auth-guard.ts` implementan un sistema híbrido: si el usuario tiene `permissions` en su perfil, se usa el nuevo sistema por permisos específicos; si `permissions` es `null`, cae al sistema legacy por roles. Esto aplica también al sidebar que filtra los items de navegación.
@@ -545,7 +545,25 @@ Elimina la deuda técnica de mantener dos sistemas. El admin entiende en un vist
 
 ---
 
-## 3. IDEAS DE INNOVACIÓN BONUS
+## 3. ÍNDICE DE HALLAZGOS
+
+| ID   | Componente / Archivo                           | Severidad | Categoría            | Estado                   |
+| ---- | ---------------------------------------------- | --------- | -------------------- | ------------------------ |
+| F-01 | `components/production/gantt-svg.tsx`          | Crítica   | Arquitectura / SRP   | ✅ RESUELTO — 2026-04-14 |
+| F-02 | `components/production/production-view.tsx`    | Crítica   | Estado / Performance | ✅ RESUELTO — 2026-04-14 |
+| F-03 | `components/production/evaluation-sidebar.tsx` | Crítica   | Arquitectura / SRP   | ✅ RESUELTO — 2026-04-14 |
+| F-04 | `app/dashboard/ventas/actions.ts`              | Alta      | UX / Error handling  | ✅ RESUELTO — 2026-04-14 |
+| F-05 | `components/production/gantt-svg.tsx`          | Alta      | Accesibilidad        | ✅ RESUELTO — 2026-04-14 |
+| F-06 | `hooks/use-user-preferences.ts`                | Alta      | UX / Resiliencia     | ✅ RESUELTO — 2026-04-14 |
+| F-07 | `app/login/page.tsx`, `app/auth/actions.ts`    | Media     | UX / Auth            | ✅ RESUELTO — 2026-04-14 |
+| F-08 | `app/page.tsx`                                 | Media     | UI / Visual          | ✅ RESUELTO — 2026-04-14 |
+| F-09 | `components/production/auto-plan-dialog.tsx`   | Media     | UX / Feedback        | ✅ RESUELTO — 2026-04-14 |
+| F-10 | `components/production/gantt-svg.tsx`          | Media     | Performance          | ✅ RESUELTO — 2026-04-14 |
+| F-11 | `middleware.ts`, `lib/auth-guard.ts`           | Baja      | Arquitectura / Auth  | Pendiente                |
+
+---
+
+## 4. IDEAS DE INNOVACIÓN BONUS
 
 ---
 
@@ -606,7 +624,7 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ---
 
-## 4. MÉTRICAS DE LA AUDITORÍA
+## 5. MÉTRICAS DE LA AUDITORÍA
 
 | Categoría                   | Crítico | Alto  | Medio | Bajo  |
 | --------------------------- | ------- | ----- | ----- | ----- |
@@ -639,7 +657,7 @@ Técnicamente es una sub-ruta `/dashboard/produccion/operador` con un layout dif
 
 ---
 
-## 5. LISTA DE IMPLEMENTACIÓN
+## 6. LISTA DE IMPLEMENTACIÓN
 
 ### 🔴 Críticos
 

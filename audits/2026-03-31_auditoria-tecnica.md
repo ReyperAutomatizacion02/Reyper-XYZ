@@ -1,17 +1,19 @@
-# REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ
+# REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ · Iteración 1
 
 **Fecha:** 2026-03-31 | **Auditor:** Senior Full-Stack Architect & Lead Security Auditor | **Modelo:** Claude Sonnet 4.6
 **Última actualización:** 2026-04-03 — Cierre de auditoría + decisiones de simplificación
 
 ---
 
-## 1. RESUMEN DE SALUD
+## 1. RESUMEN EJECUTIVO
 
 **Calificación General al momento de la auditoría: 5.5 / 10**
 **Calificación tras correcciones (sesión 2026-03-31): 7.8 / 10**
 **Calificación final tras cierre completo (2026-04-03): 9.0 / 10**
 
 La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations, separación de concerns). Los 16 hallazgos han sido tratados: 13 resueltos en código/configuración, 1 diferido conscientemente (Sentry — sin usuarios en producción aún), 1 investigado sin acción requerida, y 1 pendiente de acción manual irrealizable desde código (rotación de credenciales).
+
+**Distribución de hallazgos: 3 críticos · 5 altos · 6 medios · 2 bajos** (16 total)
 
 **Top 3 Riesgos Críticos (al momento de la auditoría):**
 
@@ -25,7 +27,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~SERVER ACTIONS DE ADMIN SIN VERIFICACIÓN DE AUTORIZACIÓN~~
+### ✅ T-01 · ~~SERVER ACTIONS DE ADMIN SIN VERIFICACIÓN DE AUTORIZACIÓN~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Crítica
@@ -37,7 +39,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~BYPASS DE VALIDACIÓN ZOD — FIELD INJECTION EN BASE DE DATOS~~
+### ✅ T-02 · ~~BYPASS DE VALIDACIÓN ZOD — FIELD INJECTION EN BASE DE DATOS~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Crítica
@@ -49,7 +51,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### 🚩 SERVICE ROLE KEY EXPUESTO Y USO INEFICIENTE
+### 🚩 T-03 · SERVICE ROLE KEY EXPUESTO Y USO INEFICIENTE [PENDIENTE — acción manual]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Crítica
@@ -65,7 +67,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~URL DE RESET DE CONTRASEÑA CONSTRUIDA INCORRECTAMENTE~~
+### ✅ T-04 · ~~URL DE RESET DE CONTRASEÑA CONSTRUIDA INCORRECTAMENTE~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad / Lógica
 - **Gravedad:** Alta
@@ -77,7 +79,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~AUSENCIA DE CONTENT-SECURITY-POLICY (CSP)~~
+### ✅ T-05 · ~~AUSENCIA DE CONTENT-SECURITY-POLICY (CSP)~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
@@ -89,7 +91,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~API ROUTES EXCLUIDAS TOTALMENTE DEL MIDDLEWARE DE AUTH~~
+### ✅ T-06 · ~~API ROUTES EXCLUIDAS TOTALMENTE DEL MIDDLEWARE DE AUTH~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
@@ -100,7 +102,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~`.passthrough()` EN SCHEMAS ZOD — INYECCIÓN DE CAMPOS EN BD~~
+### ✅ T-07 · ~~`.passthrough()` EN SCHEMAS ZOD — INYECCIÓN DE CAMPOS EN BD~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
@@ -111,7 +113,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~SIN RATE LIMITING EN ENDPOINTS DE AUTENTICACIÓN~~
+### ✅ T-08 · ~~SIN RATE LIMITING EN ENDPOINTS DE AUTENTICACIÓN~~ [RESUELTO — 2026-04-03]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
@@ -123,7 +125,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~`verifyAdmin` CON TIPO `any` — BYPASS DE TYPE SAFETY~~
+### ✅ T-09 · ~~`verifyAdmin` CON TIPO `any` — BYPASS DE TYPE SAFETY~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Seguridad / Limpieza
 - **Gravedad:** Media
@@ -134,7 +136,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~CANAL REALTIME CON `Math.random()` — PROLIFERACIÓN DE SUSCRIPCIONES~~
+### ✅ T-10 · ~~CANAL REALTIME CON `Math.random()` — PROLIFERACIÓN DE SUSCRIPCIONES~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Performance
 - **Gravedad:** Media
@@ -146,7 +148,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~N+1 QUERY EN ELIMINACIÓN DE ARCHIVOS DE STORAGE~~
+### ✅ T-11 · ~~N+1 QUERY EN ELIMINACIÓN DE ARCHIVOS DE STORAGE~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Performance
 - **Gravedad:** Media
@@ -157,7 +159,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~`getFilterOptions()` — FULL TABLE SCAN PARA VALORES ÚNICOS~~
+### ✅ T-12 · ~~`getFilterOptions()` — FULL TABLE SCAN PARA VALORES ÚNICOS~~ [RESUELTO — 2026-04-03]
 
 - **Categoría:** Performance
 - **Gravedad:** Media
@@ -169,7 +171,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ⚠️ VERSIÓN DE NEXT.JS EN `package.json`
+### ⚠️ T-13 · VERSIÓN DE NEXT.JS EN `package.json` [INVESTIGADO — 2026-03-31]
 
 - **Categoría:** Lógica / Mantenimiento
 - **Gravedad:** Media
@@ -180,7 +182,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~`dotenv` EN DEPENDENCIAS DE PRODUCCIÓN~~
+### ✅ T-14 · ~~`dotenv` EN DEPENDENCIAS DE PRODUCCIÓN~~ [RESUELTO — 2026-03-31]
 
 - **Categoría:** Limpieza
 - **Gravedad:** Baja
@@ -191,7 +193,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### 🔵 SIN INTEGRACIÓN DE MONITOREO EN PRODUCCIÓN
+### 🔵 T-15 · SIN INTEGRACIÓN DE MONITOREO EN PRODUCCIÓN [DIFERIDO]
 
 - **Categoría:** Mantenimiento
 - **Gravedad:** Baja
@@ -203,7 +205,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-### ✅ ~~AUDITORÍA DE PERMISOS RLS EN `user_profiles`~~
+### ✅ T-16 · ~~AUDITORÍA DE PERMISOS RLS EN `user_profiles`~~ [VERIFICADO — 2026-04-03]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Baja
@@ -214,7 +216,30 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-## 3. LISTA DE VERIFICACIÓN POST-AUDITORÍA
+## 3. ÍNDICE DE HALLAZGOS
+
+| ID   | Archivo / Área                         | Gravedad | Categoría              | Estado                       |
+| ---- | -------------------------------------- | -------- | ---------------------- | ---------------------------- |
+| T-01 | `app/dashboard/admin-panel/actions.ts` | Crítica  | Seguridad              | ✅ RESUELTO — 2026-03-31     |
+| T-02 | `app/dashboard/ventas/actions.ts`      | Crítica  | Seguridad              | ✅ RESUELTO — 2026-03-31     |
+| T-03 | `.env.local`, `lib/storage-utils.ts`   | Crítica  | Seguridad              | 🚩 PENDIENTE — acción manual |
+| T-04 | `app/auth/actions.ts`                  | Alta     | Seguridad / Lógica     | ✅ RESUELTO — 2026-03-31     |
+| T-05 | `next.config.ts`                       | Alta     | Seguridad              | ✅ RESUELTO — 2026-03-31     |
+| T-06 | `middleware.ts`                        | Alta     | Seguridad              | ✅ RESUELTO — 2026-03-31     |
+| T-07 | `lib/validations/sales.ts`             | Alta     | Seguridad              | ✅ RESUELTO — 2026-03-31     |
+| T-08 | Supabase Auth Dashboard                | Alta     | Seguridad              | ✅ RESUELTO — 2026-04-03     |
+| T-09 | `app/dashboard/admin-panel/actions.ts` | Media    | Seguridad / Limpieza   | ✅ RESUELTO — 2026-03-31     |
+| T-10 | `hooks/use-realtime.ts`                | Media    | Performance            | ✅ RESUELTO — 2026-03-31     |
+| T-11 | `lib/storage-utils.ts`                 | Media    | Performance            | ✅ RESUELTO — 2026-03-31     |
+| T-12 | `app/dashboard/ventas/actions.ts`      | Media    | Performance            | ✅ RESUELTO — 2026-04-03     |
+| T-13 | `package.json`                         | Media    | Lógica / Mantenimiento | ⚠️ INVESTIGADO — sin acción  |
+| T-14 | `package.json`                         | Baja     | Limpieza               | ✅ RESUELTO — 2026-03-31     |
+| T-15 | `utils/logger.ts`                      | Baja     | Mantenimiento          | 🔵 DIFERIDO conscientemente  |
+| T-16 | `supabase/user_profiles.sql`           | Baja     | Seguridad              | ✅ VERIFICADO — 2026-04-03   |
+
+---
+
+## 4. PLAN DE IMPLEMENTACIÓN POST-AUDITORÍA
 
 ### Completados en sesión 2026-03-31 ✅
 
@@ -249,7 +274,7 @@ La arquitectura base es correcta (Next.js App Router, Supabase, Zod validations,
 
 ---
 
-## 4. MÉTRICAS DE LA AUDITORÍA
+## 5. MÉTRICAS DE LA AUDITORÍA
 
 | Categoría     | Crítica | Alta  | Media | Baja  |
 | ------------- | ------- | ----- | ----- | ----- |
