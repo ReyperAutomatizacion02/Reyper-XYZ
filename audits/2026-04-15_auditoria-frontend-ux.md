@@ -17,7 +17,7 @@ La iteración 3 dejó el codebase en su mejor estado estructural hasta la fecha:
 
 La calificación baja levemente porque se detectó una regresión directa de la iteración anterior, pero la base arquitectónica sigue sólida. Cerrar H-01 a H-03 devuelve el score a 8.7+ con poco esfuerzo.
 
-**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 3/8**
+**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 5/8**
 
 ---
 
@@ -491,7 +491,7 @@ El visor de plano, al ser un componente dedicado, puede implementar lazy loading
 
 ---
 
-### 🎨 H-07 · QUOTE-PDF — PROPS COMPLETAMENTE SIN TIPO
+### ✅ H-07 · ~~QUOTE-PDF — PROPS COMPLETAMENTE SIN TIPO~~ [RESUELTO — 2026-04-15]
 
 **Análisis de Estado Actual:**
 `components/sales/quote-pdf.tsx:241` declara:
@@ -530,7 +530,7 @@ El documento más crítico para el cliente queda bajo el mismo nivel de protecci
 
 ---
 
-### 🎨 H-08 · SHARED COMPONENTS — DEUDA DE `any` EN COMPONENTES DE USO GENERAL
+### ✅ H-08 · ~~SHARED COMPONENTS — DEUDA DE `any` EN COMPONENTES DE USO GENERAL~~ [RESUELTO — 2026-04-15]
 
 **Análisis de Estado Actual:**
 Varios componentes en `components/shared/` tienen contratos débiles:
@@ -688,8 +688,8 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 | H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | ✅ RESUELTO — 2026-04-15 |
 | H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | Pendiente                |
 | H-06 | `components/production/evaluation-modal.tsx`                                                                                     | Media     | Arquitectura / SRP       | Pendiente                |
-| H-07 | `components/sales/quote-pdf.tsx` (línea 241)                                                                                     | Baja      | Tipado / DX              | Pendiente                |
-| H-08 | `components/shared/` (múltiples — `any` en callbacks)                                                                            | Baja      | Tipado / DX              | Pendiente                |
+| H-07 | `components/sales/quote-pdf.tsx` (línea 241)                                                                                     | Baja      | Tipado / DX              | ✅ RESUELTO — 2026-04-15 |
+| H-08 | `components/shared/` (múltiples — `any` en callbacks)                                                                            | Baja      | Tipado / DX              | ✅ RESUELTO — 2026-04-15 |
 
 **Calificación proyectada al cerrar H-01 a H-04: 8.8 / 10**
 
@@ -736,14 +736,13 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
     - `evaluation-modal.tsx`: `(firstTreatment as any).treatment_id || null` → `firstTreatment?.treatment_id ?? null`. Ídem para `.treatment`. El narrowing de `isTreatmentStep` ya expone ambos campos directamente.
     - `tsc --noEmit` pasa sin errores. Cero `as any` en `evaluation-sidebar.tsx` y `evaluation-modal.tsx`.
 
-#### Tarea 2.2 — H-07 + H-08: Tipar `QuotePDF` y callbacks en `shared/`
+#### ✅ Tarea 2.2 — H-07 + H-08: Tipar `QuotePDF` y callbacks en `shared/` — COMPLETADA 2026-04-15
 
-- **Archivos:** `components/sales/quote-pdf.tsx`, `components/shared/projects-table.tsx`, `components/shared/data-audit-table.tsx`
-- **Pasos:**
-    1. En `quote-pdf.tsx:241`: añadir tipos desde Supabase para `data` e `items`. Revisar todos los accesos de campo y ajustar nombres si difieren.
-    2. En `projects-table.tsx`: reemplazar `onSort: (field: any)` por un tipo literal de campos válidos.
-    3. En `data-audit-table.tsx`: reemplazar `onSelectProject: (project: any)` por el tipo de Supabase.
-- **Criterio de aceptación:** `grep -rn ': any\|<any' components/shared/ components/sales/quote-pdf.tsx` devuelve cero resultados de contratos de interfaz (los `catch (e: any)` son aceptables).
+- **Solución aplicada:**
+    - `quote-pdf.tsx`: creadas interfaces explícitas `QuotePDFData` (19 campos nullable reflejando la realidad del dato) y `QuotePDFItem` (4 campos). Extraída constante `currency: string` con fallback `?? 'MXN'` para resolver usos en `formatCurrency`. Firma de `formatDate` actualizada a `string | null | undefined`. El tipado reveló y corrigió el cálculo de `taxPercent` que usaba `data.tax_rate` directamente sin null guard — ahora usa `const taxRate = data.tax_rate ?? 0`.
+    - `projects-table.tsx`: añadido `type ProjectSortField = 'code' | 'name' | 'delivery_date' | 'progress' | 'parts_count'`. Reemplazado `onSort: (field: any)` por `onSort: (field: ProjectSortField)`.
+    - `data-audit-table.tsx`: reemplazado `onSelectProject: (project: any)` por `onSelectProject: (project: Project)`. Ambas instancias de `isMissing: (val: any)` actualizadas a `isMissing: (val: unknown)`.
+    - `tsc --noEmit` pasa sin errores. Cero `any` en contratos de interfaz en los tres archivos.
 
 ---
 
