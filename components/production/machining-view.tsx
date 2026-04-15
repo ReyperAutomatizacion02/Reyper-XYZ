@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { getProductionTaskColor } from "@/utils/production-colors";
 import { createClient } from "@/utils/supabase/client";
+import { toast } from "sonner";
 import { useMachiningTour } from "@/hooks/use-machining-tour";
 import { DashboardHeader } from "@/components/dashboard-header";
 import {
@@ -60,8 +61,8 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
             await recordCheckIn(taskId);
             router.refresh();
         } catch (error) {
-            console.error(error);
-            alert("Error al registrar inicio");
+            console.error("[MachiningView] Check-in error:", error);
+            toast.error("No se pudo registrar el inicio. Intenta de nuevo.");
         } finally {
             setIsSaving(false);
         }
@@ -82,8 +83,8 @@ export function MachiningView({ initialTasks, operatorName }: MachiningViewProps
                 router.refresh();
             }, 100);
         } catch (error) {
-            console.error(error);
-            alert("Error al registrar fin");
+            console.error("[MachiningView] Check-out error:", error);
+            toast.error("No se pudo registrar el fin. Intenta de nuevo.");
         } finally {
             setIsSaving(false);
             setCheckoutTaskId(null);

@@ -17,7 +17,7 @@ La iteración 3 dejó el codebase en su mejor estado estructural hasta la fecha:
 
 La calificación baja levemente porque se detectó una regresión directa de la iteración anterior, pero la base arquitectónica sigue sólida. Cerrar H-01 a H-03 devuelve el score a 8.7+ con poco esfuerzo.
 
-**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 1/8**
+**Distribución de hallazgos: 0 críticos · 3 altos · 3 medios · 2 bajos** | **Resueltos en esta iteración: 2/8**
 
 ---
 
@@ -92,7 +92,7 @@ Completa la resolución de H-04 iniciada en la iteración anterior. Elimina el r
 
 ---
 
-### 🎨 H-02 · MACHINING-VIEW + CREATE-TASK-MODAL — `alert()` NATIVO EN UI DE PRODUCCIÓN
+### ✅ H-02 · ~~MACHINING-VIEW + CREATE-TASK-MODAL — `alert()` NATIVO EN UI DE PRODUCCIÓN~~ [RESUELTO — 2026-04-15]
 
 **Análisis de Estado Actual:**
 `machining-view.tsx:68` y `:90` llaman a `alert()` del navegador para errores de check-in/check-out. `create-task-modal.tsx:163` y `:180` llaman a `alert()` para validación de formulario y error de creación de tarea.
@@ -683,7 +683,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
 | ID   | Componente / Archivo                                                                                                             | Severidad | Categoría                | Estado                   |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------ | ------------------------ |
 | H-01 | `components/production/production-view.tsx` (línea 26, 104)                                                                      | Alta      | Tipado / Regresión       | ✅ RESUELTO — 2026-04-15 |
-| H-02 | `components/production/machining-view.tsx` (línea 68, 90) / `create-task-modal.tsx` (línea 163, 180)                             | Alta      | UX / Consistencia        | Pendiente                |
+| H-02 | `components/production/machining-view.tsx` (línea 68, 90) / `create-task-modal.tsx` (línea 163, 180)                             | Alta      | UX / Consistencia        | ✅ RESUELTO — 2026-04-15 |
 | H-03 | `components/shared/production-item-detail.tsx`                                                                                   | Alta      | Arquitectura / Tipado    | Pendiente                |
 | H-04 | `components/production/evaluation-sidebar.tsx` (línea 286) / `evaluation-modal.tsx` (líneas 270–271) / `lib/scheduling-utils.ts` | Media     | Tipado / Type predicates | Pendiente                |
 | H-05 | `components/production/` (múltiples — z-index ladder)                                                                            | Media     | UI / Stacking context    | Pendiente                |
@@ -714,14 +714,12 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
     - `hooks/use-machining-tour.ts`: eliminadas definiciones locales. Añadido `import { GanttPlanningTask } from "@/components/production/types"`. Todas las referencias actualizadas (props, return type, demo task cast).
     - `tsc --noEmit` pasa sin errores. Cero ocurrencias de `useState<any>` en el módulo de producción.
 
-#### Tarea 1.2 — H-02: Reemplazar `alert()` con `toast.error()` e inline errors
+#### ✅ Tarea 1.2 — H-02: Reemplazar `alert()` con `toast.error()` e inline errors — COMPLETADA 2026-04-15
 
-- **Archivos:** `components/production/machining-view.tsx`, `components/production/create-task-modal.tsx`
-- **Pasos:**
-    1. `machining-view.tsx`: añadir `import { toast } from "sonner"`. Reemplazar los 2 `alert()` por `toast.error()`.
-    2. `create-task-modal.tsx`: añadir `useState<string | null>(null)` para `formErrors`. Reemplazar `alert("Por favor completa los campos requeridos")` por `setFormErrors("...")`. Reemplazar `alert("Error al crear el registro")` por `toast.error(...)`.
-    3. En el JSX de `create-task-modal.tsx`: añadir el mensaje inline de error antes del botón submit.
-- **Criterio de aceptación:** `grep -r 'alert(' components/` devuelve cero resultados. Funcionalidad idéntica en ambos componentes.
+- **Solución aplicada:**
+    - `machining-view.tsx`: añadido `import { toast } from "sonner"`. Los 2 `alert()` reemplazados por `toast.error()` con prefijo de contexto en `console.error`.
+    - `create-task-modal.tsx`: añadido `import { toast } from "sonner"` y `useState<string | null>(null)` para `formError`. La validación de campos ahora llama a `setFormError(...)` en lugar de `alert()`. El error de red llama a `toast.error(...)`. `setFormError(null)` se ejecuta al abrir el modal (en `useEffect`) y antes de la llamada a la API. Mensaje inline con estilo `bg-destructive/10 text-destructive` insertado en el JSX antes de los botones.
+    - `tsc --noEmit` pasa sin errores. `grep -rn 'alert(' components/` devuelve cero resultados.
 
 ---
 

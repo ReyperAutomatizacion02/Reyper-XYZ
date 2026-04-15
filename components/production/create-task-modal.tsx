@@ -7,6 +7,7 @@ import { Clock, X } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DateSelector } from "@/components/ui/date-selector";
 import { motion, AnimatePresence } from "framer-motion";
@@ -93,6 +94,7 @@ function TimePicker({ date, onChange }: TimePickerProps) {
 
 export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSuccess }: CreateTaskModalProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     // Separate states for dates to handle the UI components easier
     const [selectedOrder, setSelectedOrder] = useState("");
@@ -111,6 +113,7 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
             setEndDate(end);
             setSelectedOrder("");
             setOperator("");
+            setFormError(null);
         }
     }, [isOpen, initialData]);
 
@@ -160,10 +163,11 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedOrder || !startDate || !endDate) {
-            alert("Por favor completa los campos requeridos");
+            setFormError("Completa los campos requeridos: pieza, fecha de inicio y fin.");
             return;
         }
 
+        setFormError(null);
         setIsLoading(true);
         try {
             await createPlanningTask(
@@ -176,8 +180,8 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
             onSuccess();
             onClose();
         } catch (error) {
-            console.error(error);
-            alert("Error al crear el registro");
+            console.error("[CreateTaskModal] error:", error);
+            toast.error("No se pudo crear la tarea. Intenta de nuevo.");
         } finally {
             setIsLoading(false);
         }
@@ -279,6 +283,10 @@ export function CreateTaskModal({ isOpen, onClose, initialData, orders, onSucces
                             onChange={(e) => setOperator(e.target.value)}
                         />
                     </div>
+
+                    {formError && (
+                        <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{formError}</p>
+                    )}
 
                     <div className="flex justify-end gap-3 pt-2">
                         <Button type="button" variant="ghost" onClick={onClose} className="h-10 rounded-lg">
