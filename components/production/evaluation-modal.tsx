@@ -18,15 +18,15 @@ import {
     AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { X, Trash2, Wrench, ChevronRight, ChevronLeft, FileText, AlertTriangle, FlaskConical } from "lucide-react";
+import { X, Trash2, Wrench, ChevronRight, ChevronLeft, AlertTriangle, FlaskConical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Switch } from "@/components/ui/switch";
-import { extractDriveFileId } from "@/lib/drive-utils";
 import { type EvaluationStep, type MachineStep, isTreatmentStep } from "@/lib/scheduling-utils";
 import { useEvaluationSave } from "./hooks/use-evaluation-save";
 import { emptyMachineStep, isStepComplete, computeHours, formatHours } from "./evaluation-utils";
+import { EvaluationDrawingPanel } from "./evaluation/EvaluationDrawingPanel";
 
 interface EvaluationModalProps {
     isOpen: boolean;
@@ -65,8 +65,6 @@ export function EvaluationModal({
 }: EvaluationModalProps) {
     const [steps, setSteps] = useState<EvaluationStep[]>(order?.evaluation || [emptyMachineStep()]);
     const [urgencia, setUrgencia] = useState(order?.urgencia || false);
-    const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-
     const { isSaving, confirmModal, setConfirmModal, handleSave } = useEvaluationSave({
         order,
         urgencia,
@@ -174,7 +172,6 @@ export function EvaluationModal({
     };
 
     const hasDrawing = !!order?.drawing_url;
-    const fileId = hasDrawing ? extractDriveFileId(order!.drawing_url!) : null;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -184,50 +181,7 @@ export function EvaluationModal({
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className={`flex flex-1 overflow-hidden ${hasDrawing ? "flex-row" : "flex-col"}`}>
-                    {/* Left Panel: Blueprint Viewer (Only if exists) */}
-                    {hasDrawing && (
-                        <div className="flex h-full min-w-0 flex-1 flex-col border-r border-border bg-muted/5">
-                            <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/30 p-4">
-                                <h3 className="flex items-center gap-2 text-sm font-bold">
-                                    <FileText className="h-4 w-4 text-primary" />
-                                    Plano de Fabricación
-                                </h3>
-                                {order?.drawing_url && !fileId && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-[10px]"
-                                        onClick={() => window.open(order?.drawing_url, "_blank")}
-                                    >
-                                        Abrir en pestaña nueva
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="relative flex h-full w-full flex-1 items-center justify-center overflow-hidden bg-[#1a1a1a]">
-                                {fileId ? (
-                                    <iframe
-                                        src={`https://drive.google.com/file/d/${fileId}/preview`}
-                                        className="block h-full w-full border-none"
-                                        allow="autoplay"
-                                        title="Blueprint Preview"
-                                    ></iframe>
-                                ) : (
-                                    <div className="m-4 flex max-w-sm flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-background/50 p-8 text-center shadow-inner">
-                                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 shadow-sm">
-                                            <FileText className="h-8 w-8 text-amber-500" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h4 className="text-sm font-bold">Vista Previa No Disponible</h4>
-                                            <p className="text-[11px] leading-relaxed text-muted-foreground">
-                                                Este archivo no se puede visualizar directamente. Usa el botón de arriba
-                                                para abrirlo en una pestaña nueva.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                    {hasDrawing && <EvaluationDrawingPanel drawingUrl={order!.drawing_url!} />}
 
                     <div className={`${hasDrawing ? "w-[450px]" : "w-full"} flex flex-col`}>
                         {order && (
