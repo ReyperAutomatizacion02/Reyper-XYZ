@@ -371,7 +371,7 @@ export function ScenarioComparison({
                 <AlertDialogContent container={container} className="max-w-[400px] rounded-3xl border-none shadow-2xl">
                     <AlertDialogHeader className="items-center text-center">
                         <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-                            <Trash2 className="h-8 w-8 text-[#EC1C21]" />
+                            <Trash2 className="h-8 w-8 text-brand" />
                         </div>
                         <AlertDialogTitle className="text-xl font-black uppercase tracking-tight">
                             ¿Eliminar Escenario?
@@ -390,7 +390,7 @@ export function ScenarioComparison({
                                 e.preventDefault();
                                 handleDelete();
                             }}
-                            className="rounded-xl bg-[#EC1C21] px-6 font-black text-white shadow-lg shadow-red-500/20 hover:bg-[#EC1C21]/90"
+                            className="rounded-xl bg-brand px-6 font-black text-white shadow-lg shadow-brand/20 hover:bg-brand/90"
                         >
                             {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Sí, Eliminar

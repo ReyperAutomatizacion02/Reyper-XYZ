@@ -36,7 +36,7 @@ El único hallazgo no resuelto de la iteración anterior persiste: `evaluation-m
 
 ---
 
-### 🎨 H-01 · `CustomTimePicker` DECLARADO INLINE EN `task-modal.tsx` (LÍNEAS 41–160)
+### ✅ H-01 · ~~`CustomTimePicker` DECLARADO INLINE EN `task-modal.tsx` (LÍNEAS 41–160)~~ [RESUELTO — 2026-04-16]
 
 **Análisis de Estado Actual:**
 `components/production/task-modal.tsx` tiene 573 líneas. Entre las líneas 41 y 160 (120 líneas) se define la función `CustomTimePicker`, un componente React completo con su propia lógica de estado (`openStack`, `hourListRef`, `minuteListRef`), efectos de auto-scroll y JSX de dos dropdowns (hora y minuto con intervalos de 15 min):
@@ -320,7 +320,7 @@ Cero cambios en imports existentes (gracias al barrel). El language server de Ty
 
 ---
 
-### 🎨 H-04 · COLOR `#EC1C21` HARDCODEADO — TOKEN DE MARCA AUSENTE EN DESIGN SYSTEM
+### ✅ H-04 · ~~COLOR `#EC1C21` HARDCODEADO — TOKEN DE MARCA AUSENTE EN DESIGN SYSTEM~~ [RESUELTO — 2026-04-16]
 
 **Análisis de Estado Actual:**
 `evaluation-modal.tsx:651` usa el color Reyper directamente como literal:
@@ -569,13 +569,13 @@ export async function POST(req: Request) {
 
 ## 5. ÍNDICE DE HALLAZGOS
 
-| ID   | Componente / Archivo                                                        | Severidad | Categoría               | Estado    |
-| ---- | --------------------------------------------------------------------------- | --------- | ----------------------- | --------- |
-| H-01 | `components/production/task-modal.tsx` (líneas 41–160)                      | Media     | Arquitectura / SRP      | Pendiente |
-| H-02 | `components/production/evaluation-modal.tsx`                                | Media     | Arquitectura / SRP      | Pendiente |
-| H-03 | `lib/scheduling-utils.ts`                                                   | Media     | Arquitectura / Cohesión | Pendiente |
-| H-04 | `components/production/evaluation-modal.tsx:651` / `tailwind.config.ts`     | Baja      | UI / Design Tokens      | Pendiente |
-| H-05 | `app/dashboard/ventas/` · `app/dashboard/almacen/` · `app/dashboard/admin/` | Baja      | UX / Feedback visual    | Pendiente |
+| ID   | Componente / Archivo                                                        | Severidad | Categoría               | Estado                   |
+| ---- | --------------------------------------------------------------------------- | --------- | ----------------------- | ------------------------ |
+| H-01 | `components/production/task-modal.tsx` (líneas 41–160)                      | Media     | Arquitectura / SRP      | ✅ RESUELTO — 2026-04-16 |
+| H-02 | `components/production/evaluation-modal.tsx`                                | Media     | Arquitectura / SRP      | Pendiente                |
+| H-03 | `lib/scheduling-utils.ts`                                                   | Media     | Arquitectura / Cohesión | Pendiente                |
+| H-04 | `components/production/evaluation-modal.tsx:651` / `tailwind.config.ts`     | Baja      | UI / Design Tokens      | ✅ RESUELTO — 2026-04-16 |
+| H-05 | `app/dashboard/ventas/` · `app/dashboard/almacen/` · `app/dashboard/admin/` | Baja      | UX / Feedback visual    | Pendiente                |
 
 **Calificación proyectada al cerrar H-01 a H-03: 8.9 / 10**
 
@@ -587,31 +587,20 @@ export async function POST(req: Request) {
 
 ---
 
-### SPRINT 1 — EXTRACCIÓN DE PRIMITIVAS UI + DESIGN TOKEN
+### ✅ SPRINT 1 — EXTRACCIÓN DE PRIMITIVAS UI + DESIGN TOKEN [COMPLETADO — 2026-04-16]
 
 **Objetivo:** Eliminar la violación de SRP más simple y establecer el token de color de marca.
 **Fecha objetivo:** 2026-04-18
 
-#### Tarea 1.1 — H-01: Extraer `CustomTimePicker` a `components/ui/time-picker.tsx`
+#### ✅ Tarea 1.1 — H-01: Extraer `CustomTimePicker` a `components/ui/time-picker.tsx`
 
 - **Archivos:** `components/production/task-modal.tsx`, `components/ui/time-picker.tsx` _(nuevo)_
-- **Pasos:**
-    1. Cortar las líneas 41–160 de `task-modal.tsx` y pegarlas en el nuevo archivo `components/ui/time-picker.tsx`.
-    2. Añadir `"use client"` al inicio y exportar la función como `TimePicker` (renombrar de `CustomTimePicker`).
-    3. Generalizar el prop `minuteInterval?: 15 | 30` con default `15`.
-    4. En `task-modal.tsx`, añadir `import { TimePicker } from "@/components/ui/time-picker"` y reemplazar el uso inline.
-    5. Verificar que el comportamiento de scroll automático y z-dropdown funcionen igual.
-- **Criterio de aceptación:** `task-modal.tsx` ≤ 455 líneas · `tsc --noEmit` sin errores · el selector de hora funciona igual visualmente.
+- **Resultado:** `task-modal.tsx` 573 → 447 líneas · `time-picker.tsx` creado con 122 líneas · prop `minuteInterval?: 15 | 30` · imports huérfanos eliminados · `tsc --noEmit` ✓
 
-#### Tarea 1.2 — H-04: Token `brand` en Tailwind + reemplazar `#EC1C21`
+#### ✅ Tarea 1.2 — H-04: Token `brand` en Tailwind + reemplazar `#EC1C21`
 
-- **Archivos:** `tailwind.config.ts`, `components/production/evaluation-modal.tsx`
-- **Pasos:**
-    1. En `tailwind.config.ts → extend.colors`, añadir `brand: { DEFAULT: "#EC1C21", hover: "#D41118" }`.
-    2. Grep `#EC1C21` en el proyecto e identificar todos los usos.
-    3. Reemplazar cada `bg-[#EC1C21]` → `bg-brand` y `hover:bg-[#EC1C21]/90` → `hover:bg-brand-hover`.
-    4. En `evaluation-modal.tsx:651`, cambiar también `shadow-red-500/20` → `shadow-brand/20`.
-- **Criterio de aceptación:** Cero ocurrencias de `#EC1C21` en `grep -r "#EC1C21" components/ app/` · color visual idéntico.
+- **Archivos:** `tailwind.config.ts` + 21 archivos actualizados
+- **Resultado:** Token `brand: { DEFAULT: "#EC1C21", hover: "#D1181C" }` añadido · cero ocurrencias de `-[#EC1C21]` en Tailwind · `shadow-red-500/20` → `shadow-brand/20` en botones de marca · 8 usos de hex en JS/SVG preservados intencionalmente · `tsc --noEmit` ✓
 
 ---
 

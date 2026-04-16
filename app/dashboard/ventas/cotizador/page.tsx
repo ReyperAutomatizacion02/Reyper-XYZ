@@ -1503,8 +1503,8 @@ function QuoteGeneratorContent() {
                                 className={cn(
                                     "h-12 min-w-[220px] text-lg font-bold shadow-lg transition-all duration-300",
                                     (savedQuote || (editingId && !isClone)) && isDirty
-                                        ? "bg-red-600 text-white shadow-red-500/20 animate-in slide-in-from-right-4 hover:bg-red-700"
-                                        : "bg-red-600 text-white shadow-red-500/20 hover:bg-red-700"
+                                        ? "bg-red-600 text-white shadow-brand/20 animate-in slide-in-from-right-4 hover:bg-red-700"
+                                        : "bg-red-600 text-white shadow-brand/20 hover:bg-red-700"
                                 )}
                             >
                                 {saving ? (

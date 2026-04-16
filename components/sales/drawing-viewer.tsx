@@ -372,7 +372,7 @@ export function DrawingViewerContent({
                                 touch-action="none"
                                 interpolation-decay="200"
                             >
-                                <div slot="progress-bar" className="h-1 bg-[#EC1C21]" />
+                                <div slot="progress-bar" className="h-1 bg-brand" />
                             </model-viewer>
                             {/* Instruction Overlay */}
                             <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-4 rounded-full border border-border bg-background/50 px-3 py-1.5 text-[10px] font-medium uppercase text-muted-foreground backdrop-blur-md transition-opacity duration-500 animate-in fade-in">
@@ -386,7 +386,7 @@ export function DrawingViewerContent({
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-[#EC1C21]" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-brand" />
                             <p className="text-sm font-medium">Cargando visor 3D...</p>
                         </div>
                     )

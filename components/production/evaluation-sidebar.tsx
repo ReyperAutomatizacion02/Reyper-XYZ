@@ -147,7 +147,7 @@ export function EvaluationSidebar({
                             {/* Header */}
                             <div className="flex items-center justify-between border-b border-border bg-muted/30 p-4">
                                 <h3 className="flex items-center gap-2 text-sm font-bold">
-                                    <AlertTriangle className="h-4 w-4 text-[#EC1C21]" />
+                                    <AlertTriangle className="h-4 w-4 text-brand" />
                                     {showEvaluated ? "Piezas Evaluadas" : "Piezas por Evaluar"}
                                 </h3>
                                 <Button
@@ -330,7 +330,7 @@ export function EvaluationSidebar({
                                 <Button
                                     onClick={handleSave}
                                     disabled={isSaving}
-                                    className="h-11 w-full bg-[#EC1C21] font-black text-white shadow-lg shadow-red-500/20 hover:bg-[#EC1C21]/90"
+                                    className="h-11 w-full bg-brand font-black text-white shadow-lg shadow-brand/20 hover:bg-brand/90"
                                 >
                                     {isSaving ? "GUARDANDO..." : "GUARDAR EVALUACIÓN"}
                                 </Button>

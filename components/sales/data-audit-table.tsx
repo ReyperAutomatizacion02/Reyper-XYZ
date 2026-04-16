@@ -152,10 +152,7 @@ function ProjectRow({
                     )}
                 </TableCell>
                 <TableCell>
-                    <Badge
-                        variant="outline"
-                        className="border-[#EC1C21]/20 bg-[#EC1C21]/5 font-mono font-bold text-[#EC1C21]"
-                    >
+                    <Badge variant="outline" className="border-brand/20 bg-brand/5 font-mono font-bold text-brand">
                         {project.code}
                     </Badge>
                 </TableCell>

@@ -291,7 +291,7 @@ export function ProjectDetailsPanel({
                                                                         <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                                                                             Entrega
                                                                         </span>
-                                                                        <span className="text-[15px] font-bold capitalize text-[#EC1C21]">
+                                                                        <span className="text-[15px] font-bold capitalize text-brand">
                                                                             {format(
                                                                                 parseLocalDate(project.delivery_date) ||
                                                                                     new Date(),
@@ -312,7 +312,7 @@ export function ProjectDetailsPanel({
                                                                     </div>
                                                                     <Progress
                                                                         value={progress}
-                                                                        className="h-1.5 bg-slate-100 dark:bg-slate-800 [&>div]:bg-[#EC1C21]"
+                                                                        className="h-1.5 bg-slate-100 dark:bg-slate-800 [&>div]:bg-brand"
                                                                     />
                                                                 </div>
                                                             </div>
@@ -448,7 +448,7 @@ export function ProjectDetailsPanel({
                                                                         document.getElementById("trigger-save-item");
                                                                     if (btn) btn.click();
                                                                 }}
-                                                                className="h-8 rounded-lg border-none bg-[#EC1C21] px-4 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-red-500/10 transition-all hover:scale-[1.02] hover:bg-[#D1181C]"
+                                                                className="h-8 rounded-lg border-none bg-brand px-4 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-red-500/10 transition-all hover:scale-[1.02] hover:bg-brand-hover"
                                                             >
                                                                 {isSaving ? (
                                                                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

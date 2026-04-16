@@ -247,7 +247,7 @@ export function AppSidebar() {
                                         "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition-all duration-200",
                                         pathname === "/dashboard/admin-panel" ||
                                             pathname.startsWith("/dashboard/admin-panel/")
-                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
+                                            ? "bg-red-500 text-white shadow-lg shadow-brand/20"
                                             : "text-red-500 hover:bg-red-500/10 hover:text-red-600",
                                         isCollapsed && "lg:justify-center"
                                     )}

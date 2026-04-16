@@ -440,9 +440,9 @@ export default function TratamientosPage() {
             <DashboardHeader
                 title="Tratamientos"
                 description="Catálogo de tratamientos y acabados superficiales"
-                icon={<FlaskConical className="h-8 w-8 text-[#EC1C21]" />}
+                icon={<FlaskConical className="h-8 w-8 text-brand" />}
                 backUrl="/dashboard/logistica"
-                iconClassName="bg-red-500/10 text-[#EC1C21]"
+                iconClassName="bg-red-500/10 text-brand"
             />
 
             {/* Stats bar */}

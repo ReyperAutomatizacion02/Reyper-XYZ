@@ -157,7 +157,7 @@ export function ProductionItemAssetUpload({
                                 />
                             ) : (
                                 <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-4 text-slate-500 transition-opacity group-hover:opacity-30">
-                                    <FileText className="h-10 w-10 text-[#EC1C21] opacity-60" />
+                                    <FileText className="h-10 w-10 text-brand opacity-60" />
                                     <span className="text-center text-[11px] font-bold uppercase tracking-widest">
                                         {drawingUrl ? "Visor de Plano" : "Visor de Archivos"}
                                     </span>
@@ -181,7 +181,7 @@ export function ProductionItemAssetUpload({
                             <div className="flex items-center gap-2">
                                 <Button
                                     size="sm"
-                                    className="h-8 flex-1 rounded-lg bg-[#EC1C21] px-4 text-[10px] font-bold uppercase text-white shadow-xl hover:bg-[#D1181C]"
+                                    className="h-8 flex-1 rounded-lg bg-brand px-4 text-[10px] font-bold uppercase text-white shadow-xl hover:bg-brand-hover"
                                     onClick={() => drawingInputRef.current?.click()}
                                     disabled={isUploading === "drawing"}
                                 >
@@ -196,7 +196,7 @@ export function ProductionItemAssetUpload({
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="h-8 w-8 bg-white/90 p-0 text-[#EC1C21] hover:bg-white"
+                                        className="h-8 w-8 bg-white/90 p-0 text-brand hover:bg-white"
                                         onClick={() => openVisor(drawingUrl, isDrawingDrive ? "pdf" : "image")}
                                     >
                                         <ExternalLink className="h-4 w-4" />
@@ -237,7 +237,7 @@ export function ProductionItemAssetUpload({
                             {drawingUrl && (
                                 <Button
                                     size="sm"
-                                    className="h-8 w-32 rounded-lg bg-[#EC1C21] px-5 text-[10px] font-bold uppercase text-white shadow-xl hover:bg-[#D1181C]"
+                                    className="h-8 w-32 rounded-lg bg-brand px-5 text-[10px] font-bold uppercase text-white shadow-xl hover:bg-brand-hover"
                                     onClick={() => openVisor(drawingUrl, isDrawingDrive ? "pdf" : "image")}
                                 >
                                     <FileText className="mr-2 h-3.5 w-3.5" /> Plano

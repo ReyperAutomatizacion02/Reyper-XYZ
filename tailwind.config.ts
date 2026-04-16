@@ -61,6 +61,10 @@ const config: Config = {
                 "sidebar-hover": "hsl(var(--sidebar-hover))",
                 "navbar-bg": "hsl(var(--navbar-bg))",
                 "navbar-border": "hsl(var(--navbar-border))",
+                brand: {
+                    DEFAULT: "#EC1C21",
+                    hover: "#D1181C",
+                },
             },
             borderRadius: {
                 lg: "var(--radius)",

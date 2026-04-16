@@ -52,7 +52,7 @@ export function ProductionItemDetail({
                                     onChange={(e) => setField("name", e.target.value)}
                                     placeholder="Nombre de la pieza"
                                     maxLength={80}
-                                    className="h-11 truncate rounded-xl border-slate-200 bg-slate-50 text-lg font-bold uppercase focus:ring-[#EC1C21]"
+                                    className="h-11 truncate rounded-xl border-slate-200 bg-slate-50 text-lg font-bold uppercase focus:ring-brand"
                                 />
                             </div>
                         ) : (
@@ -100,21 +100,21 @@ export function ProductionItemDetail({
                                     </label>
                                     <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-1.5 dark:border-slate-800 dark:bg-slate-800/50">
                                         <span
-                                            className={`text-[10px] font-bold uppercase tracking-widest ${fields.urgency ? "text-[#EC1C21]" : "text-slate-400"}`}
+                                            className={`text-[10px] font-bold uppercase tracking-widest ${fields.urgency ? "text-brand" : "text-slate-400"}`}
                                         >
                                             {fields.urgency ? "Urgente" : "Normal"}
                                         </span>
                                         <Switch
                                             checked={fields.urgency}
                                             onCheckedChange={(val) => setField("urgency", val)}
-                                            className="origin-right scale-75 data-[state=checked]:bg-[#EC1C21]"
+                                            className="origin-right scale-75 data-[state=checked]:bg-brand"
                                         />
                                     </div>
                                 </div>
                             ) : isUrgent ? (
                                 <div className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 shadow-sm shadow-red-500/5 dark:border-red-900/20 dark:bg-red-900/10">
-                                    <div className="h-1.5 w-1.5 animate-ping rounded-full bg-[#EC1C21]" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#EC1C21]">
+                                    <div className="h-1.5 w-1.5 animate-ping rounded-full bg-brand" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand">
                                         URGENTE
                                     </span>
                                 </div>
@@ -152,7 +152,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("quantity") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <Hash className="h-3 w-3 text-[#EC1C21]" />
+                            <Hash className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Cantidad
                             </label>
@@ -163,7 +163,7 @@ export function ProductionItemDetail({
                                 value={fields.quantity}
                                 onChange={(e) => setField("quantity", Number(e.target.value))}
                                 max={99999}
-                                className="h-10 rounded-xl border-slate-200 bg-slate-50 font-bold focus:ring-[#EC1C21]"
+                                className="h-10 rounded-xl border-slate-200 bg-slate-50 font-bold focus:ring-brand"
                             />
                         ) : (
                             <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
@@ -178,7 +178,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("material") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <Layers className="h-3 w-3 text-[#EC1C21]" />
+                            <Layers className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Material
                             </label>
@@ -205,7 +205,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("material_confirmation") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <Check className="h-3 w-3 text-[#EC1C21]" />
+                            <Check className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Confirmación Material
                             </label>
@@ -232,7 +232,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("treatment") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <FlaskConical className="h-3 w-3 text-[#EC1C21]" />
+                            <FlaskConical className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Tratamiento
                             </label>
@@ -262,7 +262,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("drawing_url") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <ExternalLink className="h-3 w-3 text-[#EC1C21]" />
+                            <ExternalLink className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Plano (URL)
                             </label>
@@ -286,7 +286,7 @@ export function ProductionItemDetail({
                 {!hiddenFields.includes("render_url") && (
                     <div className="space-y-1.5 text-slate-500">
                         <div className="ml-1 flex items-center gap-1.5">
-                            <Box className="h-3 w-3 text-[#EC1C21]" />
+                            <Box className="h-3 w-3 text-brand" />
                             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 Modelo 3D
                             </label>

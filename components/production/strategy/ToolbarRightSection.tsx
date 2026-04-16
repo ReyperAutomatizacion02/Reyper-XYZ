@@ -78,7 +78,7 @@ export function ToolbarRightSection({
                         size="sm"
                         onClick={onSaveAllPlanning}
                         disabled={liveDraftResult.tasks.length === 0}
-                        className="ml-2 h-8 rounded-xl bg-[#EC1C21] text-[10px] font-black uppercase tracking-tight text-white shadow-lg shadow-[#EC1C21]/20 transition-all hover:scale-[1.05] hover:bg-[#EC1C21]/90 active:scale-95"
+                        className="ml-2 h-8 rounded-xl bg-brand text-[10px] font-black uppercase tracking-tight text-white shadow-lg shadow-brand/20 transition-all hover:scale-[1.05] hover:bg-brand/90 active:scale-95"
                     >
                         Aplicar
                     </Button>
@@ -92,7 +92,7 @@ export function ToolbarRightSection({
                     onClick={onToggleEvalList}
                     className={cn(
                         "h-8 gap-2 rounded-xl border-border/60 px-4 text-[10px] font-black uppercase shadow-sm transition-all",
-                        isEvalListOpen ? "border-[#EC1C21] bg-[#EC1C21] text-white" : "hover:bg-muted"
+                        isEvalListOpen ? "border-brand bg-brand text-white" : "hover:bg-muted"
                     )}
                 >
                     <ClipboardList className="h-3.5 w-3.5" />
@@ -101,7 +101,7 @@ export function ToolbarRightSection({
                         <span
                             className={cn(
                                 "flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white duration-300 animate-in zoom-in",
-                                isEvalListOpen ? "bg-white text-[#EC1C21]" : "bg-[#EC1C21]"
+                                isEvalListOpen ? "bg-white text-brand" : "bg-brand"
                             )}
                         >
                             {ordersPendingEvalCount}

@@ -48,9 +48,9 @@ export default function LogisticaPage() {
             <DashboardHeader
                 title="Logística"
                 description="Gestión de envíos y seguimiento de proyectos"
-                icon={<Truck className="h-8 w-8 text-[#EC1C21]" />}
+                icon={<Truck className="h-8 w-8 text-brand" />}
                 backUrl="/dashboard"
-                iconClassName="bg-red-500/10 text-[#EC1C21]"
+                iconClassName="bg-red-500/10 text-brand"
             />
 
             {/* Tools Grid */}

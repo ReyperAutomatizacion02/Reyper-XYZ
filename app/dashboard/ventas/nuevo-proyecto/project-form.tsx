@@ -1221,7 +1221,7 @@ export function ProjectForm({
                                 id="project-generate-btn"
                                 onClick={handleGeneratePreview}
                                 disabled={loading || !selectedClient || !projectName || showPreview}
-                                className="group h-12 rounded-full bg-gradient-to-r from-red-600 to-red-700 px-8 font-bold uppercase tracking-wide text-white shadow-lg shadow-red-500/20 transition-all duration-300 hover:scale-[1.02] hover:from-red-700 hover:to-red-800"
+                                className="group h-12 rounded-full bg-gradient-to-r from-red-600 to-red-700 px-8 font-bold uppercase tracking-wide text-white shadow-lg shadow-brand/20 transition-all duration-300 hover:scale-[1.02] hover:from-red-700 hover:to-red-800"
                             >
                                 {loading ? (
                                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -1340,7 +1340,7 @@ export function ProjectForm({
                                 id="project-save-btn"
                                 onClick={handleSave}
                                 disabled={loading || generatedItems.length === 0}
-                                className="rounded-full bg-red-600 px-6 text-white shadow-lg shadow-red-500/20 hover:bg-red-700"
+                                className="rounded-full bg-red-600 px-6 text-white shadow-lg shadow-brand/20 hover:bg-red-700"
                             >
                                 {loading ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -18,11 +18,11 @@ export function ProductionItemSummary({ item, onClick, hiddenFields = [] }: Prod
     return (
         <div
             onClick={onClick}
-            className="group flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm transition-all hover:border-[#EC1C21]/30 hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900"
+            className="group flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm transition-all hover:border-brand/30 hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900"
         >
             {/* Thumbnail */}
             {!hiddenFields.includes("image") && (
-                <div className="relative flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200/50 bg-slate-100 transition-colors group-hover:border-[#EC1C21]/20 dark:border-slate-700/50 dark:bg-slate-800">
+                <div className="relative flex aspect-video w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200/50 bg-slate-100 transition-colors group-hover:border-brand/20 dark:border-slate-700/50 dark:bg-slate-800">
                     {hasValidImage ? (
                         <Image
                             src={imageSource}
@@ -43,7 +43,7 @@ export function ProductionItemSummary({ item, onClick, hiddenFields = [] }: Prod
             {/* Info */}
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="rounded bg-[#EC1C21]/5 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-[#EC1C21]">
+                    <span className="rounded bg-brand/5 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-brand">
                         {item.part_code}
                     </span>
                     {!hiddenFields.includes("status") && (
@@ -56,7 +56,7 @@ export function ProductionItemSummary({ item, onClick, hiddenFields = [] }: Prod
                     )}
                 </div>
 
-                <h4 className="truncate text-[13px] font-black uppercase leading-tight text-slate-800 transition-colors group-hover:text-[#EC1C21] dark:text-slate-200">
+                <h4 className="truncate text-[13px] font-black uppercase leading-tight text-slate-800 transition-colors group-hover:text-brand dark:text-slate-200">
                     {item.part_name}
                 </h4>
 

@@ -648,7 +648,7 @@ export function EvaluationModal({
                                 <Button
                                     onClick={handleSave}
                                     disabled={isSaving}
-                                    className="h-11 w-full bg-[#EC1C21] font-black text-white shadow-lg shadow-red-500/20 hover:bg-[#EC1C21]/90"
+                                    className="h-11 w-full bg-brand font-black text-white shadow-lg shadow-brand/20 hover:bg-brand/90"
                                 >
                                     {isSaving ? "GUARDANDO..." : "GUARDAR EVALUACIÓN"}
                                 </Button>

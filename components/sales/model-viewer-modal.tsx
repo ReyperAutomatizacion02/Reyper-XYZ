@@ -247,7 +247,7 @@ export function ModelViewerModal({
                                     Parece que el archivo es inválido o le faltan dependencias.
                                 </p>
                                 <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-left">
-                                    <p className="text-[11px] font-bold uppercase leading-relaxed text-[#EC1C21]">
+                                    <p className="text-[11px] font-bold uppercase leading-relaxed text-brand">
                                         💡 Recomendación: Usa el formato .GLB
                                     </p>
                                     <p className="mt-1 text-[10px] text-muted-foreground">
@@ -285,11 +285,11 @@ export function ModelViewerModal({
                             touch-action="none"
                             interpolation-decay="200"
                         >
-                            <div slot="progress-bar" className="h-1 bg-[#EC1C21]" />
+                            <div slot="progress-bar" className="h-1 bg-brand" />
                         </model-viewer>
                     ) : (
                         <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-[#EC1C21]" />
+                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-brand" />
                             <p className="text-sm font-medium">Cargando visor 3D...</p>
                         </div>
                     )}

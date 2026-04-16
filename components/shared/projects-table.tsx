@@ -238,7 +238,7 @@ export function ProjectsTable({
                                                     daysRemaining < 0
                                                         ? "bg-red-600"
                                                         : daysRemaining <= 7
-                                                          ? "bg-[#EC1C21]"
+                                                          ? "bg-brand"
                                                           : "bg-orange-500"
                                                 )}
                                             />

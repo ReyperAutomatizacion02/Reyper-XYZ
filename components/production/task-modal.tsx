@@ -309,12 +309,12 @@ export function TaskModal({ isOpen, onClose, initialData, orders, operators, onS
                         <h3 id="task-modal-title" className="flex items-center gap-2 text-lg font-bold">
                             {isEditMode ? (
                                 <>
-                                    <Edit className="h-5 w-5 text-[#EC1C21]" aria-hidden="true" />
+                                    <Edit className="h-5 w-5 text-brand" aria-hidden="true" />
                                     Editar Registro
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="h-5 w-5 text-[#EC1C21]" aria-hidden="true" />
+                                    <Sparkles className="h-5 w-5 text-brand" aria-hidden="true" />
                                     Nuevo Registro
                                 </>
                             )}

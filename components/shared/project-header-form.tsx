@@ -145,7 +145,7 @@ export function ProjectHeaderForm({
                                     (!editRequestorId && !editRequestor) ||
                                     !hasChanges
                                 }
-                                className="h-8 rounded-lg bg-[#EC1C21] text-[11px] font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#D1181C]"
+                                className="h-8 rounded-lg bg-brand text-[11px] font-bold uppercase tracking-wider text-white shadow-sm hover:bg-brand-hover"
                             >
                                 {isSaving ? (
                                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -199,7 +199,7 @@ export function ProjectHeaderForm({
                             onChange={(e) => setEditName(e.target.value)}
                             readOnly={readOnlyFields.includes("name")}
                             maxLength={100}
-                            className="h-11 truncate rounded-xl border-slate-200 bg-white text-lg font-bold uppercase shadow-sm focus:ring-[#EC1C21] dark:border-slate-800 dark:bg-slate-950"
+                            className="h-11 truncate rounded-xl border-slate-200 bg-white text-lg font-bold uppercase shadow-sm focus:ring-brand dark:border-slate-800 dark:bg-slate-950"
                             placeholder="Nombre del Proyecto"
                         />
                     </div>
@@ -222,7 +222,7 @@ export function ProjectHeaderForm({
                                 <Building2
                                     className={cn(
                                         "h-5 w-5 shrink-0 opacity-70",
-                                        isEditing && "h-4 w-4 text-[#EC1C21] opacity-100"
+                                        isEditing && "h-4 w-4 text-brand opacity-100"
                                     )}
                                 />
                                 {isEditing && !readOnlyFields.includes("company") ? (
@@ -298,7 +298,7 @@ export function ProjectHeaderForm({
                                 <User
                                     className={cn(
                                         "h-5 w-5 shrink-0 opacity-70",
-                                        isEditing && "h-4 w-4 text-[#EC1C21] opacity-100"
+                                        isEditing && "h-4 w-4 text-brand opacity-100"
                                     )}
                                 />
                                 {isEditing && !readOnlyFields.includes("requestor") ? (
@@ -382,11 +382,11 @@ export function ProjectHeaderForm({
                                 <div className="flex-1">
                                     <DateSelector
                                         label="Fecha Entrega"
-                                        labelClassName="text-[10px] font-bold uppercase tracking-widest text-[#EC1C21]/60 ml-1"
+                                        labelClassName="text-[10px] font-bold uppercase tracking-widest text-brand/60 ml-1"
                                         date={editDeliveryDate}
                                         onSelect={setEditDeliveryDate}
                                         disabled={readOnlyFields.includes("delivery_date")}
-                                        buttonClassName="font-bold capitalize bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 text-[12px] text-[#EC1C21] rounded-xl"
+                                        buttonClassName="font-bold capitalize bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 px-3 text-[12px] text-brand rounded-xl"
                                     />
                                 </div>
                             )}

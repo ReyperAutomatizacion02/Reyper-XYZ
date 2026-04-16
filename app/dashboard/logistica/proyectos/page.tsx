@@ -129,11 +129,11 @@ export default function LogisticaProjectsPage() {
         let statusBg = "bg-green-500";
 
         if (daysRemaining < 0) {
-            dateColor = "text-[#EC1C21]";
-            statusBg = "bg-[#EC1C21]";
+            dateColor = "text-brand";
+            statusBg = "bg-brand";
         } else if (daysRemaining <= 7) {
-            dateColor = "text-[#EC1C21]";
-            statusBg = "bg-[#EC1C21]";
+            dateColor = "text-brand";
+            statusBg = "bg-brand";
         } else if (daysRemaining <= 15) {
             dateColor = "text-orange-500";
             statusBg = "bg-orange-500";
