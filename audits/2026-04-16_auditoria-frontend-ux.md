@@ -252,7 +252,7 @@ El `AlertDialog` de Radix cierra con ESC automáticamente (hoy el confirm modal 
 
 ---
 
-### 🎨 H-03 · `lib/scheduling-utils.ts` — 1.225 LÍNEAS, MÓDULO MONOLÍTICO
+### ✅ H-03 · ~~`lib/scheduling-utils.ts` — 1.225 LÍNEAS, MÓDULO MONOLÍTICO~~ [RESUELTO — 2026-04-16]
 
 **Análisis de Estado Actual:**
 `lib/scheduling-utils.ts` tiene 1.225 líneas y mezcla cuatro dominios semánticos distintos en un único archivo:
@@ -573,7 +573,7 @@ export async function POST(req: Request) {
 | ---- | --------------------------------------------------------------------------- | --------- | ----------------------- | ------------------------ |
 | H-01 | `components/production/task-modal.tsx` (líneas 41–160)                      | Media     | Arquitectura / SRP      | ✅ RESUELTO — 2026-04-16 |
 | H-02 | `components/production/evaluation-modal.tsx`                                | Media     | Arquitectura / SRP      | ✅ RESUELTO — 2026-04-16 |
-| H-03 | `lib/scheduling-utils.ts`                                                   | Media     | Arquitectura / Cohesión | Pendiente                |
+| H-03 | `lib/scheduling-utils.ts`                                                   | Media     | Arquitectura / Cohesión | ✅ RESUELTO — 2026-04-16 |
 | H-04 | `components/production/evaluation-modal.tsx:651` / `tailwind.config.ts`     | Baja      | UI / Design Tokens      | ✅ RESUELTO — 2026-04-16 |
 | H-05 | `app/dashboard/ventas/` · `app/dashboard/almacen/` · `app/dashboard/admin/` | Baja      | UX / Feedback visual    | Pendiente                |
 
@@ -626,16 +626,10 @@ export async function POST(req: Request) {
 **Objetivo:** Partir `scheduling-utils.ts` en módulos cohesivos e implementar skeletons en Ventas y Almacén.
 **Fecha objetivo:** 2026-04-24
 
-#### Tarea 3.1 — H-03: Modularizar `lib/scheduling-utils.ts`
+#### ✅ Tarea 3.1 — H-03: Modularizar `lib/scheduling-utils.ts` [RESUELTO — 2026-04-16]
 
-- **Archivos:** `lib/scheduling-utils.ts`, `lib/scheduling/types.ts`, `lib/scheduling/work-shifts.ts`, `lib/scheduling/planner.ts`, `lib/scheduling/cascade.ts` _(todos nuevos)_
-- **Pasos:**
-    1. Crear `lib/scheduling/` con los 4 archivos según el árbol en H-03.
-    2. Mover cada bloque de código al archivo correspondiente respetando las dependencias (types → work-shifts → planner → cascade).
-    3. Convertir `lib/scheduling-utils.ts` en un barrel de re-exports: `export * from "./scheduling/types"`, etc.
-    4. Documentar el `as any` en `isTreatmentStep` con comentario inline.
-    5. Ejecutar `tsc --noEmit` y resolver cualquier import circular.
-- **Criterio de aceptación:** `tsc --noEmit` pasa sin errores · todos los tests de planificación existentes en verde · ningún componente necesita cambiar sus imports.
+- **Archivos:** `lib/scheduling-utils.ts` (barrel), `lib/scheduling/types.ts`, `lib/scheduling/work-shifts.ts`, `lib/scheduling/planner.ts`, `lib/scheduling/cascade.ts`
+- **Resultado:** 1.225 líneas → 5 líneas de barrel + 4 módulos cohesivos · `isTreatmentStep` `as any` documentado con `// eslint-disable-next-line` inline · `tsc --noEmit` ✓ · cero cambios en importaciones de consumidores
 
 #### Tarea 3.2 — H-05: Skeleton loading en Ventas y Almacén
 
