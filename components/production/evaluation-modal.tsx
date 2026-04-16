@@ -1,39 +1,32 @@
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { type Json } from "@/utils/supabase/types";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter,
     DialogClose,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
-    X,
-    Trash2,
-    Clock,
-    Wrench,
-    Save,
-    CheckCircle2,
-    ChevronRight,
-    ChevronLeft,
-    AlertCircle,
-    FileText,
-    AlertTriangle,
-    Info,
-    FlaskConical,
-} from "lucide-react";
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogAction,
+    AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { X, Trash2, Wrench, ChevronRight, ChevronLeft, FileText, AlertTriangle, FlaskConical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
-import { createClient } from "@/utils/supabase/client";
 import { extractDriveFileId } from "@/lib/drive-utils";
 import { type EvaluationStep, type MachineStep, isTreatmentStep } from "@/lib/scheduling-utils";
+import { useEvaluationSave } from "./hooks/use-evaluation-save";
+import { emptyMachineStep, isStepComplete, computeHours, formatHours } from "./evaluation-utils";
 
 interface EvaluationModalProps {
     isOpen: boolean;
@@ -57,44 +50,6 @@ interface EvaluationModalProps {
     container?: HTMLElement | null;
 }
 
-/** Returns an empty machine step */
-function emptyMachineStep(): EvaluationStep {
-    return { type: "machine", machine: "", hours: 0, setup_time: 0, machining_time: 0, piece_change_time: 0 };
-}
-
-/** Returns true if a step is "complete" (enough data to save) */
-function isStepComplete(step: EvaluationStep): boolean {
-    if (isTreatmentStep(step)) return !!step.treatment_id && step.days > 0;
-    if (step.machining_time !== undefined) return !!step.machine && step.machining_time > 0;
-    return !!step.machine && step.hours > 0;
-}
-
-/** Returns true if a step is "partially filled" (started but invalid) */
-function isStepIncomplete(step: EvaluationStep): boolean {
-    if (isTreatmentStep(step)) return !!step.treatment_id && !(step.days > 0);
-    if (step.machining_time !== undefined) return !!step.machine && !(step.machining_time > 0);
-    return !!step.machine && !(step.hours > 0);
-}
-
-/** Computes total hours from the three time components + order quantity. */
-function computeHours(step: MachineStep, qty: number): number {
-    const setup = step.setup_time ?? 0;
-    const machining = step.machining_time ?? 0;
-    const pieceChange = step.piece_change_time ?? 0;
-    if (setup === 0 && machining === 0 && pieceChange === 0 && step.hours > 0) return step.hours;
-    return setup + machining * qty + pieceChange * Math.max(0, qty - 1);
-}
-
-/** Formats fractional hours as "Xh Ym" for display. */
-function formatHours(hours: number): string {
-    if (hours <= 0) return "—";
-    const h = Math.floor(hours);
-    const m = Math.round((hours % 1) * 60);
-    if (h === 0) return `${m}m`;
-    if (m === 0) return `${h}h`;
-    return `${h}h ${m}m`;
-}
-
 export function EvaluationModal({
     isOpen,
     onClose,
@@ -110,16 +65,16 @@ export function EvaluationModal({
 }: EvaluationModalProps) {
     const [steps, setSteps] = useState<EvaluationStep[]>(order?.evaluation || [emptyMachineStep()]);
     const [urgencia, setUrgencia] = useState(order?.urgencia || false);
-    const [isSaving, setIsSaving] = useState(false);
     const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-    const [confirmModal, setConfirmModal] = useState<{
-        title: string;
-        message: string;
-        type: "warning" | "info";
-        onConfirm: () => void;
-    } | null>(null);
-    const supabase = createClient();
-    const router = useRouter();
+
+    const { isSaving, confirmModal, setConfirmModal, handleSave } = useEvaluationSave({
+        order,
+        urgencia,
+        onSuccess,
+        hasNext,
+        onNext,
+        onClose,
+    });
 
     // Sync state when order changes
     React.useEffect(() => {
@@ -216,79 +171,6 @@ export function EvaluationModal({
             newSteps.push(emptyMachineStep());
         }
         setSteps(newSteps);
-    };
-
-    const handleSave = async () => {
-        if (!order) return;
-
-        const validSteps = steps.filter(isStepComplete);
-        const incompleteSteps = steps.filter(isStepIncomplete);
-
-        if (validSteps.length === 0) {
-            if (incompleteSteps.length > 0) {
-                const s = incompleteSteps[0];
-                const label = isTreatmentStep(s) ? `tratamiento "${s.treatment}"` : `máquina "${s.machine}"`;
-                setConfirmModal({
-                    title: "Información Incompleta",
-                    message: `Has seleccionado ${label} pero no has asignado el tiempo. Por favor ingresa el tiempo estimado para poder guardar.`,
-                    type: "warning",
-                    onConfirm: () => setConfirmModal(null),
-                });
-            } else {
-                toast.error("Por favor completa al menos un paso válido");
-            }
-            return;
-        }
-
-        if (incompleteSteps.length > 0) {
-            setConfirmModal({
-                title: "¿Continuar con pasos incompletos?",
-                message: `Hay ${incompleteSteps.length} paso(s) con selección pero sin tiempo asignado. Estos pasos se ignorarán.\n\n¿Deseas continuar y guardar solo los ${validSteps.length} paso(s) válidos?`,
-                type: "info",
-                onConfirm: () => {
-                    setConfirmModal(null);
-                    saveToSupabase(validSteps);
-                },
-            });
-            return;
-        }
-
-        saveToSupabase(validSteps);
-    };
-
-    const saveToSupabase = async (validSteps: EvaluationStep[]) => {
-        if (!order) return;
-        setIsSaving(true);
-        try {
-            // Sync treatment_id / treatment name from first treatment step (if any)
-            const firstTreatment = validSteps.find(isTreatmentStep);
-            const { error } = await supabase
-                .from("production_orders")
-                .update({
-                    evaluation: validSteps as unknown as Json,
-                    urgencia: urgencia,
-                    treatment_id: firstTreatment?.treatment_id ?? null,
-                    treatment: firstTreatment?.treatment ?? null,
-                })
-                .eq("id", order.id);
-
-            if (error) throw error;
-
-            toast.success("Evaluación guardada correctamente");
-            onSuccess(validSteps, urgencia);
-            router.refresh();
-
-            if (hasNext && onNext) {
-                onNext();
-            } else {
-                onClose();
-            }
-        } catch (e: any) {
-            console.error(e);
-            toast.error("Error al guardar la evaluación: " + e.message);
-        } finally {
-            setIsSaving(false);
-        }
     };
 
     const hasDrawing = !!order?.drawing_url;
@@ -646,7 +528,7 @@ export function EvaluationModal({
 
                             <div className="mt-auto flex shrink-0 flex-col gap-2 border-t border-border pt-4">
                                 <Button
-                                    onClick={handleSave}
+                                    onClick={() => handleSave(steps)}
                                     disabled={isSaving}
                                     className="h-11 w-full bg-brand font-black text-white shadow-lg shadow-brand/20 hover:bg-brand/90"
                                 >
@@ -666,45 +548,27 @@ export function EvaluationModal({
                     </div>
                 </div>
 
-                {/* Premium Confirm Modal */}
-                {confirmModal && (
-                    <div className="absolute inset-0 z-saving flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm duration-200 animate-in fade-in">
-                        <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-border bg-background p-6 text-center shadow-2xl duration-200 animate-in zoom-in-95">
-                            <div
-                                className={`flex h-16 w-16 items-center justify-center rounded-2xl border shadow-sm ${confirmModal.type === "warning" ? "border-red-500/20 bg-red-500/10" : "border-primary/20 bg-primary/10"}`}
+                <AlertDialog open={!!confirmModal} onOpenChange={(open) => !open && setConfirmModal(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="font-black uppercase tracking-tight">
+                                {confirmModal?.title}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="whitespace-pre-wrap leading-relaxed">
+                                {confirmModal?.message}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+                            <AlertDialogAction
+                                onClick={confirmModal?.onConfirm}
+                                className={confirmModal?.type === "warning" ? "bg-red-600 hover:bg-red-700" : ""}
                             >
-                                {confirmModal.type === "warning" ? (
-                                    <AlertTriangle className="h-8 w-8 text-red-500" />
-                                ) : (
-                                    <Info className="h-8 w-8 text-primary" />
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="text-lg font-black uppercase tracking-tight">{confirmModal.title}</h3>
-                                <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                                    {confirmModal.message}
-                                </p>
-                            </div>
-                            <div className="mt-2 flex w-full flex-col gap-2">
-                                <Button
-                                    onClick={confirmModal.onConfirm}
-                                    className={`h-10 w-full text-xs font-black ${confirmModal.type === "warning" ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90"}`}
-                                >
-                                    {confirmModal.type === "warning" ? "ENTENDIDO" : "CONTINUAR"}
-                                </Button>
-                                {confirmModal.type === "info" && (
-                                    <Button
-                                        variant="ghost"
-                                        onClick={() => setConfirmModal(null)}
-                                        className="h-10 w-full text-xs font-bold"
-                                    >
-                                        CANCELAR
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                                {confirmModal?.type === "warning" ? "ENTENDIDO" : "CONTINUAR"}
+                            </AlertDialogAction>
+                            {confirmModal?.type === "info" && <AlertDialogCancel>CANCELAR</AlertDialogCancel>}
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     );

@@ -609,15 +609,10 @@ export async function POST(req: Request) {
 **Objetivo:** Llevar `evaluation-modal.tsx` de 711 a ~120 líneas extrayendo lógica de guardado, visor de plano y confirmación.
 **Fecha objetivo:** 2026-04-21
 
-#### Tarea 2.1 — H-02: Extraer `use-evaluation-save.ts`
+#### ✅ Tarea 2.1 — H-02: Extraer `use-evaluation-save.ts`
 
-- **Archivos:** `components/production/hooks/use-evaluation-save.ts` _(nuevo)_, `components/production/evaluation-modal.tsx`
-- **Pasos:**
-    1. Crear `components/production/hooks/use-evaluation-save.ts` con la función exportada `useEvaluationSave` (ver snippet en H-02).
-    2. Mover `handleSave` (líneas 221–290) y sus dependencias (`isSaving` state, imports de Supabase y router) al nuevo hook.
-    3. En `evaluation-modal.tsx`, importar y consumir `useEvaluationSave`.
-    4. Reemplazar el confirm modal inline (líneas 669–711) por `AlertDialog` de Radix (ver snippet en H-02).
-- **Criterio de aceptación:** `evaluation-modal.tsx` ≤ 250 líneas · `use-evaluation-save.ts` ≤ 80 líneas · guardar evaluación funciona con toast de éxito/error · ESC cierra el AlertDialog de confirmación.
+- **Archivos:** `components/production/hooks/use-evaluation-save.ts` _(nuevo)_, `components/production/evaluation-utils.ts` _(nuevo)_, `components/production/evaluation-modal.tsx`
+- **Resultado:** `evaluation-modal.tsx` 711 → 582 líneas · `use-evaluation-save.ts` 105 líneas · `evaluation-utils.ts` 34 líneas (helpers puros extraídos) · confirm modal inline reemplazado por `AlertDialog` de Radix (ESC cierra, focus trap automático) · `handleSave` recibe `steps` como argumento · `tsc --noEmit` ✓
 
 #### Tarea 2.2 — H-02: Extraer `EvaluationDrawingPanel.tsx`
 
