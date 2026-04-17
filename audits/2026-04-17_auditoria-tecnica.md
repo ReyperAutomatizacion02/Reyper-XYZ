@@ -1,7 +1,7 @@
 # REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ · Iteración 2
 
 **Fecha:** 2026-04-17 | **Auditor:** Senior Full-Stack Architect & Lead Security Auditor | **Modelo:** Claude Sonnet 4.6
-**Última actualización:** 2026-04-17 — T-02/T-03/T-05/T-10/T-16 resueltos · T-01/T-04/T-11 investigados/parciales
+**Última actualización:** 2026-04-17 — T-02/T-03/T-05/T-06/T-07/T-10/T-13/T-16 resueltos · T-01/T-04/T-11 investigados/parciales
 **Auditoría anterior:** [2026-03-31_auditoria-tecnica.md](./2026-03-31_auditoria-tecnica.md)
 
 ---
@@ -117,21 +117,22 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-07 · `select("*")` GENERALIZADO — OVER-FETCHING DE COLUMNAS [PENDIENTE]
+### ✅ T-07 · ~~`select("*")` GENERALIZADO — OVER-FETCHING DE COLUMNAS~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Performance
 - **Gravedad:** Alta
-- **Estado:** PENDIENTE
+- **Estado:** RESUELTO — 2026-04-17
 - **Archivo:** `app/dashboard/admin-panel/actions.ts:249,272,307`, `app/dashboard/admin-panel/page.tsx:34-35`, `app/dashboard/page.tsx:276`, `app/dashboard/produccion/maquinados/page.tsx:16`, `app/dashboard/produccion/planeacion/page.tsx:19,34`
-- **Diagnóstico:** Múltiples queries usan `.select("*")` cuando solo se consumen 2-4 columnas del resultado. El caso más grave es `app/dashboard/page.tsx:276` que recupera todas las columnas de `planning` (incluyendo `check_in`, `check_out`, `operator`, `locked`, etc.) cuando el cálculo de utilización solo necesita `machine`, `planned_date` y `planned_end`. Viola el principio de mínima transferencia de datos (YAGNI aplicado a queries).
-- **Impacto:** Payload de red innecesariamente grande; mayor uso de memoria en el servidor y cliente; más datos expuestos en la respuesta de la API si algún serializer falla.
-- **Refactorización propuesta:**
-    ```ts
-    // app/dashboard/page.tsx — antes
-    .select("*")
-    // después
-    .select("machine, planned_date, planned_end")
-    ```
+- **Diagnóstico:** Múltiples queries usaban `.select("*")` cuando solo se consumían 2-4 columnas del resultado. El caso más grave era `app/dashboard/page.tsx:276` que recuperaba todas las columnas de `planning` cuando el cálculo de utilización solo necesita `machine`, `planned_date` y `planned_end`.
+- **Corrección aplicada:**
+    - `admin-panel/actions.ts:249,272` — `user_profiles` proyecta `id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at`
+    - `admin-panel/actions.ts:307` — `employees` proyecta todos los campos del tipo `Employee`
+    - `admin-panel/page.tsx:34` — `employees` con proyección explícita
+    - `admin-panel/page.tsx:35` — `work_shifts` proyecta `id, name, start_time, end_time, days_of_week, active, sort_order, created_at`
+    - `dashboard/page.tsx:276` — `planning` → `.select("machine, planned_date, planned_end")` + `UtilizationTask` Pick type para alinear TypeScript
+    - `produccion/maquinados/page.tsx:16` — `user_profiles` → `.select("roles, operator_name")`
+    - `produccion/planeacion/page.tsx:34` — `work_shifts` → `.select("id, name, start_time, end_time, days_of_week, active, sort_order")` (alineado con interfaz `WorkShift`)
+    - `machines` en planeacion: tabla de 9 columnas totales, sin over-fetching significativo — sin cambio.
 
 ---
 
@@ -204,14 +205,13 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-13 · `select("*")` EN `planning` PARA CÁLCULO DE UTILIZACIÓN [PENDIENTE]
+### ✅ T-13 · ~~`select("*")` EN `planning` PARA CÁLCULO DE UTILIZACIÓN~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Performance
 - **Gravedad:** Media
-- **Estado:** PENDIENTE
+- **Estado:** RESUELTO — 2026-04-17 (resuelto junto con T-07)
 - **Archivo:** `app/dashboard/page.tsx:274-279`
-- **Diagnóstico:** El dashboard principal fetcha todas las columnas de la tabla `planning` para los últimos 7 días, pero `calculateUtilization()` solo consume `machine`, `planned_date` y `planned_end`. Columnas como `check_in`, `check_out`, `operator`, `locked`, `order_id` se traen innecesariamente en cada carga del dashboard.
-- **Corrección propuesta:** `.select("machine, planned_date, planned_end")`
+- **Corrección aplicada:** `.select("machine, planned_date, planned_end")` + tipo `UtilizationTask = Pick<PlanningRow, "machine" | "planned_date" | "planned_end">` para mantener coherencia TypeScript.
 
 ---
 
@@ -340,13 +340,13 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | ⚠️ PARCIAL — 2026-04-17     |
 | T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | ✅ RESUELTO — 2026-04-17    |
 | T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | ✅ RESUELTO — 2026-04-17    |
-| T-07 | `admin-panel/actions.ts`, `page.tsx`, `dashboard/page.tsx` | Alta     | Performance   | 🚩 PENDIENTE                |
+| T-07 | `admin-panel/actions.ts`, `page.tsx`, `dashboard/page.tsx` | Alta     | Performance   | ✅ RESUELTO — 2026-04-17    |
 | T-08 | `ventas/actions.ts:236,877`, `cotizador/page.tsx`          | Alta     | Lógica        | 🚩 PENDIENTE                |
 | T-09 | `lib/scheduling/planner.ts`, `cotizador/page.tsx`          | Alta     | Mantenimiento | 🚩 PENDIENTE                |
 | T-10 | `middleware.ts:40-48`                                      | Media    | Seguridad     | ✅ RESUELTO — 2026-04-17    |
 | T-11 | `supabase/migrations/20260203_strict_rls_...`              | Media    | Seguridad     | ⚠️ INVESTIGADO              |
 | T-12 | `ventas/actions.ts:449-493`                                | Media    | Performance   | 🚩 PENDIENTE                |
-| T-13 | `app/dashboard/page.tsx:274-279`                           | Media    | Performance   | 🚩 PENDIENTE                |
+| T-13 | `app/dashboard/page.tsx:274-279`                           | Media    | Performance   | ✅ RESUELTO — 2026-04-17    |
 | T-14 | `components/production/gantt-svg.tsx`                      | Media    | Performance   | 🚩 PENDIENTE                |
 | T-15 | `ventas/actions.ts` (múltiples)                            | Media    | Mantenimiento | 🚩 PENDIENTE                |
 | T-16 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Media    | Mantenimiento | ✅ RESUELTO — 2026-04-17    |
@@ -371,6 +371,8 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 - [x] **[MEDIA]** T-10 — Middleware retorna `401 JSON` para rutas `/api/` no autenticadas en lugar de redirect HTML.
 - [x] **[ALTA]** T-05 — `getQuotesHistory()` protegida con `limit(300)` + `count: exact`; `getActiveProjects()` con `limit(500)`. Banner ámbar en UI cuando el total supera el límite cargado.
 - [x] **[ALTA]** T-06 — `Math.random()` → `crypto.randomUUID()` en ambos upload-clients. Añadida validación MIME con `ALLOWED_TYPES` antes del upload.
+- [x] **[ALTA]** T-07 — Proyección explícita de columnas en 7 queries: `admin-panel/actions.ts` (3), `admin-panel/page.tsx` (2), `produccion/maquinados/page.tsx` (1), `produccion/planeacion/page.tsx` (1). `machines` omitido (9 cols totales, sin over-fetching real).
+- [x] **[MEDIA]** T-13 — Resuelto como parte de T-07. `.select("machine, planned_date, planned_end")` + tipo `UtilizationTask` para alinear TypeScript.
 
 ### Investigados / Sin acción requerida ⚠️
 
@@ -389,11 +391,9 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 ### Pendientes — requieren acción ⚠️
 
 - [ ] **[ALTA]** T-04 (Server Actions) — Rate limiting stateful para Server Actions requiere Upstash Redis. Template documentado en T-04.
-- [ ] **[ALTA]** T-07 — Reemplazar todos los `select("*")` por proyección explícita de columnas en los 6 archivos identificados.
 - [ ] **[ALTA]** T-08 — Estandarizar todos los Server Actions a `ActionResult<T>`. Cambiar `catch(error: any)` por `catch(error: unknown)`.
 - [ ] **[ALTA]** T-09 — Tipar el scheduling engine con `lib/scheduling/types.ts`. Extraer subcomponentes de `cotizador/page.tsx` y `project-form.tsx`.
 - [ ] **[MEDIA]** T-12 — Añadir `.limit()` y proyección de columnas a `getAuditData()`.
-- [ ] **[MEDIA]** T-13 — `.select("machine, planned_date, planned_end")` en la query de planning del dashboard.
 - [ ] **[MEDIA]** T-14 — Evaluar `react-window` para Gantt + `unstable_cache` para dashboard.
 - [ ] **[MEDIA]** T-15 — Reemplazar `console.error` por `logger.error` en `ventas/actions.ts`.
 - [ ] **[MEDIA]** T-17 — Ejecutar `supabase gen types` con funciones incluidas para eliminar el cast `supabase as any`.

@@ -246,7 +246,7 @@ export async function getPendingUsers() {
 
     const { data, error } = await supabase
         .from("user_profiles")
-        .select("*")
+        .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
         .eq("is_approved", false)
         .order("created_at", { ascending: false });
 
@@ -269,7 +269,7 @@ export async function getApprovedUsers() {
 
     const { data, error } = await supabase
         .from("user_profiles")
-        .select("*")
+        .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
         .eq("is_approved", true)
         .order("created_at", { ascending: false });
 
@@ -304,7 +304,7 @@ export async function getEmployees() {
 
     const { data: employees, error } = await supabase
         .from("employees")
-        .select("*")
+        .select("id, full_name, employee_number, department, position, is_operator, is_active, created_at, updated_at")
         .order("full_name", { ascending: true });
 
     if (error) {

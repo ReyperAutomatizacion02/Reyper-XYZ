@@ -8,12 +8,14 @@ export default async function MaquinadosPage() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) redirect("/login");
 
     const { data: profile } = await supabase
         .from("user_profiles")
-        .select("*")
+        .select("roles, operator_name")
         .eq("id", user.id)
         .single();
 
@@ -38,9 +40,11 @@ export default async function MaquinadosPage() {
     if (!profile.roles?.includes("admin")) {
         if (!operatorName) {
             return (
-                <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-6 text-center">
-                    <h1 className="text-2xl font-bold mb-2">Usuario no vinculado</h1>
-                    <p className="text-muted-foreground">Tu cuenta no tiene un nombre de operador asignado. Por favor, contacta al administrador.</p>
+                <div className="flex h-[calc(100vh-64px)] flex-col items-center justify-center p-6 text-center">
+                    <h1 className="mb-2 text-2xl font-bold">Usuario no vinculado</h1>
+                    <p className="text-muted-foreground">
+                        Tu cuenta no tiene un nombre de operador asignado. Por favor, contacta al administrador.
+                    </p>
                 </div>
             );
         }
@@ -49,10 +53,5 @@ export default async function MaquinadosPage() {
 
     const { data: tasks } = await tasksQuery;
 
-    return (
-        <MachiningRealtimeWrapper
-            initialTasks={tasks || []}
-            operatorName={operatorName || "Administrador"}
-        />
-    );
+    return <MachiningRealtimeWrapper initialTasks={tasks || []} operatorName={operatorName || "Administrador"} />;
 }

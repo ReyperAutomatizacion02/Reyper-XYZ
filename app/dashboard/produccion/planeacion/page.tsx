@@ -31,7 +31,12 @@ export default async function PlaneacionPage() {
             .lte("planned_date", rangeEnd)
             .order("planned_date", { ascending: false }),
         supabase.from("production_treatments").select("id, name, avg_lead_days").order("name"),
-        supabase.from("work_shifts").select("*").eq("active", true).order("sort_order").order("start_time"),
+        supabase
+            .from("work_shifts")
+            .select("id, name, start_time, end_time, days_of_week, active, sort_order")
+            .eq("active", true)
+            .order("sort_order")
+            .order("start_time"),
     ]);
 
     const machines = machinesRes.data || [];

@@ -31,8 +31,17 @@ export default async function AdminPanelPage() {
             .select("id, full_name, username, roles, permissions, is_approved, operator_name, created_at, updated_at")
             .eq("is_approved", true)
             .order("updated_at", { ascending: false }),
-        supabase.from("employees").select("*").order("full_name", { ascending: true }),
-        supabase.from("work_shifts").select("*").order("sort_order").order("start_time"),
+        supabase
+            .from("employees")
+            .select(
+                "id, full_name, employee_number, department, position, is_operator, is_active, created_at, updated_at"
+            )
+            .order("full_name", { ascending: true }),
+        supabase
+            .from("work_shifts")
+            .select("id, name, start_time, end_time, days_of_week, active, sort_order, created_at")
+            .order("sort_order")
+            .order("start_time"),
     ]);
 
     return (
