@@ -381,12 +381,14 @@ export async function getCatalogData() {
     };
 }
 
+const QUOTES_HISTORY_LIMIT = 300;
+
 export async function getQuotesHistory() {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     await requireAuth(supabase);
 
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
         .from("sales_quotes")
         .select(
             `
@@ -399,16 +401,18 @@ export async function getQuotesHistory() {
             quote_type,
             client:sales_clients(name),
             contact:sales_contacts(name)
-        `
+        `,
+            { count: "exact" }
         )
         .in("status", ["active", "approved", "cancelled"])
-        .order("quote_number", { ascending: false });
+        .order("quote_number", { ascending: false })
+        .limit(QUOTES_HISTORY_LIMIT);
 
     if (error) {
         console.error("[ventas]", error.message);
         throw new Error("Error en la operación. Intenta de nuevo.");
     }
-    return data;
+    return { data: data ?? [], totalCount: count ?? 0, limit: QUOTES_HISTORY_LIMIT };
 }
 
 export async function getActiveProjects() {
@@ -434,7 +438,8 @@ export async function getActiveProjects() {
         `
         )
         .eq("status", "active")
-        .order("delivery_date", { ascending: true });
+        .order("delivery_date", { ascending: true })
+        .limit(500);
 
     if (error) {
         console.error("[ventas]", error.message);

@@ -88,27 +88,17 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-05 · QUERIES SIN PAGINACIÓN EN HISTORIAL Y PROYECTOS [PENDIENTE]
+### ✅ T-05 · ~~QUERIES SIN PAGINACIÓN EN HISTORIAL Y PROYECTOS~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Performance
 - **Gravedad:** Alta
-- **Estado:** PENDIENTE
-- **Archivo:** `app/dashboard/ventas/actions.ts:383,413`
-- **Diagnóstico:** `getQuotesHistory()` y `getActiveProjects()` recuperan la totalidad de sus tablas sin `.limit()` ni `.range()`. La página de historial carga todas las cotizaciones en memoria del cliente y realiza filtrado/ordenamiento en estado JavaScript. A diferencia del inventario (`components/warehouse/inventory-view.tsx:PAGE_SIZE=50`), estas funciones no implementan paginación server-side. Viola el principio de diseño para escala y es un anti-patrón clásico de N-registros-en-page-load.
-- **Impacto:** A medida que crezca la cartera de proyectos y cotizaciones, la página se volverá inutilizable: carga lenta, alta memoria en cliente, y timeouts de Supabase al superar los límites de respuesta.
-- **Refactorización propuesta:**
-    ```ts
-    // Paginación server-side — mismo patrón que inventory-view.tsx
-    const PAGE_SIZE = 25;
-    export async function getQuotesHistory(page = 0) {
-        const from = page * PAGE_SIZE;
-        return supabase
-            .from("sales_quotes")
-            .select("id, code, company, status, total, created_at", { count: "exact" })
-            .order("created_at", { ascending: false })
-            .range(from, from + PAGE_SIZE - 1);
-    }
-    ```
+- **Estado:** RESUELTO — 2026-04-17
+- **Archivo:** `app/dashboard/ventas/actions.ts:383,413`, `app/dashboard/ventas/historial/page.tsx`
+- **Diagnóstico:** `getQuotesHistory()` y `getActiveProjects()` recuperaban la totalidad de sus tablas sin ningún límite.
+- **Corrección aplicada:**
+    - `getQuotesHistory()`: añadidos `.limit(300)` y `{ count: "exact" }`. Retorna `{ data, totalCount, limit }`.
+    - `getActiveProjects()`: añadido `.limit(500)` como protector (proyectos activos siempre son pocos).
+    - `historial/page.tsx`: `loadData()` actualizado para el nuevo shape. Banner visual ámbar cuando `totalCount > limit`, indicando el total real y sugiriendo usar los filtros. Corregido `catch (error: any)` → `catch (error: unknown)`.
 
 ---
 
@@ -358,7 +348,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | T-02 | `next.config.ts:59`                                        | Crítica  | Seguridad     | ✅ RESUELTO — 2026-04-17    |
 | T-03 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Crítica  | Lógica        | ✅ RESUELTO — 2026-04-17    |
 | T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | ⚠️ PARCIAL — 2026-04-17     |
-| T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | 🚩 PENDIENTE                |
+| T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | ✅ RESUELTO — 2026-04-17    |
 | T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | 🚩 PENDIENTE                |
 | T-07 | `admin-panel/actions.ts`, `page.tsx`, `dashboard/page.tsx` | Alta     | Performance   | 🚩 PENDIENTE                |
 | T-08 | `ventas/actions.ts:236,877`, `cotizador/page.tsx`          | Alta     | Lógica        | 🚩 PENDIENTE                |
@@ -389,6 +379,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 - [x] **[MEDIA]** T-16 — Resuelto como parte de T-03. Implementación canónica en `project-actions.ts`; `actions.ts` importa desde ahí.
 - [x] **[ALTA]** T-04 (parcial) — Rate limiter in-process (30 req/min por IP) añadido al webhook. `catch (error: any)` corregido a `unknown`. Pendiente: Upstash para Server Actions.
 - [x] **[MEDIA]** T-10 — Middleware retorna `401 JSON` para rutas `/api/` no autenticadas en lugar de redirect HTML.
+- [x] **[ALTA]** T-05 — `getQuotesHistory()` protegida con `limit(300)` + `count: exact`; `getActiveProjects()` con `limit(500)`. Banner ámbar en UI cuando el total supera el límite cargado.
 
 ### Investigados / Sin acción requerida ⚠️
 
@@ -438,7 +429,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 | Estado                                 | Cantidad | Porcentaje |
 | -------------------------------------- | -------- | ---------- |
-| ✅ Resueltos en código / configuración | 5        | 22%        |
+| ✅ Resueltos en código / configuración | 6        | 26%        |
 | 🔵 Diferido conscientemente            | 6        | 26%        |
 | ⚠️ Investigado / Parcialmente resuelto | 3        | 13%        |
-| 🚩 Pendiente (acción requerida)        | 9        | 39%        |
+| 🚩 Pendiente (acción requerida)        | 8        | 35%        |

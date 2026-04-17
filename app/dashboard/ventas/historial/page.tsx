@@ -78,6 +78,8 @@ interface QuoteSummary {
 
 export default function QuoteHistoryPage() {
     const [quotes, setQuotes] = useState<QuoteSummary[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [historyLimit, setHistoryLimit] = useState(0);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [clientFilter, setClientFilter] = useState("all");
@@ -110,12 +112,15 @@ export default function QuoteHistoryPage() {
     const loadData = async () => {
         try {
             const [history, catalogs] = await Promise.all([getQuotesHistory(), getCatalogData()]);
-            setQuotes(history as QuoteSummary[]);
+            setQuotes(history.data as QuoteSummary[]);
+            setTotalCount(history.totalCount);
+            setHistoryLimit(history.limit);
             setClients(catalogs.clients);
             setPositions(catalogs.positions);
             setAreas(catalogs.areas);
-        } catch (error: any) {
-            toast.error("Error al cargar datos: " + error.message);
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Error desconocido";
+            toast.error("Error al cargar datos: " + msg);
         } finally {
             setLoading(false);
         }
@@ -343,6 +348,15 @@ export default function QuoteHistoryPage() {
                 setStatusFilter={setStatusFilter}
                 clients={clients}
             />
+
+            {/* Truncation banner — shown when total records exceed the loaded limit */}
+            {totalCount > historyLimit && (
+                <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
+                    <Filter className="h-4 w-4 shrink-0" />
+                    Mostrando las últimas <strong>{historyLimit}</strong> cotizaciones de <strong>{totalCount}</strong>{" "}
+                    en total. Usa los filtros para encontrar registros más antiguos.
+                </div>
+            )}
 
             {/* History Table */}
             <Card className="overflow-hidden border-border bg-card" id="history-table">
