@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
     // Habilitar compresión para reducir tamaño de respuestas
     compress: true,
@@ -56,7 +58,7 @@ const nextConfig: NextConfig = {
                     key: "Content-Security-Policy",
                     value: [
                         "default-src 'self'",
-                        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
                         "style-src 'self' 'unsafe-inline'",
                         "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.googleapis.com https://lh3.googleusercontent.com",
                         "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://prod-files-secure.s3.us-west-2.amazonaws.com https://drive.google.com",
