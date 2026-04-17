@@ -25,6 +25,7 @@ import { QUOTE_STATUS, ITEM_STATUS } from "@/lib/constants/status";
 import { requireAuth, requireRole } from "@/lib/auth-guard";
 import { deleteQuoteFilesInternal } from "@/lib/storage-utils";
 import type { ActionResult } from "@/lib/action-result";
+import { getNextProjectCode } from "@/app/dashboard/ventas/project-actions";
 
 const VENTAS_ROLES = ["admin", "ventas"];
 
@@ -692,35 +693,6 @@ export async function deleteQuoteFiles(quoteId: string) {
     }
 
     await deleteQuoteFilesInternal(validQuoteId);
-}
-
-export async function getNextProjectCode(clientPrefix: string) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
-    await requireAuth(supabase);
-
-    const { data, error } = await supabase
-        .from("projects")
-        .select("code")
-        .like("code", `${clientPrefix}-%`)
-        .order("code", { ascending: false })
-        .limit(1);
-
-    if (error) {
-        console.error("[ventas]", error.message);
-        throw new Error("Error en la operación. Intenta de nuevo.");
-    }
-
-    let nextNum = 1;
-    if (data && data.length > 0) {
-        const lastCode = data[0].code;
-        const lastNum = parseInt(lastCode.split("-")[1]);
-        if (!isNaN(lastNum)) {
-            nextNum = lastNum + 1;
-        }
-    }
-
-    return `${clientPrefix}-${String(nextNum).padStart(4, "0")}`;
 }
 
 export async function convertQuoteToProject(

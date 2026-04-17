@@ -1,7 +1,7 @@
 # REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ · Iteración 2
 
 **Fecha:** 2026-04-17 | **Auditor:** Senior Full-Stack Architect & Lead Security Auditor | **Modelo:** Claude Sonnet 4.6
-**Última actualización:** 2026-04-17 — Inicio de implementación: T-01 investigado (credenciales nunca expuestas), T-02 resuelto (CSP unsafe-eval)
+**Última actualización:** 2026-04-17 — T-01 investigado, T-02/T-03/T-16 resueltos
 **Auditoría anterior:** [2026-03-31_auditoria-tecnica.md](./2026-03-31_auditoria-tecnica.md)
 
 ---
@@ -51,36 +51,18 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### 🚩 T-03 · CONDICIÓN DE CARRERA EN GENERACIÓN DE CÓDIGOS DE PROYECTO [PENDIENTE]
+### ✅ T-03 · ~~CONDICIÓN DE CARRERA EN GENERACIÓN DE CÓDIGOS DE PROYECTO~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Lógica / Seguridad
 - **Gravedad:** Crítica
-- **Estado:** PENDIENTE
+- **Estado:** RESUELTO — 2026-04-17
 - **Archivo:** `app/dashboard/ventas/actions.ts:697-724`, `app/dashboard/ventas/project-actions.ts:12-47`
 - **Diagnóstico:** Ambas implementaciones de `getNextProjectCode()` usan el patrón read-then-write: leen el código máximo existente, lo incrementan en JavaScript y lo usan en el siguiente `INSERT`. No existe ninguna garantía de atomicidad. Dos usuarios concurrentes pueden leer el mismo código máximo y generar proyectos con código duplicado. Viola el principio de atomicidad de transacciones de base de datos.
 - **Impacto:** Duplicación de códigos de proyecto (ej. dos proyectos `ABC-0042`), conflictos de integridad referencial y confusión operativa en producción.
-- **Refactorización propuesta:**
-
-    ```sql
-    -- supabase/migrations: crear secuencia por prefijo de cliente
-    CREATE SEQUENCE IF NOT EXISTS project_code_seq;
-
-    CREATE OR REPLACE FUNCTION get_next_project_code(prefix TEXT)
-    RETURNS TEXT AS $$
-    DECLARE
-      next_num INT;
-    BEGIN
-      SELECT COALESCE(MAX(CAST(SPLIT_PART(code, '-', 2) AS INT)), 0) + 1
-      INTO next_num
-      FROM projects
-      WHERE code ILIKE prefix || '-%'
-      FOR UPDATE; -- bloqueo a nivel de fila
-      RETURN prefix || '-' || LPAD(next_num::TEXT, 4, '0');
-    END;
-    $$ LANGUAGE plpgsql;
-    ```
-
-    Alternativamente, usar una columna `SERIAL` o `GENERATED ALWAYS AS IDENTITY` para el número correlativo.
+- **Corrección aplicada:**
+    - **Migración Supabase** `20260417_atomic_project_code_generation`: función `get_next_project_code(p_prefix TEXT)` en PostgreSQL que usa `pg_advisory_xact_lock(hashtext('project_code:' || p_prefix))` para serializar llamadas concurrentes del mismo prefijo. Extrae el número con `SUBSTRING` y devuelve `PREFIX-NNNN`.
+    - **`project-actions.ts`**: reemplazado el read-then-write en JavaScript por `supabase.rpc("get_next_project_code", { p_prefix })`.
+    - **`actions.ts`**: eliminada la implementación duplicada local (líneas 697-724); importada la función canónica desde `project-actions.ts`. Resuelve también **T-16**.
 
 ---
 
@@ -277,14 +259,14 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-16 · DOS IMPLEMENTACIONES DIVERGENTES DE `getNextProjectCode()` [PENDIENTE]
+### ✅ T-16 · ~~DOS IMPLEMENTACIONES DIVERGENTES DE `getNextProjectCode()`~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Mantenimiento / Lógica
 - **Gravedad:** Media
-- **Estado:** PENDIENTE
-- **Archivo:** `app/dashboard/ventas/actions.ts:697-724`, `app/dashboard/ventas/project-actions.ts:12-47`
-- **Diagnóstico:** Dos funciones con el mismo nombre y propósito existen en archivos distintos con lógicas diferentes: la de `actions.ts` parsea manualmente; la de `project-actions.ts` usa regex. Ambas también tienen el bug de no usar `LIMIT 1` (ver T-03). La duplicación viola DRY y crea riesgo de divergencia cuando se corrija el bug de atomicidad.
-- **Corrección propuesta:** Eliminar una implementación, unificar en `lib/projects/utils.ts`, y referenciarla desde ambos archivos.
+- **Estado:** RESUELTO — 2026-04-17
+- **Archivo:** `app/dashboard/ventas/actions.ts`, `app/dashboard/ventas/project-actions.ts`
+- **Diagnóstico:** Dos funciones con el mismo nombre y propósito existían en archivos distintos con lógicas diferentes.
+- **Corrección aplicada:** Resuelto como parte de T-03. La implementación canónica vive en `project-actions.ts` (ahora delegada al RPC). `actions.ts` la importa directamente — eliminada la copia local.
 
 ---
 
@@ -375,7 +357,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | ---- | ---------------------------------------------------------- | -------- | ------------- | --------------------------- |
 | T-01 | `.env.local`                                               | Crítica  | Seguridad     | ⚠️ INVESTIGADO — 2026-04-17 |
 | T-02 | `next.config.ts:59`                                        | Crítica  | Seguridad     | ✅ RESUELTO — 2026-04-17    |
-| T-03 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Crítica  | Lógica        | 🚩 PENDIENTE                |
+| T-03 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Crítica  | Lógica        | ✅ RESUELTO — 2026-04-17    |
 | T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | 🚩 PENDIENTE                |
 | T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | 🚩 PENDIENTE                |
 | T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | 🚩 PENDIENTE                |
@@ -388,7 +370,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | T-13 | `app/dashboard/page.tsx:274-279`                           | Media    | Performance   | 🚩 PENDIENTE                |
 | T-14 | `components/production/gantt-svg.tsx`                      | Media    | Performance   | 🚩 PENDIENTE                |
 | T-15 | `ventas/actions.ts` (múltiples)                            | Media    | Mantenimiento | 🚩 PENDIENTE                |
-| T-16 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Media    | Mantenimiento | 🚩 PENDIENTE                |
+| T-16 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Media    | Mantenimiento | ✅ RESUELTO — 2026-04-17    |
 | T-17 | `ventas/actions.ts:501`                                    | Media    | Mantenimiento | 🚩 PENDIENTE                |
 | T-18 | `produccion/maquinados/page.tsx:14-20`                     | Baja     | Mantenimiento | 🔵 DIFERIDO                 |
 | T-19 | `api/webhooks/.../route.ts`, raíz                          | Baja     | Mantenimiento | 🔵 DIFERIDO                 |
@@ -404,6 +386,8 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 ### Completados en sesión 2026-04-17 ✅
 
 - [x] **[CRÍTICO]** T-02 — CSP condicional por entorno: `'unsafe-eval'` eliminado de producción. Constante `isDev` añadida en `next.config.ts`.
+- [x] **[CRÍTICO]** T-03 — Función PostgreSQL `get_next_project_code` con `pg_advisory_xact_lock` aplicada vía Supabase MCP. `project-actions.ts` actualizado para usar el RPC. Duplicado eliminado de `actions.ts`.
+- [x] **[MEDIA]** T-16 — Resuelto como parte de T-03. Implementación canónica en `project-actions.ts`; `actions.ts` importa desde ahí.
 
 ### Investigados / Sin acción requerida ⚠️
 
@@ -421,7 +405,6 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ### Pendientes — requieren acción ⚠️
 
-- [ ] **[CRÍTICO]** T-03 — Reemplazar `getNextProjectCode()` por una función PostgreSQL atómica. Eliminar implementación duplicada en `project-actions.ts`.
 - [ ] **[ALTA]** T-04 — Implementar rate limiting en el webhook y evaluar `@upstash/ratelimit` para Server Actions críticas.
 - [ ] **[ALTA]** T-05 — Añadir paginación server-side (PAGE_SIZE=25) a `getQuotesHistory()` y `getActiveProjects()`. Mover el filtrado del cliente al servidor.
 - [ ] **[ALTA]** T-06 — Reemplazar `Math.random()` por `crypto.randomUUID()`. Añadir validación de MIME (`ALLOWED_TYPES`) antes de subir.
@@ -433,7 +416,6 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 - [ ] **[MEDIA]** T-13 — `.select("machine, planned_date, planned_end")` en la query de planning del dashboard.
 - [ ] **[MEDIA]** T-14 — Evaluar `react-window` para Gantt + `unstable_cache` para dashboard.
 - [ ] **[MEDIA]** T-15 — Reemplazar `console.error` por `logger.error` en `ventas/actions.ts`.
-- [ ] **[MEDIA]** T-16 — Unificar `getNextProjectCode()` en `lib/projects/utils.ts`.
 - [ ] **[MEDIA]** T-17 — Ejecutar `supabase gen types` con funciones incluidas para eliminar el cast `supabase as any`.
 
 ---
@@ -455,7 +437,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 | Estado                                 | Cantidad | Porcentaje |
 | -------------------------------------- | -------- | ---------- |
-| ✅ Resueltos en código / configuración | 1        | 4%         |
+| ✅ Resueltos en código / configuración | 3        | 13%        |
 | 🔵 Diferido conscientemente            | 6        | 26%        |
 | ⚠️ Investigado / Sin acción requerida  | 2        | 9%         |
-| 🚩 Pendiente (acción requerida)        | 14       | 61%        |
+| 🚩 Pendiente (acción requerida)        | 12       | 52%        |
