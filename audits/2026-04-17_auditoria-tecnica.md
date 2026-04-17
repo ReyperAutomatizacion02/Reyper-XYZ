@@ -66,19 +66,24 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-04 · SIN RATE LIMITING EN NINGÚN ENDPOINT [PENDIENTE]
+### ⚠️ T-04 · SIN RATE LIMITING EN NINGÚN ENDPOINT [PARCIALMENTE RESUELTO — 2026-04-17]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
-- **Estado:** PENDIENTE
+- **Estado:** INVESTIGADO / PARCIALMENTE RESUELTO — 2026-04-17
 - **Archivo:** `middleware.ts`, `app/api/webhooks/supabase/quotes/route.ts`
 - **Diagnóstico:** No existe ningún mecanismo de rate limiting a nivel de aplicación. El único endpoint HTTP (`/api/webhooks/supabase/quotes`) no tiene límite de peticiones. Las Server Actions tampoco tienen protección contra abuso repetido. Supabase aplica rate limiting en sus endpoints de auth (`signInWithPassword`, `signUp`) a nivel de plataforma, pero los límites por defecto son generosos y no aplican a las Server Actions. Viola OWASP A04:2021 (Insecure Design).
 - **Impacto:** Brute force en login (aunque mitigado parcialmente por Supabase), spam del webhook si el secret se filtra, y potencial DoS mediante Server Actions costosas (ej. `getAuditData()` con eager loading profundo).
-- **Refactorización propuesta:**
+- **Corrección aplicada (webhook):** Rate limiter in-process añadido en `route.ts` — máximo 30 req/min por IP usando un `Map<string, {count, resetAt}>`. Suficiente para un webhook server-to-server de Supabase (tráfico real: 1-5 llamadas/día). Sin dependencias externas.
+- **Pendiente (Server Actions):** Rate limiting stateful entre invocaciones serverless requiere Redis externo (Upstash). Template listo para cuando se habilite Upstash:
     ```ts
-    // middleware.ts — añadir rate limiting con @vercel/kv o upstash/ratelimit
+    // lib/rate-limit.ts — requiere UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN en .env
     import { Ratelimit } from "@upstash/ratelimit";
-    // 10 requests por 10 segundos por IP para rutas de auth
+    import { Redis } from "@upstash/redis";
+    export const actionRateLimit = new Ratelimit({
+        redis: Redis.fromEnv(),
+        limiter: Ratelimit.slidingWindow(20, "10 s"),
+    });
     ```
 
 ---
@@ -184,20 +189,14 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-10 · MIDDLEWARE REDIRIGE A `/login` PARA RUTAS `/api` NO AUTENTICADAS [PENDIENTE]
+### ✅ T-10 · ~~MIDDLEWARE REDIRIGE A `/login` PARA RUTAS `/api` NO AUTENTICADAS~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Seguridad / Lógica
 - **Gravedad:** Media
-- **Estado:** PENDIENTE
-- **Archivo:** `middleware.ts:40-48`
-- **Diagnóstico:** Para solicitudes no autenticadas a rutas `/api/`, el middleware ejecuta un redirect a `/login`, devolviendo HTML en lugar de un 401 JSON. Los clientes API (scripts, webhooks, Postman) reciben una respuesta HTML inesperada. Cualquier ruta `/api/` futura que no implemente su propio guard de auth queda silenciosamente "protegida" solo por este redirect HTML — ineficaz para clientes no-browser.
-- **Impacto:** Contratos de API rotos para consumidores no-browser; falsa sensación de seguridad en rutas `/api/` futuras.
-- **Refactorización propuesta:**
-    ```ts
-    if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    ```
+- **Estado:** RESUELTO — 2026-04-17
+- **Archivo:** `middleware.ts:45-48`
+- **Diagnóstico:** Para solicitudes no autenticadas a rutas `/api/`, el middleware ejecutaba un redirect a `/login`, devolviendo HTML en lugar de un 401 JSON.
+- **Corrección aplicada:** Añadida rama específica antes del redirect: si `pathname.startsWith("/api/")` y no hay usuario, retorna `NextResponse.json({ error: "Unauthorized" }, { status: 401 })` en lugar de redirigir a `/login`.
 
 ---
 
@@ -358,13 +357,13 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | T-01 | `.env.local`                                               | Crítica  | Seguridad     | ⚠️ INVESTIGADO — 2026-04-17 |
 | T-02 | `next.config.ts:59`                                        | Crítica  | Seguridad     | ✅ RESUELTO — 2026-04-17    |
 | T-03 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Crítica  | Lógica        | ✅ RESUELTO — 2026-04-17    |
-| T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | 🚩 PENDIENTE                |
+| T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | ⚠️ PARCIAL — 2026-04-17     |
 | T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | 🚩 PENDIENTE                |
 | T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | 🚩 PENDIENTE                |
 | T-07 | `admin-panel/actions.ts`, `page.tsx`, `dashboard/page.tsx` | Alta     | Performance   | 🚩 PENDIENTE                |
 | T-08 | `ventas/actions.ts:236,877`, `cotizador/page.tsx`          | Alta     | Lógica        | 🚩 PENDIENTE                |
 | T-09 | `lib/scheduling/planner.ts`, `cotizador/page.tsx`          | Alta     | Mantenimiento | 🚩 PENDIENTE                |
-| T-10 | `middleware.ts:40-48`                                      | Media    | Seguridad     | 🚩 PENDIENTE                |
+| T-10 | `middleware.ts:40-48`                                      | Media    | Seguridad     | ✅ RESUELTO — 2026-04-17    |
 | T-11 | `supabase/migrations/20260203_strict_rls_...`              | Media    | Seguridad     | ⚠️ INVESTIGADO              |
 | T-12 | `ventas/actions.ts:449-493`                                | Media    | Performance   | 🚩 PENDIENTE                |
 | T-13 | `app/dashboard/page.tsx:274-279`                           | Media    | Performance   | 🚩 PENDIENTE                |
@@ -388,6 +387,8 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 - [x] **[CRÍTICO]** T-02 — CSP condicional por entorno: `'unsafe-eval'` eliminado de producción. Constante `isDev` añadida en `next.config.ts`.
 - [x] **[CRÍTICO]** T-03 — Función PostgreSQL `get_next_project_code` con `pg_advisory_xact_lock` aplicada vía Supabase MCP. `project-actions.ts` actualizado para usar el RPC. Duplicado eliminado de `actions.ts`.
 - [x] **[MEDIA]** T-16 — Resuelto como parte de T-03. Implementación canónica en `project-actions.ts`; `actions.ts` importa desde ahí.
+- [x] **[ALTA]** T-04 (parcial) — Rate limiter in-process (30 req/min por IP) añadido al webhook. `catch (error: any)` corregido a `unknown`. Pendiente: Upstash para Server Actions.
+- [x] **[MEDIA]** T-10 — Middleware retorna `401 JSON` para rutas `/api/` no autenticadas en lugar de redirect HTML.
 
 ### Investigados / Sin acción requerida ⚠️
 
@@ -437,7 +438,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 | Estado                                 | Cantidad | Porcentaje |
 | -------------------------------------- | -------- | ---------- |
-| ✅ Resueltos en código / configuración | 3        | 13%        |
+| ✅ Resueltos en código / configuración | 5        | 22%        |
 | 🔵 Diferido conscientemente            | 6        | 26%        |
-| ⚠️ Investigado / Sin acción requerida  | 2        | 9%         |
-| 🚩 Pendiente (acción requerida)        | 12       | 52%        |
+| ⚠️ Investigado / Parcialmente resuelto | 3        | 13%        |
+| 🚩 Pendiente (acción requerida)        | 9        | 39%        |
