@@ -1,7 +1,7 @@
 # REPORTE DE AUDITORÍA TÉCNICA — REYPER XYZ · Iteración 2
 
 **Fecha:** 2026-04-17 | **Auditor:** Senior Full-Stack Architect & Lead Security Auditor | **Modelo:** Claude Sonnet 4.6
-**Última actualización:** 2026-04-17 — T-01 investigado, T-02/T-03/T-16 resueltos
+**Última actualización:** 2026-04-17 — T-02/T-03/T-05/T-10/T-16 resueltos · T-01/T-04/T-11 investigados/parciales
 **Auditoría anterior:** [2026-03-31_auditoria-tecnica.md](./2026-03-31_auditoria-tecnica.md)
 
 ---
@@ -102,28 +102,18 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ---
 
-### ⚠️ T-06 · UPLOAD SIN VALIDACIÓN MIME + NOMBRE DE ARCHIVO PREDECIBLE [PENDIENTE]
+### ✅ T-06 · ~~UPLOAD SIN VALIDACIÓN MIME + NOMBRE DE ARCHIVO PREDECIBLE~~ [RESUELTO — 2026-04-17]
 
 - **Categoría:** Seguridad
 - **Gravedad:** Alta
-- **Estado:** PENDIENTE
-- **Archivo:** `app/dashboard/ventas/upload-client.ts:23`, `app/dashboard/produccion/maquinas/upload-client.ts:24`
-- **Diagnóstico:** Dos problemas combinados en la lógica de upload:
-    1. No se valida el tipo MIME ni la extensión del archivo antes de subirlo a Supabase Storage. Un atacante podría subir un `.html` o `.svg` con contenido malicioso.
-    2. El nombre de archivo se genera con `Math.random()`, que no es criptográficamente seguro. Un atacante con conocimiento del timestamp puede predecir el rango de nombres posibles. Viola OWASP A04:2021 (Insecure Design) y OWASP A03:2021 (Injection).
-- **Impacto:** Potencial upload de archivos maliciosos; nombres de archivo predecibles si el bucket tiene lectura pública.
-- **Refactorización propuesta:**
-
-    ```ts
-    // Reemplazar Math.random() por crypto.randomUUID()
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
-
-    // Añadir validación de MIME antes del upload
-    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!ALLOWED_TYPES.includes(file.type)) {
-        throw new Error("Tipo de archivo no permitido");
-    }
-    ```
+- **Estado:** RESUELTO — 2026-04-17
+- **Archivo:** `app/dashboard/ventas/upload-client.ts`, `app/dashboard/produccion/maquinas/upload-client.ts`
+- **Diagnóstico:** Nombres de archivo generados con `Math.random()` (no criptográficamente seguro) y sin validación de tipo MIME antes del upload.
+- **Corrección aplicada en ambos archivos:**
+    - `Math.random()` → `crypto.randomUUID()` para generación del nombre de archivo.
+    - Añadido `ALLOWED_TYPES` / `ALLOWED_IMAGE_TYPES` con validación antes del upload. Ventas: `jpeg, png, webp, gif, pdf`. Maquinas: `jpeg, png, webp, gif`.
+    - Constante `MAX_SIZE_BYTES` nombrada en lugar de literal inline.
+    - Mensajes de error descriptivos en español.
 
 ---
 
@@ -349,7 +339,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 | T-03 | `ventas/actions.ts:697`, `project-actions.ts:12`           | Crítica  | Lógica        | ✅ RESUELTO — 2026-04-17    |
 | T-04 | `middleware.ts`, `/api/webhooks/...`                       | Alta     | Seguridad     | ⚠️ PARCIAL — 2026-04-17     |
 | T-05 | `ventas/actions.ts:383,413`                                | Alta     | Performance   | ✅ RESUELTO — 2026-04-17    |
-| T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | 🚩 PENDIENTE                |
+| T-06 | `ventas/upload-client.ts`, `maquinas/upload-client.ts`     | Alta     | Seguridad     | ✅ RESUELTO — 2026-04-17    |
 | T-07 | `admin-panel/actions.ts`, `page.tsx`, `dashboard/page.tsx` | Alta     | Performance   | 🚩 PENDIENTE                |
 | T-08 | `ventas/actions.ts:236,877`, `cotizador/page.tsx`          | Alta     | Lógica        | 🚩 PENDIENTE                |
 | T-09 | `lib/scheduling/planner.ts`, `cotizador/page.tsx`          | Alta     | Mantenimiento | 🚩 PENDIENTE                |
@@ -380,6 +370,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 - [x] **[ALTA]** T-04 (parcial) — Rate limiter in-process (30 req/min por IP) añadido al webhook. `catch (error: any)` corregido a `unknown`. Pendiente: Upstash para Server Actions.
 - [x] **[MEDIA]** T-10 — Middleware retorna `401 JSON` para rutas `/api/` no autenticadas en lugar de redirect HTML.
 - [x] **[ALTA]** T-05 — `getQuotesHistory()` protegida con `limit(300)` + `count: exact`; `getActiveProjects()` con `limit(500)`. Banner ámbar en UI cuando el total supera el límite cargado.
+- [x] **[ALTA]** T-06 — `Math.random()` → `crypto.randomUUID()` en ambos upload-clients. Añadida validación MIME con `ALLOWED_TYPES` antes del upload.
 
 ### Investigados / Sin acción requerida ⚠️
 
@@ -397,13 +388,10 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 ### Pendientes — requieren acción ⚠️
 
-- [ ] **[ALTA]** T-04 — Implementar rate limiting en el webhook y evaluar `@upstash/ratelimit` para Server Actions críticas.
-- [ ] **[ALTA]** T-05 — Añadir paginación server-side (PAGE_SIZE=25) a `getQuotesHistory()` y `getActiveProjects()`. Mover el filtrado del cliente al servidor.
-- [ ] **[ALTA]** T-06 — Reemplazar `Math.random()` por `crypto.randomUUID()`. Añadir validación de MIME (`ALLOWED_TYPES`) antes de subir.
+- [ ] **[ALTA]** T-04 (Server Actions) — Rate limiting stateful para Server Actions requiere Upstash Redis. Template documentado en T-04.
 - [ ] **[ALTA]** T-07 — Reemplazar todos los `select("*")` por proyección explícita de columnas en los 6 archivos identificados.
 - [ ] **[ALTA]** T-08 — Estandarizar todos los Server Actions a `ActionResult<T>`. Cambiar `catch(error: any)` por `catch(error: unknown)`.
 - [ ] **[ALTA]** T-09 — Tipar el scheduling engine con `lib/scheduling/types.ts`. Extraer subcomponentes de `cotizador/page.tsx` y `project-form.tsx`.
-- [ ] **[MEDIA]** T-10 — Añadir rama en middleware para rutas `/api/` que retorne `401 JSON` en lugar de redirect HTML.
 - [ ] **[MEDIA]** T-12 — Añadir `.limit()` y proyección de columnas a `getAuditData()`.
 - [ ] **[MEDIA]** T-13 — `.select("machine, planned_date, planned_end")` en la query de planning del dashboard.
 - [ ] **[MEDIA]** T-14 — Evaluar `react-window` para Gantt + `unstable_cache` para dashboard.
@@ -429,7 +417,7 @@ La arquitectura central del proyecto es sólida: Next.js App Router con Server A
 
 | Estado                                 | Cantidad | Porcentaje |
 | -------------------------------------- | -------- | ---------- |
-| ✅ Resueltos en código / configuración | 6        | 26%        |
+| ✅ Resueltos en código / configuración | 7        | 30%        |
 | 🔵 Diferido conscientemente            | 6        | 26%        |
 | ⚠️ Investigado / Parcialmente resuelto | 3        | 13%        |
-| 🚩 Pendiente (acción requerida)        | 8        | 35%        |
+| 🚩 Pendiente (acción requerida)        | 7        | 30%        |

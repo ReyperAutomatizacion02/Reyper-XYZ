@@ -5,23 +5,29 @@ import { toast } from "sonner";
 
 const BUCKET = "partidas";
 const MACHINE_IMG_PATH = (machineId: string) => `machines/${machineId}`;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_SIZE_BYTES = 15 * 1024 * 1024;
 
 /**
  * Uploads an image for a machine and returns its public URL.
- * Files are stored at: partidas/machines/{machineId}/{timestamp}-{hash}.{ext}
+ * Files are stored at: partidas/machines/{machineId}/{uuid}.{ext}
  */
 export async function uploadMachineImage(file: File, machineId: string): Promise<string | null> {
     try {
         const supabase = createClient();
 
-        if (file.size > 15 * 1024 * 1024) {
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+            toast.error("Tipo de archivo no permitido. Solo se aceptan imágenes (JPG, PNG, WebP, GIF).");
+            return null;
+        }
+
+        if (file.size > MAX_SIZE_BYTES) {
             toast.error("El archivo excede el límite de 15MB");
             return null;
         }
 
         const ext = file.name.split(".").pop();
-        const hash = Math.random().toString(36).substring(2);
-        const fileName = `${Date.now()}-${hash}.${ext}`;
+        const fileName = `${crypto.randomUUID()}.${ext}`;
         const filePath = `${MACHINE_IMG_PATH(machineId)}/${fileName}`;
 
         const { error } = await supabase.storage.from(BUCKET).upload(filePath, file);
