@@ -369,7 +369,7 @@ Consistencia del design token system. La sombra y el hover siguen automáticamen
 
 ---
 
-### 🎨 H-05 · SKELETON LOADING INCONSISTENTE ENTRE MÓDULOS
+### ✅ H-05 · ~~SKELETON LOADING INCONSISTENTE ENTRE MÓDULOS~~ [RESUELTO — 2026-04-16]
 
 **Análisis de Estado Actual:**
 El módulo de Producción tiene `ProductionViewSkeleton` correctamente implementado — el usuario ve una estructura de carga antes de que los datos lleguen. Los módulos de Ventas, Almacén y Admin no tienen skeletons: muestran pantalla en blanco mientras los datos se fetchan desde Supabase.
@@ -575,7 +575,7 @@ export async function POST(req: Request) {
 | H-02 | `components/production/evaluation-modal.tsx`                                | Media     | Arquitectura / SRP      | ✅ RESUELTO — 2026-04-16 |
 | H-03 | `lib/scheduling-utils.ts`                                                   | Media     | Arquitectura / Cohesión | ✅ RESUELTO — 2026-04-16 |
 | H-04 | `components/production/evaluation-modal.tsx:651` / `tailwind.config.ts`     | Baja      | UI / Design Tokens      | ✅ RESUELTO — 2026-04-16 |
-| H-05 | `app/dashboard/ventas/` · `app/dashboard/almacen/` · `app/dashboard/admin/` | Baja      | UX / Feedback visual    | Pendiente                |
+| H-05 | `app/dashboard/ventas/` · `app/dashboard/almacen/` · `app/dashboard/admin/` | Baja      | UX / Feedback visual    | ✅ RESUELTO — 2026-04-16 |
 
 **Calificación proyectada al cerrar H-01 a H-03: 8.9 / 10**
 
@@ -631,12 +631,7 @@ export async function POST(req: Request) {
 - **Archivos:** `lib/scheduling-utils.ts` (barrel), `lib/scheduling/types.ts`, `lib/scheduling/work-shifts.ts`, `lib/scheduling/planner.ts`, `lib/scheduling/cascade.ts`
 - **Resultado:** 1.225 líneas → 5 líneas de barrel + 4 módulos cohesivos · `isTreatmentStep` `as any` documentado con `// eslint-disable-next-line` inline · `tsc --noEmit` ✓ · cero cambios en importaciones de consumidores
 
-#### Tarea 3.2 — H-05: Skeleton loading en Ventas y Almacén
+#### ✅ Tarea 3.2 — H-05: Skeleton loading en Ventas y Almacén [RESUELTO — 2026-04-16]
 
-- **Archivos:** `components/ui/skeletons.tsx` _(nuevo)_, páginas de ventas y almacén
-- **Pasos:**
-    1. Crear `components/ui/skeletons.tsx` con `TableSkeleton` y `CardGridSkeleton` (ver snippets en H-05).
-    2. Identificar los page-level Server Components de ventas y almacén que hacen fetch de datos.
-    3. Envolver el contenido async en `<Suspense fallback={<TableSkeleton />}>` en cada página.
-    4. Verificar visualmente con throttling de red (Chrome DevTools → Slow 3G).
-- **Criterio de aceptación:** Ventas y Almacén muestran skeleton durante el fetch · no hay layout shift visible cuando los datos llegan · el skeleton desaparece sin flicker.
+- **Archivos:** `components/ui/skeletons.tsx` (nuevo), `app/dashboard/ventas/loading.tsx` (nuevo), `app/dashboard/almacen/loading.tsx` (actualizado), `app/dashboard/almacen/inventario/loading.tsx` (nuevo)
+- **Resultado:** `DashboardHeaderSkeleton`, `CardGridSkeleton`, `TableSkeleton` creados · `loading.tsx` en Ventas y Almacén anticipa el grid de cards · `loading.tsx` en inventario anticipa la tabla · cero cambios en pages existentes · `tsc --noEmit` ✓
